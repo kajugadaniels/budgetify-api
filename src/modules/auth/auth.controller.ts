@@ -27,15 +27,16 @@ import {
   ApiMeEndpoint,
   ApiRefreshEndpoint,
 } from './auth.swagger';
+import { AUTH_ROUTES } from './auth.routes';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
 @ApiTags('Auth')
-@Controller('auth')
+@Controller(AUTH_ROUTES.base)
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
-  @Post('google')
+  @Post(AUTH_ROUTES.google)
   @HttpCode(HttpStatus.OK)
   @Throttle({ auth: { limit: 5, ttl: 60_000 } })
   @ApiGoogleAuthEndpoint()
@@ -49,7 +50,7 @@ export class AuthController {
     );
   }
 
-  @Post('refresh')
+  @Post(AUTH_ROUTES.refresh)
   @HttpCode(HttpStatus.OK)
   @Throttle({ auth: { limit: 10, ttl: 60_000 } })
   @ApiRefreshEndpoint()
@@ -63,7 +64,7 @@ export class AuthController {
     );
   }
 
-  @Post('logout')
+  @Post(AUTH_ROUTES.logout)
   @HttpCode(HttpStatus.OK)
   @Throttle({ auth: { limit: 10, ttl: 60_000 } })
   @ApiLogoutEndpoint()
@@ -71,7 +72,7 @@ export class AuthController {
     return this.authService.logout(body);
   }
 
-  @Get('me')
+  @Get(AUTH_ROUTES.me)
   @UseGuards(JwtAuthGuard)
   @ApiMeEndpoint()
   async me(
