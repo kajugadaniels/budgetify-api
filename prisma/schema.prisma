@@ -1,0 +1,69 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  DISABLED
+}
+
+enum AuthProvider {
+  GOOGLE
+}
+
+model User {
+  id              String         @id @default(uuid()) @db.Uuid
+  email           String         @unique
+  firstName       String?
+  lastName        String?
+  fullName        String?
+  avatarUrl       String?
+  isEmailVerified Boolean        @default(false)
+  status          UserStatus     @default(ACTIVE)
+  lastLoginAt     DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  deletedAt       DateTime?
+  authIdentities  AuthIdentity[]
+  sessions        Session[]
+
+  @@index([status])
+  @@index([deletedAt])
+}
+
+model AuthIdentity {
+  id             String       @id @default(uuid()) @db.Uuid
+  userId         String       @db.Uuid
+  provider       AuthProvider
+  providerUserId String
+  providerEmail  String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerUserId])
+  @@index([userId])
+  @@index([provider, providerEmail])
+}
+
+model Session {
+  id               String    @id @default(uuid()) @db.Uuid
+  userId           String    @db.Uuid
+  refreshTokenHash String
+  userAgent        String?
+  ipAddress        String?
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@index([revokedAt])
+}
