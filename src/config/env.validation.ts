@@ -8,6 +8,9 @@ const envSchema = Joi.object({
   DATABASE_URL: Joi.string()
     .pattern(/^postgres(ql)?:\/\//)
     .required(),
+  DIRECT_DATABASE_URL: Joi.string()
+    .pattern(/^postgres(ql)?:\/\//)
+    .optional(),
   JWT_ACCESS_SECRET: Joi.string().min(32).required(),
   JWT_ACCESS_EXPIRES_IN: Joi.string().default('15m'),
   JWT_REFRESH_SECRET: Joi.string().min(32).required(),
