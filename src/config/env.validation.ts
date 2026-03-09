@@ -18,8 +18,8 @@ const envSchema = Joi.object({
   GOOGLE_CLIENT_ID: Joi.string().optional(),
   GOOGLE_CLIENT_IDS: Joi.string().optional(),
 })
-  .custom((value, helpers) => {
-    if (!value.GOOGLE_CLIENT_ID && !value.GOOGLE_CLIENT_IDS) {
+  .custom((value: Record<string, unknown>, helpers) => {
+    if (!value['GOOGLE_CLIENT_ID'] && !value['GOOGLE_CLIENT_IDS']) {
       return helpers.error('any.custom', {
         message: 'Either GOOGLE_CLIENT_ID or GOOGLE_CLIENT_IDS must be set.',
       });
@@ -37,7 +37,7 @@ export function validateEnv(
   const { error, value } = envSchema.validate(config, {
     abortEarly: false,
     allowUnknown: true,
-  });
+  }) as { error?: Joi.ValidationError; value: Record<string, unknown> };
 
   if (error) {
     throw new Error(`Environment validation failed: ${error.message}`);
