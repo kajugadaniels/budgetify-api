@@ -36,4 +36,4 @@ async function bootstrap() {
   logger.log(`API running on http://localhost:${port}/${API_GLOBAL_PREFIX}`);
 }
 
-bootstrap();
+void bootstrap();
