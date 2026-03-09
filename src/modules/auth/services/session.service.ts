@@ -3,7 +3,7 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
-import { Prisma, Session, User, UserStatus } from '@prisma/client';
+import { Prisma, User, UserStatus } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 
 import { RequestMetadata } from '../../../common/interfaces/request-metadata.interface';
@@ -12,7 +12,6 @@ import { JwtRefreshPayload } from '../interfaces/jwt-refresh-payload.interface';
 import { TokenPair } from '../interfaces/token-pair.interface';
 import { TokenService } from './token.service';
 
-type PrismaExecutor = Prisma.TransactionClient | PrismaService;
 type SessionWithUser = Prisma.SessionGetPayload<{ include: { user: true } }>;
 
 @Injectable()
