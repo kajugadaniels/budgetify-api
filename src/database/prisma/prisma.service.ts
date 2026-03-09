@@ -12,7 +12,7 @@ import ws from 'ws';
 
 import { databaseConfig } from '../../config/database.config';
 
-neonConfig.webSocketConstructor = ws;
+neonConfig.webSocketConstructor = ws as unknown as typeof WebSocket;
 
 @Injectable()
 export class PrismaService
