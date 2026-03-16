@@ -1,8 +1,8 @@
 {
-  "name": "api",
+  "name": "Budgetify",
   "version": "0.0.1",
   "description": "",
-  "author": "",
+  "author": "Nexcode Africa",
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
