@@ -49,11 +49,7 @@ export class EmailService {
     await this.send(to, subject, html);
   }
 
-  private async send(
-    to: string,
-    subject: string,
-    html: string,
-  ): Promise<void> {
+  private async send(to: string, subject: string, html: string): Promise<void> {
     try {
       await this.transporter.sendMail({
         from: `"${this.config.from.name}" <${this.config.from.address}>`,
