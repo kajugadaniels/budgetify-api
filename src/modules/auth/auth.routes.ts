@@ -4,4 +4,8 @@ export const AUTH_ROUTES = {
   refresh: 'refresh',
   logout: 'logout',
   me: 'me',
+  email: {
+    initiate: 'email/initiate',
+    verify: 'email/verify',
+  },
 } as const;
