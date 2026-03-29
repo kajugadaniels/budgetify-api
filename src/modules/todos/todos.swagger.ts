@@ -12,6 +12,7 @@ import {
   ApiOperation,
   ApiParam,
   ApiServiceUnavailableResponse,
+  ApiTooManyRequestsResponse,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { TodoPriority } from '@prisma/client';
@@ -154,6 +155,11 @@ export function ApiCreateCurrentUserTodoEndpoint(): MethodDecorator {
         'Todo image storage is not configured with Cloudinary credentials.',
       type: ApiErrorResponseDto,
     }),
+    ApiTooManyRequestsResponse({
+      description:
+        'Too many todo write requests were sent in a short time. Wait about 15 seconds before trying again.',
+      type: ApiErrorResponseDto,
+    }),
   );
 }
 
@@ -202,6 +208,11 @@ export function ApiUpdateCurrentUserTodoEndpoint(): MethodDecorator {
         'Todo image storage is not configured with Cloudinary credentials.',
       type: ApiErrorResponseDto,
     }),
+    ApiTooManyRequestsResponse({
+      description:
+        'Too many todo write requests were sent in a short time. Wait about 15 seconds before trying again.',
+      type: ApiErrorResponseDto,
+    }),
   );
 }
 
@@ -233,6 +244,11 @@ export function ApiDeleteCurrentUserTodoEndpoint(): MethodDecorator {
     ApiNotFoundResponse({
       description:
         'The requested todo item does not exist for the authenticated user.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiTooManyRequestsResponse({
+      description:
+        'Too many todo write requests were sent in a short time. Wait about 15 seconds before trying again.',
       type: ApiErrorResponseDto,
     }),
   );
@@ -277,6 +293,11 @@ export function ApiDeleteCurrentUserTodoImageEndpoint(): MethodDecorator {
     ApiNotFoundResponse({
       description:
         'The requested todo item or todo image does not exist for the authenticated user.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiTooManyRequestsResponse({
+      description:
+        'Too many todo write requests were sent in a short time. Wait about 15 seconds before trying again.',
       type: ApiErrorResponseDto,
     }),
   );
