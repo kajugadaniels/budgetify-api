@@ -29,19 +29,71 @@ const envSchema = Joi.object({
   GOOGLE_CLIENT_ID: Joi.string().optional(),
   GOOGLE_CLIENT_IDS: Joi.string().optional(),
 
-  // ── SMTP / Email delivery ────────────────────────────────────────────────────
-  SMTP_HOST: Joi.string().required(),
+  // ── Email delivery ───────────────────────────────────────────────────────────
+  // Preferred: Gmail-compatible MAIL_* variables.
+  MAIL_HOST: Joi.string().optional(),
+  MAIL_PORT: Joi.number().port().default(587),
+  MAIL_SECURE: Joi.boolean().default(false),
+  MAIL_USER: Joi.string().optional(),
+  MAIL_PASS: Joi.string().optional(),
+  MAIL_FROM: Joi.string().optional(),
+
+  // Backward-compatible legacy SMTP_* variables.
+  SMTP_HOST: Joi.string().optional(),
   SMTP_PORT: Joi.number().port().default(587),
   SMTP_SECURE: Joi.boolean().default(false),
-  SMTP_USER: Joi.string().required(),
-  SMTP_PASS: Joi.string().required(),
+  SMTP_USER: Joi.string().optional(),
+  SMTP_PASS: Joi.string().optional(),
   EMAIL_FROM_NAME: Joi.string().default('Budgetify'),
-  EMAIL_FROM_ADDRESS: Joi.string().email().required(),
+  EMAIL_FROM_ADDRESS: Joi.string().email().optional(),
 })
   .custom((value: Record<string, unknown>, helpers) => {
     if (!value['GOOGLE_CLIENT_ID'] && !value['GOOGLE_CLIENT_IDS']) {
       return helpers.error('any.custom', {
         message: 'Either GOOGLE_CLIENT_ID or GOOGLE_CLIENT_IDS must be set.',
+      });
+    }
+
+    const hasMailUser = Boolean(value['MAIL_USER']);
+    const hasMailPass = Boolean(value['MAIL_PASS']);
+    const hasLegacyUser = Boolean(value['SMTP_USER']);
+    const hasLegacyPass = Boolean(value['SMTP_PASS']);
+
+    if (hasMailUser !== hasMailPass) {
+      return helpers.error('any.custom', {
+        message: 'MAIL_USER and MAIL_PASS must be provided together.',
+      });
+    }
+
+    if (hasLegacyUser !== hasLegacyPass) {
+      return helpers.error('any.custom', {
+        message: 'SMTP_USER and SMTP_PASS must be provided together.',
+      });
+    }
+
+    if (!hasMailUser && !hasLegacyUser) {
+      return helpers.error('any.custom', {
+        message:
+          'Either MAIL_USER/MAIL_PASS or SMTP_USER/SMTP_PASS must be set.',
+      });
+    }
+
+    if (hasLegacyUser && !value['SMTP_HOST'] && !value['MAIL_HOST']) {
+      return helpers.error('any.custom', {
+        message:
+          'SMTP_HOST is required when using legacy SMTP_USER/SMTP_PASS settings.',
+      });
+    }
+
+    if (
+      !value['MAIL_FROM'] &&
+      !value['EMAIL_FROM_ADDRESS'] &&
+      !value['MAIL_USER'] &&
+      !value['SMTP_USER']
+    ) {
+      return helpers.error('any.custom', {
+        message:
+          'Set MAIL_FROM, EMAIL_FROM_ADDRESS, or an email transport user for the sender address.',
       });
     }
 
