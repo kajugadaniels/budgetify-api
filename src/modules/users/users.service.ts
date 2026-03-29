@@ -69,6 +69,26 @@ export class UsersService {
     );
   }
 
+  /**
+   * Creates a new active user from a successfully verified email OTP.
+   * The email is marked as verified because the OTP proves ownership.
+   * Called inside a Prisma transaction — do not call outside of one.
+   */
+  async createFromEmailVerification(
+    email: string,
+    db?: PrismaExecutor,
+  ): Promise<User> {
+    return this.usersRepository.create(
+      {
+        email: email.toLowerCase(),
+        isEmailVerified: true,
+        lastLoginAt: new Date(),
+        status: UserStatus.ACTIVE,
+      },
+      db,
+    );
+  }
+
   async updateFromGoogleLogin(
     user: User,
     profile: UpsertGoogleUserInput,
