@@ -30,6 +30,12 @@ enum IncomeCategory {
   OTHER
 }
 
+enum TodoPriority {
+  TOP_PRIORITY
+  PRIORITY
+  NOT_PRIORITY
+}
+
 // ─────────────────────────────────────────────────────────────
 // Core user models
 // ─────────────────────────────────────────────────────────────
@@ -50,6 +56,7 @@ model User {
   authIdentities    AuthIdentity[]
   sessions          Session[]
   incomes           Income[]
+  todos             Todo[]
   loginOtpChallenge LoginOtpChallenge?
 
   @@index([status])
@@ -140,4 +147,42 @@ model Income {
   @@index([deletedAt])
   @@index([date])
   @@index([userId, category])
+}
+
+model Todo {
+  id        String       @id @default(uuid()) @db.Uuid
+  userId    String       @db.Uuid
+  name      String
+  price     Decimal      @db.Decimal(15, 2)
+  priority  TodoPriority
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  deletedAt DateTime?
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  images    TodoImage[]
+
+  @@index([userId])
+  @@index([deletedAt])
+  @@index([createdAt])
+  @@index([userId, priority])
+}
+
+model TodoImage {
+  id        String   @id @default(uuid()) @db.Uuid
+  todoId    String   @db.Uuid
+  publicId  String   @unique
+  imageUrl  String
+  width     Int
+  height    Int
+  bytes     Int
+  format    String
+  isPrimary Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+  todo      Todo     @relation(fields: [todoId], references: [id], onDelete: Cascade)
+
+  @@index([todoId])
+  @@index([deletedAt])
+  @@index([todoId, isPrimary])
 }
