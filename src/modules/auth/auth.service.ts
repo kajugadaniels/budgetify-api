@@ -103,8 +103,9 @@ export class AuthService {
    */
   async initiateEmailAuth(
     payload: EmailInitiateRequestDto,
-    _metadata: RequestMetadata,
+    metadata: RequestMetadata,
   ): Promise<EmailInitiateResponseDto> {
+    void metadata;
     const email = payload.email.toLowerCase().trim();
     const existingUser = await this.usersService.findActiveByEmail(email);
 

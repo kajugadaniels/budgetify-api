@@ -169,7 +169,11 @@ export class OtpService {
    * was missing, expired, or simply wrong.
    */
   private assertChallengeIsUsable(
-    challenge: { otpHash: string; otpExpiresAt: Date; attemptCount: number } | null,
+    challenge: {
+      otpHash: string;
+      otpExpiresAt: Date;
+      attemptCount: number;
+    } | null,
     submittedOtp: string,
   ): void {
     if (!challenge) {
@@ -197,9 +201,11 @@ export class OtpService {
    * Increments the attempt counter on whichever record holds the challenge.
    * Fires-and-forgets — a failure here must not mask the primary auth error.
    */
-  private incrementAttemptCount(
-    challenge: { otpHash: string; otpExpiresAt: Date; attemptCount: number },
-  ): Promise<void> {
+  private incrementAttemptCount(challenge: {
+    otpHash: string;
+    otpExpiresAt: Date;
+    attemptCount: number;
+  }): Promise<void> {
     // We cannot pass the transaction here because it may already be committed
     // or rolling back. Use the main prisma client with a best-effort update.
     // The attempt guard above already blocks further attempts immediately.
