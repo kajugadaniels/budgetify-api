@@ -32,8 +32,10 @@ async function bootstrap() {
   app.useGlobalFilters(new HttpExceptionFilter());
   setupSwagger(app);
 
-  await app.listen(port);
-  logger.log(`API running on http://localhost:${port}/${API_GLOBAL_PREFIX}`);
+  await app.listen(port, '0.0.0.0');
+  logger.log(
+    `API running on http://0.0.0.0:${port}/${API_GLOBAL_PREFIX} (LAN reachable)`,
+  );
 }
 
 void bootstrap();
