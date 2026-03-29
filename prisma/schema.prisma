@@ -21,25 +21,35 @@ enum AuthProvider {
   EMAIL
 }
 
+enum IncomeCategory {
+  SALARY
+  FREELANCE
+  DIVIDENDS
+  RENTAL
+  SIDE_HUSTLE
+  OTHER
+}
+
 // ─────────────────────────────────────────────────────────────
 // Core user models
 // ─────────────────────────────────────────────────────────────
 
 model User {
-  id              String              @id @default(uuid()) @db.Uuid
-  email           String              @unique
-  firstName       String?
-  lastName        String?
-  fullName        String?
-  avatarUrl       String?
-  isEmailVerified Boolean             @default(false)
-  status          UserStatus          @default(ACTIVE)
-  lastLoginAt     DateTime?
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
-  deletedAt       DateTime?
-  authIdentities  AuthIdentity[]
-  sessions        Session[]
+  id                String              @id @default(uuid()) @db.Uuid
+  email             String              @unique
+  firstName         String?
+  lastName          String?
+  fullName          String?
+  avatarUrl         String?
+  isEmailVerified   Boolean             @default(false)
+  status            UserStatus          @default(ACTIVE)
+  lastLoginAt       DateTime?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  deletedAt         DateTime?
+  authIdentities    AuthIdentity[]
+  sessions          Session[]
+  incomes           Income[]
   loginOtpChallenge LoginOtpChallenge?
 
   @@index([status])
@@ -112,4 +122,22 @@ model PendingUser {
   updatedAt    DateTime @updatedAt
 
   @@index([otpExpiresAt])
+}
+
+model Income {
+  id        String         @id @default(uuid()) @db.Uuid
+  userId    String         @db.Uuid
+  label     String
+  amount    Decimal        @db.Decimal(15, 2)
+  category  IncomeCategory
+  date      DateTime
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  deletedAt DateTime?
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([deletedAt])
+  @@index([date])
+  @@index([userId, category])
 }
