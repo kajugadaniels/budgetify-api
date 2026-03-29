@@ -1,10 +1,12 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma, User, UserStatus } from '@prisma/client';
 
+import { UpdateUserProfileRequestDto } from './dto/update-user-profile.request.dto';
 import { UserEntity } from './entities/user.entity';
 import { UsersRepository } from './users.repository';
 
@@ -110,9 +112,47 @@ export class UsersService {
     );
   }
 
+  async updateProfileNames(
+    userId: string,
+    payload: UpdateUserProfileRequestDto,
+    db?: PrismaExecutor,
+  ): Promise<UserEntity> {
+    if (payload.firstName === undefined && payload.lastName === undefined) {
+      throw new BadRequestException(
+        'Provide at least one of firstName or lastName to update.',
+      );
+    }
+
+    const user = await this.findActiveByIdOrThrow(userId);
+
+    const nextFirstName = payload.firstName ?? user.firstName;
+    const nextLastName = payload.lastName ?? user.lastName;
+
+    return this.usersRepository.update(
+      user.id,
+      {
+        firstName: nextFirstName,
+        lastName: nextLastName,
+        fullName: this.buildFullName(nextFirstName, nextLastName),
+      },
+      db,
+    );
+  }
+
   private assertUserCanAuthenticate(user: User): void {
     if (user.status !== UserStatus.ACTIVE) {
       throw new ForbiddenException('User account is not allowed to sign in.');
     }
+  }
+
+  private buildFullName(
+    firstName: string | null | undefined,
+    lastName: string | null | undefined,
+  ): string | null {
+    const parts = [firstName, lastName].filter((value): value is string =>
+      Boolean(value && value.trim().length > 0),
+    );
+
+    return parts.length === 0 ? null : parts.join(' ');
   }
 }
