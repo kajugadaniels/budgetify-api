@@ -5,6 +5,7 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 
 import { appConfig } from './config/app.config';
 import { authConfig } from './config/auth.config';
+import { cloudinaryConfig } from './config/cloudinary.config';
 import { databaseConfig } from './config/database.config';
 import { emailConfig } from './config/email.config';
 import { googleConfig } from './config/google.config';
@@ -12,6 +13,7 @@ import { validateEnv } from './config/env.validation';
 import { PrismaModule } from './database/prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { IncomeModule } from './modules/income/income.module';
+import { TodosModule } from './modules/todos/todos.module';
 import { UsersModule } from './modules/users/users.module';
 
 @Module({
@@ -20,7 +22,14 @@ import { UsersModule } from './modules/users/users.module';
       isGlobal: true,
       cache: true,
       expandVariables: true,
-      load: [appConfig, authConfig, databaseConfig, emailConfig, googleConfig],
+      load: [
+        appConfig,
+        authConfig,
+        cloudinaryConfig,
+        databaseConfig,
+        emailConfig,
+        googleConfig,
+      ],
       validate: validateEnv,
     }),
     ThrottlerModule.forRoot([
@@ -47,6 +56,7 @@ import { UsersModule } from './modules/users/users.module';
     PrismaModule,
     UsersModule,
     IncomeModule,
+    TodosModule,
     AuthModule,
   ],
   providers: [
