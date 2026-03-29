@@ -46,6 +46,12 @@ const envSchema = Joi.object({
   SMTP_PASS: Joi.string().optional(),
   EMAIL_FROM_NAME: Joi.string().default('Budgetify'),
   EMAIL_FROM_ADDRESS: Joi.string().email().optional(),
+
+  // ── Cloudinary media storage ───────────────────────────────────────────────
+  CLOUDINARY_CLOUD_NAME: Joi.string().optional(),
+  CLOUDINARY_API_KEY: Joi.string().optional(),
+  CLOUDINARY_API_SECRET: Joi.string().optional(),
+  CLOUDINARY_TODO_FOLDER: Joi.string().default('todos'),
 })
   .custom((value: Record<string, unknown>, helpers) => {
     if (!value['GOOGLE_CLIENT_ID'] && !value['GOOGLE_CLIENT_IDS']) {
@@ -94,6 +100,22 @@ const envSchema = Joi.object({
       return helpers.error('any.custom', {
         message:
           'Set MAIL_FROM, EMAIL_FROM_ADDRESS, or an email transport user for the sender address.',
+      });
+    }
+
+    const hasCloudinaryCloudName = Boolean(value['CLOUDINARY_CLOUD_NAME']);
+    const hasCloudinaryApiKey = Boolean(value['CLOUDINARY_API_KEY']);
+    const hasCloudinaryApiSecret = Boolean(value['CLOUDINARY_API_SECRET']);
+    const configuredCloudinaryValues = [
+      hasCloudinaryCloudName,
+      hasCloudinaryApiKey,
+      hasCloudinaryApiSecret,
+    ].filter(Boolean).length;
+
+    if (configuredCloudinaryValues > 0 && configuredCloudinaryValues < 3) {
+      return helpers.error('any.custom', {
+        message:
+          'CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET must be provided together.',
       });
     }
 
