@@ -6,6 +6,10 @@ datasource db {
   provider = "postgresql"
 }
 
+// ─────────────────────────────────────────────────────────────
+// Enums
+// ─────────────────────────────────────────────────────────────
+
 enum UserStatus {
   ACTIVE
   SUSPENDED
@@ -14,23 +18,29 @@ enum UserStatus {
 
 enum AuthProvider {
   GOOGLE
+  EMAIL
 }
 
+// ─────────────────────────────────────────────────────────────
+// Core user models
+// ─────────────────────────────────────────────────────────────
+
 model User {
-  id              String         @id @default(uuid()) @db.Uuid
-  email           String         @unique
+  id              String              @id @default(uuid()) @db.Uuid
+  email           String              @unique
   firstName       String?
   lastName        String?
   fullName        String?
   avatarUrl       String?
-  isEmailVerified Boolean        @default(false)
-  status          UserStatus     @default(ACTIVE)
+  isEmailVerified Boolean             @default(false)
+  status          UserStatus          @default(ACTIVE)
   lastLoginAt     DateTime?
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
   deletedAt       DateTime?
   authIdentities  AuthIdentity[]
   sessions        Session[]
+  loginOtpChallenge LoginOtpChallenge?
 
   @@index([status])
   @@index([deletedAt])
@@ -66,4 +76,40 @@ model Session {
   @@index([userId])
   @@index([expiresAt])
   @@index([revokedAt])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Email OTP: login challenge for existing verified users
+// One active challenge per user at a time (unique userId).
+// ─────────────────────────────────────────────────────────────
+
+model LoginOtpChallenge {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @unique @db.Uuid
+  otpHash      String
+  otpExpiresAt DateTime
+  attemptCount Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([otpExpiresAt])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Email OTP: pending registration for first-time users
+// Upserted on each request — one record per email at a time.
+// Deleted and replaced by a full User row on successful verify.
+// ─────────────────────────────────────────────────────────────
+
+model PendingUser {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique
+  otpHash      String
+  otpExpiresAt DateTime
+  attemptCount Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([otpExpiresAt])
 }
