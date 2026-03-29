@@ -10,6 +10,7 @@ import {
   ApiOkResponse,
   ApiOperation,
   ApiParam,
+  ApiTooManyRequestsResponse,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 
@@ -69,6 +70,11 @@ export function ApiCreateCurrentUserIncomeEndpoint(): MethodDecorator {
         'Authenticated user account is not allowed to create income records.',
       type: ApiErrorResponseDto,
     }),
+    ApiTooManyRequestsResponse({
+      description:
+        'Too many income write requests were sent in a short time. Wait about 15 seconds before trying again.',
+      type: ApiErrorResponseDto,
+    }),
   );
 }
 
@@ -109,6 +115,11 @@ export function ApiUpdateCurrentUserIncomeEndpoint(): MethodDecorator {
         'The requested income record does not exist for the authenticated user.',
       type: ApiErrorResponseDto,
     }),
+    ApiTooManyRequestsResponse({
+      description:
+        'Too many income write requests were sent in a short time. Wait about 15 seconds before trying again.',
+      type: ApiErrorResponseDto,
+    }),
   );
 }
 
@@ -140,6 +151,11 @@ export function ApiDeleteCurrentUserIncomeEndpoint(): MethodDecorator {
     ApiNotFoundResponse({
       description:
         'The requested income record does not exist for the authenticated user.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiTooManyRequestsResponse({
+      description:
+        'Too many income write requests were sent in a short time. Wait about 15 seconds before trying again.',
       type: ApiErrorResponseDto,
     }),
   );
