@@ -12,6 +12,7 @@ import { googleConfig } from './config/google.config';
 import { validateEnv } from './config/env.validation';
 import { PrismaModule } from './database/prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { ExpensesModule } from './modules/expenses/expenses.module';
 import { IncomeModule } from './modules/income/income.module';
 import { TodosModule } from './modules/todos/todos.module';
 import { UsersModule } from './modules/users/users.module';
@@ -82,6 +83,7 @@ import { UsersModule } from './modules/users/users.module';
     PrismaModule,
     UsersModule,
     IncomeModule,
+    ExpensesModule,
     TodosModule,
     AuthModule,
   ],
