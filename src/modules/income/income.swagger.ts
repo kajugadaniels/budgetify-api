@@ -15,9 +15,35 @@ import {
 } from '@nestjs/swagger';
 
 import { ApiErrorResponseDto } from '../../common/dto/api-error-response.dto';
+import { IncomeCategoryOptionResponseDto } from './dto/income-category-option.response.dto';
 import { CreateIncomeRequestDto } from './dto/create-income.request.dto';
 import { IncomeResponseDto } from './dto/income-response.dto';
 import { UpdateIncomeRequestDto } from './dto/update-income.request.dto';
+
+export function ApiListIncomeCategoriesEndpoint(): MethodDecorator {
+  return applyDecorators(
+    ApiBearerAuth('access-token'),
+    ApiOperation({
+      summary: 'List income categories',
+      description:
+        'Returns the backend-defined income categories available for the income create and update forms.',
+    }),
+    ApiOkResponse({
+      description: 'Income categories retrieved successfully.',
+      type: IncomeCategoryOptionResponseDto,
+      isArray: true,
+    }),
+    ApiUnauthorizedResponse({
+      description: 'Access token is missing, invalid, or expired.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiForbiddenResponse({
+      description:
+        'Authenticated user account is not allowed to access income categories.',
+      type: ApiErrorResponseDto,
+    }),
+  );
+}
 
 export function ApiListCurrentUserIncomeEndpoint(): MethodDecorator {
   return applyDecorators(
