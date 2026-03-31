@@ -7,6 +7,10 @@ import {
 import { Prisma, User, UserStatus } from '@prisma/client';
 
 import { UpdateUserProfileRequestDto } from './dto/update-user-profile.request.dto';
+import {
+  AvatarImageStorageService,
+  AvatarUploadFile,
+} from './services/avatar-image-storage.service';
 import { UserEntity } from './entities/user.entity';
 import { UsersRepository } from './users.repository';
 
@@ -23,7 +27,10 @@ type PrismaExecutor = Prisma.TransactionClient | undefined;
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly usersRepository: UsersRepository) {}
+  constructor(
+    private readonly usersRepository: UsersRepository,
+    private readonly avatarImageStorageService: AvatarImageStorageService,
+  ) {}
 
   async findActiveByIdOrThrow(id: string): Promise<UserEntity> {
     const user = await this.usersRepository.findById(id);
@@ -134,6 +141,32 @@ export class UsersService {
         firstName: nextFirstName,
         lastName: nextLastName,
         fullName: this.buildFullName(nextFirstName, nextLastName),
+      },
+      db,
+    );
+  }
+
+  async updateProfileAvatar(
+    userId: string,
+    file: AvatarUploadFile | undefined,
+    db?: PrismaExecutor,
+  ): Promise<UserEntity> {
+    if (!file) {
+      throw new BadRequestException('Provide a profile image to update.');
+    }
+
+    const user = await this.findActiveByIdOrThrow(userId);
+    const displayName = user.fullName ?? user.email;
+    const uploadedAvatar = await this.avatarImageStorageService.uploadAvatar({
+      userId: user.id,
+      displayName,
+      file,
+    });
+
+    return this.usersRepository.update(
+      user.id,
+      {
+        avatarUrl: uploadedAvatar.imageUrl,
       },
       db,
     );
