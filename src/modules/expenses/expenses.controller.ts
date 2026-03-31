@@ -9,6 +9,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
@@ -20,6 +21,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CreateExpenseRequestDto } from './dto/create-expense.request.dto';
 import { ExpenseCategoryOptionResponseDto } from './dto/expense-category-option.response.dto';
 import { ExpenseResponseDto } from './dto/expense-response.dto';
+import { ListExpensesQueryDto } from './dto/list-expenses.query.dto';
 import { UpdateExpenseRequestDto } from './dto/update-expense.request.dto';
 import { EXPENSES_ROUTES } from './expenses.routes';
 import { ExpensesMapper } from './mappers/expenses.mapper';
@@ -48,9 +50,11 @@ export class ExpensesController {
   @ApiListCurrentUserExpensesEndpoint()
   async listCurrentUserExpenses(
     @CurrentUser() user: AuthenticatedRequestUser,
+    @Query() query: ListExpensesQueryDto,
   ): Promise<ExpenseResponseDto[]> {
     const expenses = await this.expensesService.listCurrentUserExpenses(
       user.userId,
+      query,
     );
 
     return ExpensesMapper.toExpenseResponseList(expenses);
