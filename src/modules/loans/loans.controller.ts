@@ -20,7 +20,9 @@ import type { AuthenticatedRequestUser } from '../../common/interfaces/authentic
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CreateLoanRequestDto } from './dto/create-loan.request.dto';
 import { ListLoansQueryDto } from './dto/list-loans.query.dto';
+import { LoanSettlementResponseDto } from './dto/loan-settlement-response.dto';
 import { LoanResponseDto } from './dto/loan-response.dto';
+import { SendLoanToExpenseRequestDto } from './dto/send-loan-to-expense.request.dto';
 import { UpdateLoanRequestDto } from './dto/update-loan.request.dto';
 import { LoansMapper } from './mappers/loans.mapper';
 import { LOANS_ROUTES } from './loans.routes';
@@ -29,6 +31,7 @@ import {
   ApiCreateCurrentUserLoanEndpoint,
   ApiDeleteCurrentUserLoanEndpoint,
   ApiListCurrentUserLoansEndpoint,
+  ApiSendCurrentUserLoanToExpenseEndpoint,
   ApiUpdateCurrentUserLoanEndpoint,
 } from './loans.swagger';
 
@@ -66,6 +69,24 @@ export class LoansController {
     );
 
     return LoansMapper.toLoanResponse(loan);
+  }
+
+  @Post(LOANS_ROUTES.sendToExpense)
+  @HttpCode(HttpStatus.CREATED)
+  @Throttle({ write: { limit: 1, ttl: 15_000, blockDuration: 15_000 } })
+  @ApiSendCurrentUserLoanToExpenseEndpoint()
+  async sendCurrentUserLoanToExpense(
+    @CurrentUser() user: AuthenticatedRequestUser,
+    @Param('loanId', ParseUUIDPipe) loanId: string,
+    @Body() body: SendLoanToExpenseRequestDto,
+  ): Promise<LoanSettlementResponseDto> {
+    const result = await this.loansService.sendCurrentUserLoanToExpense(
+      user.userId,
+      loanId,
+      body,
+    );
+
+    return LoansMapper.toLoanSettlementResponse(result);
   }
 
   @Patch(LOANS_ROUTES.byId)
