@@ -2,6 +2,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { TodoPriority } from '@prisma/client';
 import { Transform } from 'class-transformer';
 import {
+  IsBoolean,
   IsEnum,
   IsNotEmpty,
   IsNumber,
@@ -23,6 +24,22 @@ function normalizePrice(value: unknown): unknown {
     const normalized = value.replace(/,/g, '').trim();
 
     return normalized.length === 0 ? undefined : Number(normalized);
+  }
+
+  return value;
+}
+
+function normalizeDone(value: unknown): unknown {
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+
+    if (normalized === 'true') {
+      return true;
+    }
+
+    if (normalized === 'false') {
+      return false;
+    }
   }
 
   return value;
@@ -62,4 +79,13 @@ export class CreateTodoRequestDto {
     message: 'Priority must be a valid todo priority.',
   })
   priority!: TodoPriority;
+
+  @ApiProperty({
+    description: 'Whether the todo item is already done.',
+    example: false,
+    default: false,
+  })
+  @Transform(({ value }) => normalizeDone(value))
+  @IsBoolean({ message: 'Done must be a valid boolean value.' })
+  done: boolean = false;
 }
