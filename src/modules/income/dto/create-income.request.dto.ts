@@ -2,6 +2,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { IncomeCategory } from '@prisma/client';
 import { Transform } from 'class-transformer';
 import {
+  IsBoolean,
   IsEnum,
   IsISO8601,
   IsNotEmpty,
@@ -24,6 +25,22 @@ function normalizeAmount(value: unknown): unknown {
     const normalized = value.replace(/,/g, '').trim();
 
     return normalized.length === 0 ? undefined : Number(normalized);
+  }
+
+  return value;
+}
+
+function normalizeReceived(value: unknown): unknown {
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+
+    if (normalized === 'true') {
+      return true;
+    }
+
+    if (normalized === 'false') {
+      return false;
+    }
   }
 
   return value;
@@ -71,4 +88,15 @@ export class CreateIncomeRequestDto {
   })
   @IsISO8601({}, { message: 'Date must be a valid ISO 8601 timestamp.' })
   date!: string;
+
+  @ApiProperty({
+    description:
+      'Whether this income has already been received. Defaults to false when omitted.',
+    example: true,
+    required: false,
+    default: false,
+  })
+  @Transform(({ value }) => normalizeReceived(value))
+  @IsBoolean({ message: 'Received must be either true or false.' })
+  received: boolean = false;
 }
