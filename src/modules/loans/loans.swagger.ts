@@ -17,7 +17,9 @@ import {
 
 import { ApiErrorResponseDto } from '../../common/dto/api-error-response.dto';
 import { CreateLoanRequestDto } from './dto/create-loan.request.dto';
+import { LoanSettlementResponseDto } from './dto/loan-settlement-response.dto';
 import { LoanResponseDto } from './dto/loan-response.dto';
+import { SendLoanToExpenseRequestDto } from './dto/send-loan-to-expense.request.dto';
 import { UpdateLoanRequestDto } from './dto/update-loan.request.dto';
 
 export function ApiListCurrentUserLoansEndpoint(): MethodDecorator {
@@ -163,6 +165,51 @@ export function ApiDeleteCurrentUserLoanEndpoint(): MethodDecorator {
     ApiForbiddenResponse({
       description:
         'Authenticated user account is not allowed to delete loan records.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiNotFoundResponse({
+      description:
+        'The requested loan record does not exist for the authenticated user.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiTooManyRequestsResponse({
+      description:
+        'Too many loan write requests were sent in a short time. Wait about 15 seconds before trying again.',
+      type: ApiErrorResponseDto,
+    }),
+  );
+}
+
+export function ApiSendCurrentUserLoanToExpenseEndpoint(): MethodDecorator {
+  return applyDecorators(
+    ApiBearerAuth('access-token'),
+    ApiOperation({
+      summary: 'Send a loan to expenses',
+      description:
+        'Creates one expense entry in the LOAN category from an unpaid loan record owned by the authenticated user, then marks that loan as paid inside the same transaction.',
+    }),
+    ApiParam({
+      name: 'loanId',
+      description: 'UUID of the loan record to settle into expenses.',
+      format: 'uuid',
+    }),
+    ApiBody({ type: SendLoanToExpenseRequestDto }),
+    ApiCreatedResponse({
+      description: 'Loan was sent to expenses successfully and marked as paid.',
+      type: LoanSettlementResponseDto,
+    }),
+    ApiBadRequestResponse({
+      description:
+        'Request validation failed or the loan is already marked as paid.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiUnauthorizedResponse({
+      description: 'Access token is missing, invalid, or expired.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiForbiddenResponse({
+      description:
+        'Authenticated user account is not allowed to settle loan records.',
       type: ApiErrorResponseDto,
     }),
     ApiNotFoundResponse({
