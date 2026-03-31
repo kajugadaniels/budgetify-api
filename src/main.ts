@@ -12,11 +12,12 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
   const port = configService.getOrThrow<number>('app.port');
+  const frontendUrl = configService.get<string>('FRONTEND_URL');
 
   app.setGlobalPrefix(API_GLOBAL_PREFIX);
   app.enableShutdownHooks();
   app.enableCors({
-    origin: true,
+    origin: frontendUrl ?? true,
     credentials: true,
   });
   app.useGlobalPipes(
