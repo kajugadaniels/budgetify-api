@@ -8,6 +8,7 @@ import { Expense, Prisma } from '@prisma/client';
 import { UsersService } from '../users/users.service';
 import { CreateExpenseRequestDto } from './dto/create-expense.request.dto';
 import { ExpenseCategoryOptionResponseDto } from './dto/expense-category-option.response.dto';
+import { ListExpensesQueryDto } from './dto/list-expenses.query.dto';
 import { UpdateExpenseRequestDto } from './dto/update-expense.request.dto';
 import { EXPENSE_CATEGORY_OPTIONS } from './expense-category-options';
 import { ExpensesRepository } from './expenses.repository';
@@ -19,10 +20,18 @@ export class ExpensesService {
     private readonly usersService: UsersService,
   ) {}
 
-  async listCurrentUserExpenses(userId: string): Promise<Expense[]> {
+  async listCurrentUserExpenses(
+    userId: string,
+    query: ListExpensesQueryDto,
+  ): Promise<Expense[]> {
     await this.usersService.findActiveByIdOrThrow(userId);
 
-    return this.expensesRepository.findManyByUserId(userId);
+    const { dateFrom, dateTo } = this.buildExpenseMonthRange(query);
+
+    return this.expensesRepository.findManyByUserId(userId, {
+      dateFrom,
+      dateTo,
+    });
   }
 
   listExpenseCategories(): ExpenseCategoryOptionResponseDto[] {
@@ -105,5 +114,19 @@ export class ExpensesService {
     }
 
     return expense;
+  }
+
+  private buildExpenseMonthRange(query: ListExpensesQueryDto): {
+    dateFrom: Date;
+    dateTo: Date;
+  } {
+    const now = new Date();
+    const resolvedYear = query.year ?? now.getUTCFullYear();
+    const resolvedMonthIndex = (query.month ?? now.getUTCMonth() + 1) - 1;
+
+    return {
+      dateFrom: new Date(Date.UTC(resolvedYear, resolvedMonthIndex, 1)),
+      dateTo: new Date(Date.UTC(resolvedYear, resolvedMonthIndex + 1, 1)),
+    };
   }
 }
