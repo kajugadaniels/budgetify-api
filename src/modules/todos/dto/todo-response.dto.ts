@@ -20,6 +20,12 @@ export class TodoResponseDto {
   priority!: TodoPriority;
 
   @ApiProperty({
+    example: false,
+    description: 'Whether the todo item has already been completed.',
+  })
+  done!: boolean;
+
+  @ApiProperty({
     example:
       'https://res.cloudinary.com/demo/image/upload/v1711742100/todos/todo-id/sample.jpg',
     nullable: true,
