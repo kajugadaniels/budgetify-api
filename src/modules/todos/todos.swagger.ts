@@ -43,6 +43,11 @@ function createTodoMultipartSchema(
         enum: Object.values(TodoPriority),
         example: TodoPriority.TOP_PRIORITY,
       },
+      done: {
+        type: 'boolean',
+        example: false,
+        default: false,
+      },
       primaryImageId: {
         type: 'string',
         format: 'uuid',
@@ -127,7 +132,7 @@ export function ApiCreateCurrentUserTodoEndpoint(): MethodDecorator {
     ApiOperation({
       summary: 'Create a todo item with images',
       description:
-        'Creates a new todo item for the authenticated user. At least one image is required. Every uploaded image is cropped to a square 1600×1600 asset, renamed using the todo name plus an upload timestamp and unique numeric suffix, then stored in Cloudinary under the configured todo folder.',
+        'Creates a new todo item for the authenticated user. At least one image is required. The request can also mark the item as already done or not done. Every uploaded image is cropped to a square 1600×1600 asset, renamed using the todo name plus an upload timestamp and unique numeric suffix, then stored in Cloudinary under the configured todo folder.',
     }),
     ApiBody({
       schema: createTodoMultipartSchema(true),
@@ -170,7 +175,7 @@ export function ApiUpdateCurrentUserTodoEndpoint(): MethodDecorator {
     ApiOperation({
       summary: 'Update a todo item and optionally append images',
       description:
-        'Updates one existing todo item owned by the authenticated user. Name, price, and priority can be changed. New images may be appended in the same request, and an existing active image can be promoted to become the primary cover image.',
+        'Updates one existing todo item owned by the authenticated user. Name, price, priority, and done state can be changed. New images may be appended in the same request, and an existing active image can be promoted to become the primary cover image.',
     }),
     ApiParam({
       name: 'todoId',
