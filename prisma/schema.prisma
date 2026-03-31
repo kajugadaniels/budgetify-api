@@ -193,6 +193,7 @@ model Todo {
   name      String
   price     Decimal      @db.Decimal(15, 2)
   priority  TodoPriority
+  done      Boolean      @default(false)
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
   deletedAt DateTime?
@@ -203,6 +204,7 @@ model Todo {
   @@index([deletedAt])
   @@index([createdAt])
   @@index([userId, priority])
+  @@index([userId, done])
 }
 
 model TodoImage {
