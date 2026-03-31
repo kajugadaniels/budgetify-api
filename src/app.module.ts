@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { ExecutionContext, Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
@@ -10,12 +10,32 @@ import { databaseConfig } from './config/database.config';
 import { emailConfig } from './config/email.config';
 import { googleConfig } from './config/google.config';
 import { validateEnv } from './config/env.validation';
+import { API_GLOBAL_PREFIX } from './common/constants/api.constants';
 import { PrismaModule } from './database/prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { ExpensesModule } from './modules/expenses/expenses.module';
 import { IncomeModule } from './modules/income/income.module';
 import { TodosModule } from './modules/todos/todos.module';
 import { UsersModule } from './modules/users/users.module';
+
+const AUTH_PREFIX = `/${API_GLOBAL_PREFIX}/auth`;
+const OTP_INITIATE_PREFIX = `${AUTH_PREFIX}/email/initiate`;
+const WRITE_METHODS = new Set(['POST', 'PATCH', 'PUT', 'DELETE']);
+
+function getRequestSignature(context: ExecutionContext): {
+  method: string;
+  url: string;
+} {
+  const request = context.switchToHttp().getRequest<{
+    method?: string;
+    url?: string;
+  }>();
+
+  return {
+    method: request.method ?? 'GET',
+    url: request.url ?? '',
+  };
+}
 
 @Module({
   imports: [
@@ -62,6 +82,11 @@ import { UsersModule } from './modules/users/users.module';
           name: 'auth',
           ttl: 60_000,
           limit: 10,
+          skipIf: (context) => {
+            const { method, url } = getRequestSignature(context);
+
+            return !url.startsWith(AUTH_PREFIX) || method === 'GET';
+          },
         },
         {
           // Very tight limit for OTP initiation to prevent email flooding.
@@ -69,6 +94,13 @@ import { UsersModule } from './modules/users/users.module';
           name: 'otp',
           ttl: 900_000,
           limit: 3,
+          skipIf: (context) => {
+            const { method, url } = getRequestSignature(context);
+
+            return !(
+              method === 'POST' && url.startsWith(OTP_INITIATE_PREFIX)
+            );
+          },
         },
         {
           // Protect write-heavy finance mutations from rapid duplicate submissions.
@@ -77,6 +109,11 @@ import { UsersModule } from './modules/users/users.module';
           ttl: 15_000,
           limit: 1,
           blockDuration: 15_000,
+          skipIf: (context) => {
+            const { method, url } = getRequestSignature(context);
+
+            return !WRITE_METHODS.has(method) || url.startsWith(AUTH_PREFIX);
+          },
         },
       ],
     }),
