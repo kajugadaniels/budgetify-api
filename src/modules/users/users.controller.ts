@@ -1,4 +1,4 @@
-import { Body, Controller, Patch, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Patch, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -9,15 +9,30 @@ import { UserProfileResponseDto } from './dto/user-profile-response.dto';
 import { UsersMapper } from './mappers/users.mapper';
 import { USERS_ROUTES } from './users.routes';
 import { UsersService } from './users.service';
-import { ApiUpdateCurrentUserEndpoint } from './users.swagger';
+import {
+  ApiGetCurrentUserEndpoint,
+  ApiUpdateCurrentUserEndpoint,
+} from './users.swagger';
 
 @ApiTags('Users')
 @Controller(USERS_ROUTES.base)
+@UseGuards(JwtAuthGuard)
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
+  @Get(USERS_ROUTES.me)
+  @ApiGetCurrentUserEndpoint()
+  async getCurrentUser(
+    @CurrentUser() user: AuthenticatedRequestUser,
+  ): Promise<UserProfileResponseDto> {
+    const currentUser = await this.usersService.findActiveByIdOrThrow(
+      user.userId,
+    );
+
+    return UsersMapper.toUserProfileResponse(currentUser);
+  }
+
   @Patch(USERS_ROUTES.me)
-  @UseGuards(JwtAuthGuard)
   @ApiUpdateCurrentUserEndpoint()
   async updateCurrentUser(
     @CurrentUser() user: AuthenticatedRequestUser,
