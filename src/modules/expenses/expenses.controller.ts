@@ -18,6 +18,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthenticatedRequestUser } from '../../common/interfaces/authenticated-request.interface';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CreateExpenseRequestDto } from './dto/create-expense.request.dto';
+import { ExpenseCategoryOptionResponseDto } from './dto/expense-category-option.response.dto';
 import { ExpenseResponseDto } from './dto/expense-response.dto';
 import { UpdateExpenseRequestDto } from './dto/update-expense.request.dto';
 import { EXPENSES_ROUTES } from './expenses.routes';
@@ -26,6 +27,7 @@ import { ExpensesService } from './expenses.service';
 import {
   ApiCreateCurrentUserExpenseEndpoint,
   ApiDeleteCurrentUserExpenseEndpoint,
+  ApiListExpenseCategoriesEndpoint,
   ApiListCurrentUserExpensesEndpoint,
   ApiUpdateCurrentUserExpenseEndpoint,
 } from './expenses.swagger';
@@ -35,6 +37,12 @@ import {
 @UseGuards(JwtAuthGuard)
 export class ExpensesController {
   constructor(private readonly expensesService: ExpensesService) {}
+
+  @Get(EXPENSES_ROUTES.categories)
+  @ApiListExpenseCategoriesEndpoint()
+  listExpenseCategories(): ExpenseCategoryOptionResponseDto[] {
+    return this.expensesService.listExpenseCategories();
+  }
 
   @Get()
   @ApiListCurrentUserExpensesEndpoint()
