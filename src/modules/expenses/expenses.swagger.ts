@@ -16,8 +16,34 @@ import {
 
 import { ApiErrorResponseDto } from '../../common/dto/api-error-response.dto';
 import { CreateExpenseRequestDto } from './dto/create-expense.request.dto';
+import { ExpenseCategoryOptionResponseDto } from './dto/expense-category-option.response.dto';
 import { ExpenseResponseDto } from './dto/expense-response.dto';
 import { UpdateExpenseRequestDto } from './dto/update-expense.request.dto';
+
+export function ApiListExpenseCategoriesEndpoint(): MethodDecorator {
+  return applyDecorators(
+    ApiBearerAuth('access-token'),
+    ApiOperation({
+      summary: 'List expense categories',
+      description:
+        'Returns the supported expense categories that can be used when creating or updating an expense record.',
+    }),
+    ApiOkResponse({
+      description: 'Expense categories retrieved successfully.',
+      type: ExpenseCategoryOptionResponseDto,
+      isArray: true,
+    }),
+    ApiUnauthorizedResponse({
+      description: 'Access token is missing, invalid, or expired.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiForbiddenResponse({
+      description:
+        'Authenticated user account is not allowed to access expense categories.',
+      type: ApiErrorResponseDto,
+    }),
+  );
+}
 
 export function ApiListCurrentUserExpensesEndpoint(): MethodDecorator {
   return applyDecorators(
