@@ -97,9 +97,7 @@ function getRequestSignature(context: ExecutionContext): {
           skipIf: (context) => {
             const { method, url } = getRequestSignature(context);
 
-            return !(
-              method === 'POST' && url.startsWith(OTP_INITIATE_PREFIX)
-            );
+            return !(method === 'POST' && url.startsWith(OTP_INITIATE_PREFIX));
           },
         },
         {
