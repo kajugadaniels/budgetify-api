@@ -29,6 +29,10 @@ export class LoansService {
   ): Promise<Loan[]> {
     await this.usersService.findActiveByIdOrThrow(userId);
 
+    if (query.month === undefined && query.year === undefined) {
+      return this.loansRepository.findManyByUserId(userId);
+    }
+
     const { dateFrom, dateTo } = this.buildLoanMonthRange(query);
 
     return this.loansRepository.findManyByUserId(userId, {
