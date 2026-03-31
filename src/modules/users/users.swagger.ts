@@ -3,6 +3,7 @@ import {
   ApiBadRequestResponse,
   ApiBearerAuth,
   ApiBody,
+  ApiConsumes,
   ApiForbiddenResponse,
   ApiOkResponse,
   ApiOperation,
@@ -10,6 +11,7 @@ import {
 } from '@nestjs/swagger';
 
 import { ApiErrorResponseDto } from '../../common/dto/api-error-response.dto';
+import { UploadUserAvatarRequestDto } from './dto/upload-user-avatar.request.dto';
 import { UserProfileResponseDto } from './dto/user-profile-response.dto';
 import { UpdateUserProfileRequestDto } from './dto/update-user-profile.request.dto';
 
@@ -64,6 +66,38 @@ export function ApiGetCurrentUserEndpoint(): MethodDecorator {
     ApiForbiddenResponse({
       description:
         'Authenticated user account is not allowed to access profile data.',
+      type: ApiErrorResponseDto,
+    }),
+  );
+}
+
+export function ApiUploadCurrentUserAvatarEndpoint(): MethodDecorator {
+  return applyDecorators(
+    ApiBearerAuth('access-token'),
+    ApiOperation({
+      summary: 'Upload current user avatar',
+      description:
+        "Uploads and replaces the authenticated user's profile image. " +
+        'The avatar is cropped to a square asset and stored in Cloudinary.',
+    }),
+    ApiConsumes('multipart/form-data'),
+    ApiBody({ type: UploadUserAvatarRequestDto }),
+    ApiOkResponse({
+      description: 'Profile avatar updated successfully.',
+      type: UserProfileResponseDto,
+    }),
+    ApiBadRequestResponse({
+      description:
+        'Request validation failed or the uploaded image is invalid.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiUnauthorizedResponse({
+      description: 'Access token is missing, invalid, or expired.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiForbiddenResponse({
+      description:
+        'Authenticated user account is not allowed to update profile data.',
       type: ApiErrorResponseDto,
     }),
   );
