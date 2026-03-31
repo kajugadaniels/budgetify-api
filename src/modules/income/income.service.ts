@@ -41,6 +41,7 @@ export class IncomeService {
       amount: new Prisma.Decimal(payload.amount),
       category: payload.category,
       date: new Date(payload.date),
+      received: payload.received,
     });
   }
 
@@ -53,7 +54,8 @@ export class IncomeService {
       payload.label === undefined &&
       payload.amount === undefined &&
       payload.category === undefined &&
-      payload.date === undefined
+      payload.date === undefined &&
+      payload.received === undefined
     ) {
       throw new BadRequestException(
         'Provide at least one income field to update.',
@@ -72,6 +74,7 @@ export class IncomeService {
           : new Prisma.Decimal(payload.amount),
       category: payload.category,
       date: payload.date === undefined ? undefined : new Date(payload.date),
+      received: payload.received,
     });
   }
 
