@@ -55,6 +55,7 @@ export class TodosService {
       name: payload.name,
       price: new Prisma.Decimal(payload.price),
       priority: payload.priority,
+      done: payload.done,
     });
 
     const uploadedImages = await this.uploadTodoImages(
@@ -96,6 +97,7 @@ export class TodosService {
       payload.name === undefined &&
       payload.price === undefined &&
       payload.priority === undefined &&
+      payload.done === undefined &&
       payload.primaryImageId === undefined &&
       files.length === 0
     ) {
@@ -142,6 +144,7 @@ export class TodosService {
                 ? undefined
                 : new Prisma.Decimal(payload.price),
             priority: payload.priority,
+            done: payload.done,
           },
           tx,
         );
