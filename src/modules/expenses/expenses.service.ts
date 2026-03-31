@@ -7,7 +7,9 @@ import { Expense, Prisma } from '@prisma/client';
 
 import { UsersService } from '../users/users.service';
 import { CreateExpenseRequestDto } from './dto/create-expense.request.dto';
+import { ExpenseCategoryOptionResponseDto } from './dto/expense-category-option.response.dto';
 import { UpdateExpenseRequestDto } from './dto/update-expense.request.dto';
+import { EXPENSE_CATEGORY_OPTIONS } from './expense-category-options';
 import { ExpensesRepository } from './expenses.repository';
 
 @Injectable()
@@ -21,6 +23,10 @@ export class ExpensesService {
     await this.usersService.findActiveByIdOrThrow(userId);
 
     return this.expensesRepository.findManyByUserId(userId);
+  }
+
+  listExpenseCategories(): ExpenseCategoryOptionResponseDto[] {
+    return EXPENSE_CATEGORY_OPTIONS.map((option) => ({ ...option }));
   }
 
   async createCurrentUserExpense(
