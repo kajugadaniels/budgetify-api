@@ -18,6 +18,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthenticatedRequestUser } from '../../common/interfaces/authenticated-request.interface';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CreateIncomeRequestDto } from './dto/create-income.request.dto';
+import { IncomeCategoryOptionResponseDto } from './dto/income-category-option.response.dto';
 import { IncomeResponseDto } from './dto/income-response.dto';
 import { UpdateIncomeRequestDto } from './dto/update-income.request.dto';
 import { INCOME_ROUTES } from './income.routes';
@@ -26,6 +27,7 @@ import { IncomeService } from './income.service';
 import {
   ApiCreateCurrentUserIncomeEndpoint,
   ApiDeleteCurrentUserIncomeEndpoint,
+  ApiListIncomeCategoriesEndpoint,
   ApiListCurrentUserIncomeEndpoint,
   ApiUpdateCurrentUserIncomeEndpoint,
 } from './income.swagger';
@@ -35,6 +37,12 @@ import {
 @UseGuards(JwtAuthGuard)
 export class IncomeController {
   constructor(private readonly incomeService: IncomeService) {}
+
+  @Get(INCOME_ROUTES.categories)
+  @ApiListIncomeCategoriesEndpoint()
+  listIncomeCategories(): IncomeCategoryOptionResponseDto[] {
+    return this.incomeService.listIncomeCategories();
+  }
 
   @Get()
   @ApiListCurrentUserIncomeEndpoint()
