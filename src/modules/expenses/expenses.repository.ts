@@ -11,12 +11,23 @@ export class ExpensesRepository {
 
   async findManyByUserId(
     userId: string,
+    options?: {
+      dateFrom?: Date;
+      dateTo?: Date;
+    },
     db: PrismaExecutor = this.prisma,
   ): Promise<Expense[]> {
     return db.expense.findMany({
       where: {
         userId,
         deletedAt: null,
+        date:
+          options?.dateFrom && options?.dateTo
+            ? {
+                gte: options.dateFrom,
+                lt: options.dateTo,
+              }
+            : undefined,
       },
       orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
     });
