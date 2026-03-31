@@ -1,5 +1,7 @@
-import { Loan } from '@prisma/client';
+import { Expense, Loan } from '@prisma/client';
 
+import { ExpensesMapper } from '../../expenses/mappers/expenses.mapper';
+import { LoanSettlementResponseDto } from '../dto/loan-settlement-response.dto';
 import { LoanResponseDto } from '../dto/loan-response.dto';
 
 export class LoansMapper {
@@ -18,5 +20,15 @@ export class LoansMapper {
 
   static toLoanResponseList(loans: Loan[]): LoanResponseDto[] {
     return loans.map((loan) => LoansMapper.toLoanResponse(loan));
+  }
+
+  static toLoanSettlementResponse(payload: {
+    loan: Loan;
+    expense: Expense;
+  }): LoanSettlementResponseDto {
+    return {
+      loan: LoansMapper.toLoanResponse(payload.loan),
+      expense: ExpensesMapper.toExpenseResponse(payload.expense),
+    };
   }
 }
