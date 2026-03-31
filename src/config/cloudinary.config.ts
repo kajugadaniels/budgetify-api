@@ -11,4 +11,5 @@ export const cloudinaryConfig = registerAs('cloudinary', () => ({
   apiKey: firstDefined(process.env.CLOUDINARY_API_KEY) ?? '',
   apiSecret: firstDefined(process.env.CLOUDINARY_API_SECRET) ?? '',
   todoFolder: firstDefined(process.env.CLOUDINARY_TODO_FOLDER) ?? 'todos',
+  avatarFolder: firstDefined(process.env.CLOUDINARY_AVATAR_FOLDER) ?? 'avatars',
 }));
