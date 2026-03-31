@@ -10,6 +10,7 @@ export class IncomeMapper {
       amount: Number(income.amount),
       category: income.category,
       date: income.date,
+      received: income.received,
       createdAt: income.createdAt,
       updatedAt: income.updatedAt,
     };
