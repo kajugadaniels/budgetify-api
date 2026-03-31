@@ -9,6 +9,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
@@ -20,6 +21,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CreateIncomeRequestDto } from './dto/create-income.request.dto';
 import { IncomeCategoryOptionResponseDto } from './dto/income-category-option.response.dto';
 import { IncomeResponseDto } from './dto/income-response.dto';
+import { ListIncomeQueryDto } from './dto/list-income.query.dto';
 import { UpdateIncomeRequestDto } from './dto/update-income.request.dto';
 import { INCOME_ROUTES } from './income.routes';
 import { IncomeMapper } from './mappers/income.mapper';
@@ -48,8 +50,12 @@ export class IncomeController {
   @ApiListCurrentUserIncomeEndpoint()
   async listCurrentUserIncome(
     @CurrentUser() user: AuthenticatedRequestUser,
+    @Query() query: ListIncomeQueryDto,
   ): Promise<IncomeResponseDto[]> {
-    const incomes = await this.incomeService.listCurrentUserIncome(user.userId);
+    const incomes = await this.incomeService.listCurrentUserIncome(
+      user.userId,
+      query,
+    );
 
     return IncomeMapper.toIncomeResponseList(incomes);
   }
