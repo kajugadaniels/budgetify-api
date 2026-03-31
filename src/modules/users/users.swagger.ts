@@ -44,3 +44,27 @@ export function ApiUpdateCurrentUserEndpoint(): MethodDecorator {
     }),
   );
 }
+
+export function ApiGetCurrentUserEndpoint(): MethodDecorator {
+  return applyDecorators(
+    ApiBearerAuth('access-token'),
+    ApiOperation({
+      summary: 'Get current user profile',
+      description:
+        "Returns the authenticated user's current profile information.",
+    }),
+    ApiOkResponse({
+      description: 'Current user profile returned successfully.',
+      type: UserProfileResponseDto,
+    }),
+    ApiUnauthorizedResponse({
+      description: 'Access token is missing, invalid, or expired.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiForbiddenResponse({
+      description:
+        'Authenticated user account is not allowed to access profile data.',
+      type: ApiErrorResponseDto,
+    }),
+  );
+}
