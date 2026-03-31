@@ -7,7 +7,9 @@ import { Income, Prisma } from '@prisma/client';
 
 import { UsersService } from '../users/users.service';
 import { CreateIncomeRequestDto } from './dto/create-income.request.dto';
+import { IncomeCategoryOptionResponseDto } from './dto/income-category-option.response.dto';
 import { UpdateIncomeRequestDto } from './dto/update-income.request.dto';
+import { INCOME_CATEGORY_OPTIONS } from './income-category-options';
 import { IncomeRepository } from './income.repository';
 
 @Injectable()
@@ -21,6 +23,10 @@ export class IncomeService {
     await this.usersService.findActiveByIdOrThrow(userId);
 
     return this.incomeRepository.findManyByUserId(userId);
+  }
+
+  listIncomeCategories(): IncomeCategoryOptionResponseDto[] {
+    return INCOME_CATEGORY_OPTIONS.map((option) => ({ ...option }));
   }
 
   async createCurrentUserIncome(
