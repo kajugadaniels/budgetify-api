@@ -2,6 +2,7 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IncomeCategory } from '@prisma/client';
 import { Transform } from 'class-transformer';
 import {
+  IsBoolean,
   IsEnum,
   IsISO8601,
   IsNumber,
@@ -26,6 +27,24 @@ function normalizeOptionalAmount(value: unknown): unknown {
     const normalized = value.replace(/,/g, '').trim();
 
     return normalized.length === 0 ? undefined : Number(normalized);
+  }
+
+  return value;
+}
+
+function normalizeOptionalReceived(value: unknown): unknown {
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+
+    if (normalized === 'true') {
+      return true;
+    }
+
+    if (normalized === 'false') {
+      return false;
+    }
+
+    return undefined;
   }
 
   return value;
@@ -79,4 +98,14 @@ export class UpdateIncomeRequestDto {
   @IsOptional()
   @IsISO8601({}, { message: 'Date must be a valid ISO 8601 timestamp.' })
   date?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Updated received flag for the income record. Omit to keep the current value.',
+    example: true,
+  })
+  @Transform(({ value }) => normalizeOptionalReceived(value))
+  @IsOptional()
+  @IsBoolean({ message: 'Received must be either true or false.' })
+  received?: boolean;
 }
