@@ -8,6 +8,7 @@ import { Income, Prisma } from '@prisma/client';
 import { UsersService } from '../users/users.service';
 import { CreateIncomeRequestDto } from './dto/create-income.request.dto';
 import { IncomeCategoryOptionResponseDto } from './dto/income-category-option.response.dto';
+import { ListIncomeQueryDto } from './dto/list-income.query.dto';
 import { UpdateIncomeRequestDto } from './dto/update-income.request.dto';
 import { INCOME_CATEGORY_OPTIONS } from './income-category-options';
 import { IncomeRepository } from './income.repository';
@@ -19,10 +20,18 @@ export class IncomeService {
     private readonly usersService: UsersService,
   ) {}
 
-  async listCurrentUserIncome(userId: string): Promise<Income[]> {
+  async listCurrentUserIncome(
+    userId: string,
+    query: ListIncomeQueryDto,
+  ): Promise<Income[]> {
     await this.usersService.findActiveByIdOrThrow(userId);
 
-    return this.incomeRepository.findManyByUserId(userId);
+    const { dateFrom, dateTo } = this.buildIncomeMonthRange(query);
+
+    return this.incomeRepository.findManyByUserId(userId, {
+      dateFrom,
+      dateTo,
+    });
   }
 
   listIncomeCategories(): IncomeCategoryOptionResponseDto[] {
@@ -105,5 +114,19 @@ export class IncomeService {
     }
 
     return income;
+  }
+
+  private buildIncomeMonthRange(query: ListIncomeQueryDto): {
+    dateFrom: Date;
+    dateTo: Date;
+  } {
+    const now = new Date();
+    const resolvedYear = query.year ?? now.getUTCFullYear();
+    const resolvedMonthIndex = (query.month ?? now.getUTCMonth() + 1) - 1;
+
+    return {
+      dateFrom: new Date(Date.UTC(resolvedYear, resolvedMonthIndex, 1)),
+      dateTo: new Date(Date.UTC(resolvedYear, resolvedMonthIndex + 1, 1)),
+    };
   }
 }
