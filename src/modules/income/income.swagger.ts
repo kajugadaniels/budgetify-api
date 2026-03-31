@@ -10,6 +10,7 @@ import {
   ApiOkResponse,
   ApiOperation,
   ApiParam,
+  ApiQuery,
   ApiTooManyRequestsResponse,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
@@ -51,7 +52,23 @@ export function ApiListCurrentUserIncomeEndpoint(): MethodDecorator {
     ApiOperation({
       summary: 'List current user income records',
       description:
-        'Returns all non-deleted income records owned by the authenticated user, ordered from newest to oldest by recorded date.',
+        'Returns non-deleted income records owned by the authenticated user for the requested month and year, ordered from newest to oldest by recorded date. When no query is provided, the current calendar month is used.',
+    }),
+    ApiQuery({
+      name: 'month',
+      required: false,
+      type: Number,
+      example: 3,
+      description:
+        'Optional 1-based month filter applied against the recorded income date.',
+    }),
+    ApiQuery({
+      name: 'year',
+      required: false,
+      type: Number,
+      example: 2026,
+      description:
+        'Optional year filter paired with month. Defaults to the current year.',
     }),
     ApiOkResponse({
       description: 'Income records retrieved successfully.',
