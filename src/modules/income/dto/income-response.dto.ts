@@ -20,6 +20,12 @@ export class IncomeResponseDto {
   @ApiProperty({ example: '2026-03-01T00:00:00.000Z' })
   date!: Date;
 
+  @ApiProperty({
+    example: true,
+    description: 'Whether this income has already been received.',
+  })
+  received!: boolean;
+
   @ApiProperty({ example: '2026-03-29T19:30:00.000Z' })
   createdAt!: Date;
 
