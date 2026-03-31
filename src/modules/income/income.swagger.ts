@@ -76,7 +76,7 @@ export function ApiCreateCurrentUserIncomeEndpoint(): MethodDecorator {
     ApiOperation({
       summary: 'Create an income record',
       description:
-        'Creates a new income record for the authenticated user using the same inputs captured by the Flutter income form: source label, amount, category, and date.',
+        'Creates a new income record for the authenticated user using the same inputs captured by the income form: source label, amount, category, date, and received state.',
     }),
     ApiBody({ type: CreateIncomeRequestDto }),
     ApiCreatedResponse({
@@ -110,7 +110,7 @@ export function ApiUpdateCurrentUserIncomeEndpoint(): MethodDecorator {
     ApiOperation({
       summary: 'Update an income record',
       description:
-        'Updates one existing income record owned by the authenticated user. Only the editable income form fields are accepted: label, amount, category, and date.',
+        'Updates one existing income record owned by the authenticated user. Only the editable income form fields are accepted: label, amount, category, date, and received state.',
     }),
     ApiParam({
       name: 'incomeId',
