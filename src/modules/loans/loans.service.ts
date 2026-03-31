@@ -3,11 +3,14 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Loan, Prisma } from '@prisma/client';
+import { Expense, ExpenseCategory, Loan, Prisma } from '@prisma/client';
 
+import { PrismaService } from '../../database/prisma/prisma.service';
+import { ExpensesRepository } from '../expenses/expenses.repository';
 import { UsersService } from '../users/users.service';
 import { CreateLoanRequestDto } from './dto/create-loan.request.dto';
 import { ListLoansQueryDto } from './dto/list-loans.query.dto';
+import { SendLoanToExpenseRequestDto } from './dto/send-loan-to-expense.request.dto';
 import { UpdateLoanRequestDto } from './dto/update-loan.request.dto';
 import { LoansRepository } from './loans.repository';
 
@@ -15,6 +18,8 @@ import { LoansRepository } from './loans.repository';
 export class LoansService {
   constructor(
     private readonly loansRepository: LoansRepository,
+    private readonly expensesRepository: ExpensesRepository,
+    private readonly prisma: PrismaService,
     private readonly usersService: UsersService,
   ) {}
 
@@ -78,6 +83,49 @@ export class LoansService {
       date: payload.date === undefined ? undefined : new Date(payload.date),
       paid: payload.paid,
       note: payload.note,
+    });
+  }
+
+  async sendCurrentUserLoanToExpense(
+    userId: string,
+    loanId: string,
+    payload: SendLoanToExpenseRequestDto,
+  ): Promise<{ loan: Loan; expense: Expense }> {
+    await this.usersService.findActiveByIdOrThrow(userId);
+
+    const loan = await this.findOwnedLoanOrThrow(userId, loanId);
+
+    if (loan.paid) {
+      throw new BadRequestException(
+        'This loan is already marked as paid and cannot be sent to expenses again.',
+      );
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const expense = await this.expensesRepository.create(
+        {
+          userId,
+          label: loan.label,
+          amount: loan.amount,
+          category: ExpenseCategory.LOAN,
+          date: new Date(payload.date),
+          note: payload.note ?? loan.note,
+        },
+        tx,
+      );
+
+      const updatedLoan = await this.loansRepository.update(
+        loan.id,
+        {
+          paid: true,
+        },
+        tx,
+      );
+
+      return {
+        loan: updatedLoan,
+        expense,
+      };
     });
   }
 
