@@ -15,6 +15,7 @@ import { PrismaModule } from './database/prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { ExpensesModule } from './modules/expenses/expenses.module';
 import { IncomeModule } from './modules/income/income.module';
+import { LoansModule } from './modules/loans/loans.module';
 import { TodosModule } from './modules/todos/todos.module';
 import { UsersModule } from './modules/users/users.module';
 
@@ -119,6 +120,7 @@ function getRequestSignature(context: ExecutionContext): {
     UsersModule,
     IncomeModule,
     ExpensesModule,
+    LoansModule,
     TodosModule,
     AuthModule,
   ],
