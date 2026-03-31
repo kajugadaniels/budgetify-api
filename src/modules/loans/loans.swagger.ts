@@ -28,7 +28,7 @@ export function ApiListCurrentUserLoansEndpoint(): MethodDecorator {
     ApiOperation({
       summary: 'List current user loan records',
       description:
-        'Returns non-deleted loan records owned by the authenticated user for the requested month and year, ordered from newest to oldest by recorded date. When no query is provided, the current calendar month is used.',
+        'Returns non-deleted loan records owned by the authenticated user, ordered from newest to oldest by recorded date. When month or year query filters are supplied, only matching recorded dates are returned. When no query is provided, all loan records are returned.',
     }),
     ApiQuery({
       name: 'month',
