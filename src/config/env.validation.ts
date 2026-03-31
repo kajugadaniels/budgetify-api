@@ -5,6 +5,7 @@ const envSchema = Joi.object({
     .valid('development', 'test', 'production')
     .default('development'),
   PORT: Joi.number().port().default(3000),
+  FRONTEND_URL: Joi.string().uri({ scheme: ['http', 'https'] }).optional(),
 
   // ── Database ─────────────────────────────────────────────────────────────────
   DATABASE_URL: Joi.string()
