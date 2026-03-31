@@ -14,6 +14,7 @@ export class TodosMapper {
       name: todo.name,
       price: Number(todo.price),
       priority: todo.priority,
+      done: todo.done,
       coverImageUrl: coverImage?.imageUrl ?? null,
       imageCount: todo.images.length,
       images: todo.images.map((image) =>
