@@ -2,6 +2,7 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { TodoPriority } from '@prisma/client';
 import { Transform } from 'class-transformer';
 import {
+  IsBoolean,
   IsEnum,
   IsNumber,
   IsOptional,
@@ -37,6 +38,24 @@ function normalizeOptionalUuid(value: unknown): unknown {
 
   const normalized = value.trim();
   return normalized.length === 0 ? undefined : normalized;
+}
+
+function normalizeOptionalDone(value: unknown): unknown {
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+
+    if (normalized === 'true') {
+      return true;
+    }
+
+    if (normalized === 'false') {
+      return false;
+    }
+
+    return value;
+  }
+
+  return value;
 }
 
 export class UpdateTodoRequestDto {
@@ -75,6 +94,15 @@ export class UpdateTodoRequestDto {
     message: 'Priority must be a valid todo priority.',
   })
   priority?: TodoPriority;
+
+  @ApiPropertyOptional({
+    description: 'Updated completion state for the todo item.',
+    example: true,
+  })
+  @Transform(({ value }) => normalizeOptionalDone(value))
+  @IsOptional()
+  @IsBoolean({ message: 'Done must be a valid boolean value.' })
+  done?: boolean;
 
   @ApiPropertyOptional({
     description:
