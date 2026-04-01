@@ -1,6 +1,8 @@
 import { Expense, Loan } from '@prisma/client';
 
+import { PaginatedResponse } from '../../../common/interfaces/paginated-response.interface';
 import { ExpensesMapper } from '../../expenses/mappers/expenses.mapper';
+import { PaginatedLoanResponseDto } from '../dto/paginated-loan.response.dto';
 import { LoanSettlementResponseDto } from '../dto/loan-settlement-response.dto';
 import { LoanResponseDto } from '../dto/loan-response.dto';
 
@@ -20,6 +22,15 @@ export class LoansMapper {
 
   static toLoanResponseList(loans: Loan[]): LoanResponseDto[] {
     return loans.map((loan) => LoansMapper.toLoanResponse(loan));
+  }
+
+  static toPaginatedLoanResponse(
+    payload: PaginatedResponse<Loan>,
+  ): PaginatedLoanResponseDto {
+    return {
+      items: LoansMapper.toLoanResponseList(payload.items),
+      meta: payload.meta,
+    };
   }
 
   static toLoanSettlementResponse(payload: {
