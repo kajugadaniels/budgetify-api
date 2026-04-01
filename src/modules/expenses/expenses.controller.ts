@@ -22,6 +22,7 @@ import { CreateExpenseRequestDto } from './dto/create-expense.request.dto';
 import { ExpenseCategoryOptionResponseDto } from './dto/expense-category-option.response.dto';
 import { ExpenseResponseDto } from './dto/expense-response.dto';
 import { ListExpensesQueryDto } from './dto/list-expenses.query.dto';
+import { PaginatedExpenseResponseDto } from './dto/paginated-expense.response.dto';
 import { UpdateExpenseRequestDto } from './dto/update-expense.request.dto';
 import { EXPENSES_ROUTES } from './expenses.routes';
 import { ExpensesMapper } from './mappers/expenses.mapper';
@@ -51,13 +52,13 @@ export class ExpensesController {
   async listCurrentUserExpenses(
     @CurrentUser() user: AuthenticatedRequestUser,
     @Query() query: ListExpensesQueryDto,
-  ): Promise<ExpenseResponseDto[]> {
+  ): Promise<PaginatedExpenseResponseDto> {
     const expenses = await this.expensesService.listCurrentUserExpenses(
       user.userId,
       query,
     );
 
-    return ExpensesMapper.toExpenseResponseList(expenses);
+    return ExpensesMapper.toPaginatedExpenseResponse(expenses);
   }
 
   @Post()
