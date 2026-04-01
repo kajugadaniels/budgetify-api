@@ -18,6 +18,7 @@ import {
 import { ApiErrorResponseDto } from '../../common/dto/api-error-response.dto';
 import { CreateLoanRequestDto } from './dto/create-loan.request.dto';
 import { LoanSettlementResponseDto } from './dto/loan-settlement-response.dto';
+import { PaginatedLoanResponseDto } from './dto/paginated-loan.response.dto';
 import { LoanResponseDto } from './dto/loan-response.dto';
 import { SendLoanToExpenseRequestDto } from './dto/send-loan-to-expense.request.dto';
 import { UpdateLoanRequestDto } from './dto/update-loan.request.dto';
@@ -46,10 +47,30 @@ export function ApiListCurrentUserLoansEndpoint(): MethodDecorator {
       description:
         'Optional year filter paired with month. Defaults to the current year.',
     }),
+    ApiQuery({
+      name: 'paid',
+      required: false,
+      type: Boolean,
+      example: false,
+      description: 'Optional paid-state filter.',
+    }),
+    ApiQuery({
+      name: 'page',
+      required: false,
+      type: Number,
+      example: 1,
+      description: 'Optional 1-based page number. Defaults to 1.',
+    }),
+    ApiQuery({
+      name: 'limit',
+      required: false,
+      type: Number,
+      example: 12,
+      description: 'Optional page size. Defaults to 12.',
+    }),
     ApiOkResponse({
       description: 'Loan records retrieved successfully.',
-      type: LoanResponseDto,
-      isArray: true,
+      type: PaginatedLoanResponseDto,
     }),
     ApiUnauthorizedResponse({
       description: 'Access token is missing, invalid, or expired.',
