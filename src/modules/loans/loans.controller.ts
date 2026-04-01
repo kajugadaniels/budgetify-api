@@ -21,6 +21,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CreateLoanRequestDto } from './dto/create-loan.request.dto';
 import { ListLoansQueryDto } from './dto/list-loans.query.dto';
 import { LoanSettlementResponseDto } from './dto/loan-settlement-response.dto';
+import { PaginatedLoanResponseDto } from './dto/paginated-loan.response.dto';
 import { LoanResponseDto } from './dto/loan-response.dto';
 import { SendLoanToExpenseRequestDto } from './dto/send-loan-to-expense.request.dto';
 import { UpdateLoanRequestDto } from './dto/update-loan.request.dto';
@@ -46,13 +47,13 @@ export class LoansController {
   async listCurrentUserLoans(
     @CurrentUser() user: AuthenticatedRequestUser,
     @Query() query: ListLoansQueryDto,
-  ): Promise<LoanResponseDto[]> {
+  ): Promise<PaginatedLoanResponseDto> {
     const loans = await this.loansService.listCurrentUserLoans(
       user.userId,
       query,
     );
 
-    return LoansMapper.toLoanResponseList(loans);
+    return LoansMapper.toPaginatedLoanResponse(loans);
   }
 
   @Post()
