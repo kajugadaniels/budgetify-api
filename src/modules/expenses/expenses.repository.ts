@@ -1,6 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { Expense, Prisma } from '@prisma/client';
 
+import {
+  PaginatedResponse,
+  createPaginatedResponse,
+} from '../../common/interfaces/paginated-response.interface';
 import { PrismaService } from '../../database/prisma/prisma.service';
 
 type PrismaExecutor = Prisma.TransactionClient | PrismaService;
@@ -14,22 +18,40 @@ export class ExpensesRepository {
     options?: {
       dateFrom?: Date;
       dateTo?: Date;
+      category?: Prisma.ExpenseWhereInput['category'];
+      skip?: number;
+      take?: number;
+      page: number;
+      limit: number;
     },
     db: PrismaExecutor = this.prisma,
-  ): Promise<Expense[]> {
-    return db.expense.findMany({
-      where: {
-        userId,
-        deletedAt: null,
-        date:
-          options?.dateFrom && options?.dateTo
-            ? {
-                gte: options.dateFrom,
-                lt: options.dateTo,
-              }
-            : undefined,
-      },
-      orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
+  ): Promise<PaginatedResponse<Expense>> {
+    const where: Prisma.ExpenseWhereInput = {
+      userId,
+      deletedAt: null,
+      category: options?.category,
+      date:
+        options?.dateFrom && options?.dateTo
+          ? {
+              gte: options.dateFrom,
+              lt: options.dateTo,
+            }
+          : undefined,
+    };
+
+    const [items, totalItems] = await Promise.all([
+      db.expense.findMany({
+        where,
+        orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
+        skip: options?.skip,
+        take: options?.take,
+      }),
+      db.expense.count({ where }),
+    ]);
+
+    return createPaginatedResponse(items, totalItems, {
+      page: options?.page ?? 1,
+      limit: options?.limit ?? Math.max(items.length, 1),
     });
   }
 
