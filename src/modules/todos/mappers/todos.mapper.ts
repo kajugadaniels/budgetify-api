@@ -1,5 +1,7 @@
 import { TodoImage } from '@prisma/client';
 
+import { PaginatedResponse } from '../../../common/interfaces/paginated-response.interface';
+import { PaginatedTodoResponseDto } from '../dto/paginated-todo.response.dto';
 import { TodoImageResponseDto } from '../dto/todo-image-response.dto';
 import { TodoResponseDto } from '../dto/todo-response.dto';
 import { TodoWithImages } from '../todos.repository';
@@ -27,6 +29,15 @@ export class TodosMapper {
 
   static toTodoResponseList(todos: TodoWithImages[]): TodoResponseDto[] {
     return todos.map((todo) => TodosMapper.toTodoResponse(todo));
+  }
+
+  static toPaginatedTodoResponse(
+    payload: PaginatedResponse<TodoWithImages>,
+  ): PaginatedTodoResponseDto {
+    return {
+      items: TodosMapper.toTodoResponseList(payload.items),
+      meta: payload.meta,
+    };
   }
 
   private static toTodoImageResponse(image: TodoImage): TodoImageResponseDto {
