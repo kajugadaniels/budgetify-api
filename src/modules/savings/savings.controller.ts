@@ -20,6 +20,7 @@ import type { AuthenticatedRequestUser } from '../../common/interfaces/authentic
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CreateSavingRequestDto } from './dto/create-saving.request.dto';
 import { ListSavingsQueryDto } from './dto/list-savings.query.dto';
+import { PaginatedSavingResponseDto } from './dto/paginated-saving.response.dto';
 import { SavingResponseDto } from './dto/saving-response.dto';
 import { UpdateSavingRequestDto } from './dto/update-saving.request.dto';
 import { SavingsMapper } from './mappers/savings.mapper';
@@ -43,13 +44,13 @@ export class SavingsController {
   async listCurrentUserSavings(
     @CurrentUser() user: AuthenticatedRequestUser,
     @Query() query: ListSavingsQueryDto,
-  ): Promise<SavingResponseDto[]> {
+  ): Promise<PaginatedSavingResponseDto> {
     const savings = await this.savingsService.listCurrentUserSavings(
       user.userId,
       query,
     );
 
-    return SavingsMapper.toSavingResponseList(savings);
+    return SavingsMapper.toPaginatedSavingResponse(savings);
   }
 
   @Post()
