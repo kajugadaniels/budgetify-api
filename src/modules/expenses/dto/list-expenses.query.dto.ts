@@ -1,17 +1,14 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsInt, IsOptional, Max, Min } from 'class-validator';
+import { ExpenseCategory } from '@prisma/client';
+import { IsEnum, IsInt, IsOptional, Max, Min } from 'class-validator';
 
-function normalizeOptionalInteger(value: unknown): unknown {
-  if (typeof value !== 'string') {
-    return value;
-  }
+import {
+  normalizeOptionalInteger,
+  PaginationQueryDto,
+} from '../../../common/dto/pagination-query.dto';
 
-  const normalized = value.trim();
-  return normalized.length === 0 ? undefined : Number(normalized);
-}
-
-export class ListExpensesQueryDto {
+export class ListExpensesQueryDto extends PaginationQueryDto {
   @ApiPropertyOptional({
     description: 'Month number used to filter recorded expense dates.',
     example: 3,
@@ -37,4 +34,15 @@ export class ListExpensesQueryDto {
   @Min(2000, { message: 'Year must be between 2000 and 2100.' })
   @Max(2100, { message: 'Year must be between 2000 and 2100.' })
   year?: number;
+
+  @ApiPropertyOptional({
+    enum: ExpenseCategory,
+    example: ExpenseCategory.FOOD_DINING,
+    description: 'Optional expense category filter.',
+  })
+  @IsOptional()
+  @IsEnum(ExpenseCategory, {
+    message: 'Category must be a valid expense category.',
+  })
+  category?: ExpenseCategory;
 }
