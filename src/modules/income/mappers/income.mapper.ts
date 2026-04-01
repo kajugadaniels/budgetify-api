@@ -1,5 +1,7 @@
 import { Income } from '@prisma/client';
 
+import { PaginatedResponse } from '../../../common/interfaces/paginated-response.interface';
+import { PaginatedIncomeResponseDto } from '../dto/paginated-income.response.dto';
 import { IncomeResponseDto } from '../dto/income-response.dto';
 
 export class IncomeMapper {
@@ -18,5 +20,14 @@ export class IncomeMapper {
 
   static toIncomeResponseList(incomes: Income[]): IncomeResponseDto[] {
     return incomes.map((income) => IncomeMapper.toIncomeResponse(income));
+  }
+
+  static toPaginatedIncomeResponse(
+    payload: PaginatedResponse<Income>,
+  ): PaginatedIncomeResponseDto {
+    return {
+      items: IncomeMapper.toIncomeResponseList(payload.items),
+      meta: payload.meta,
+    };
   }
 }
