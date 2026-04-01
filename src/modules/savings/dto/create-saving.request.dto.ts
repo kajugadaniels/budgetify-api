@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import {
+  IsBoolean,
   IsISO8601,
   IsNotEmpty,
   IsNumber,
@@ -35,6 +36,22 @@ function normalizeOptionalNote(value: unknown): unknown {
 
   const trimmed = value.trim();
   return trimmed.length === 0 ? undefined : trimmed;
+}
+
+function normalizeStillHave(value: unknown): unknown {
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+
+    if (normalized === 'true') {
+      return true;
+    }
+
+    if (normalized === 'false') {
+      return false;
+    }
+  }
+
+  return value;
 }
 
 export class CreateSavingRequestDto {
@@ -78,4 +95,14 @@ export class CreateSavingRequestDto {
   @IsString()
   @MaxLength(500, { message: 'Note must not exceed 500 characters.' })
   note?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Whether this saving is still currently available. Defaults to true when omitted.',
+    example: true,
+    default: true,
+  })
+  @Transform(({ value }) => normalizeStillHave(value))
+  @IsBoolean({ message: 'StillHave must be either true or false.' })
+  stillHave: boolean = true;
 }
