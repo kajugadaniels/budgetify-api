@@ -1,9 +1,12 @@
+import { existsSync } from 'node:fs';
 import { defineConfig, env } from 'prisma/config';
 
 const envFilePath =
   process.env.NODE_ENV === 'production' ? '.env.production' : '.env';
 
-process.loadEnvFile(envFilePath);
+if (existsSync(envFilePath)) {
+  process.loadEnvFile(envFilePath);
+}
 
 const migrationDatabaseUrl =
   process.env.DIRECT_DATABASE_URL ?? env('DATABASE_URL');
