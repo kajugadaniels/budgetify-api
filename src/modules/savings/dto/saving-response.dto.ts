@@ -19,6 +19,12 @@ export class SavingResponseDto {
   })
   note!: string | null;
 
+  @ApiProperty({
+    example: true,
+    description: 'Whether this saving is still currently available.',
+  })
+  stillHave!: boolean;
+
   @ApiProperty({ example: '2026-04-01T10:15:00.000Z' })
   createdAt!: Date;
 
