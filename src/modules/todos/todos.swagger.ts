@@ -130,12 +130,12 @@ export function ApiCreateCurrentUserTodoEndpoint(): MethodDecorator {
     ApiBearerAuth('access-token'),
     ApiConsumes('multipart/form-data'),
     ApiOperation({
-      summary: 'Create a todo item with images',
+      summary: 'Create a todo item',
       description:
-        'Creates a new todo item for the authenticated user. At least one image is required. The request can also mark the item as already done or not done. Every uploaded image is cropped to a square 1600×1600 asset, renamed using the todo name plus an upload timestamp and unique numeric suffix, then stored in Cloudinary under the configured todo folder.',
+        'Creates a new todo item for the authenticated user. Images are optional. The request can also mark the item as already done or not done. When images are included, each upload is cropped to a square 1600×1600 asset, renamed using the todo name plus an upload timestamp and unique numeric suffix, then stored in Cloudinary under the configured todo folder.',
     }),
     ApiBody({
-      schema: createTodoMultipartSchema(true),
+      schema: createTodoMultipartSchema(false),
     }),
     ApiCreatedResponse({
       description: 'Todo item created successfully.',
@@ -143,7 +143,7 @@ export function ApiCreateCurrentUserTodoEndpoint(): MethodDecorator {
     }),
     ApiBadRequestResponse({
       description:
-        'Request validation failed, no images were provided, or one of the uploaded files is invalid.',
+        'Request validation failed or one of the uploaded files is invalid.',
       type: ApiErrorResponseDto,
     }),
     ApiUnauthorizedResponse({
@@ -265,7 +265,7 @@ export function ApiDeleteCurrentUserTodoImageEndpoint(): MethodDecorator {
     ApiOperation({
       summary: 'Delete one todo image',
       description:
-        'Soft-deletes one active image from a todo item owned by the authenticated user. If the removed image is currently the primary cover image, the service automatically promotes the oldest remaining active image to primary. The final remaining image cannot be removed while the todo still exists.',
+        'Soft-deletes one active image from a todo item owned by the authenticated user. If the removed image is currently the primary cover image, the service automatically promotes the oldest remaining active image to primary when one still exists.',
     }),
     ApiParam({
       name: 'todoId',
@@ -280,11 +280,6 @@ export function ApiDeleteCurrentUserTodoImageEndpoint(): MethodDecorator {
     ApiOkResponse({
       description: 'Todo image deleted successfully and todo state refreshed.',
       type: TodoResponseDto,
-    }),
-    ApiBadRequestResponse({
-      description:
-        'The image cannot be removed because it is the final active image for the todo item.',
-      type: ApiErrorResponseDto,
     }),
     ApiUnauthorizedResponse({
       description: 'Access token is missing, invalid, or expired.',
