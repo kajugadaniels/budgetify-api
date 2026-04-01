@@ -17,6 +17,7 @@ import {
 
 import { ApiErrorResponseDto } from '../../common/dto/api-error-response.dto';
 import { CreateSavingRequestDto } from './dto/create-saving.request.dto';
+import { PaginatedSavingResponseDto } from './dto/paginated-saving.response.dto';
 import { SavingResponseDto } from './dto/saving-response.dto';
 import { UpdateSavingRequestDto } from './dto/update-saving.request.dto';
 
@@ -44,10 +45,23 @@ export function ApiListCurrentUserSavingsEndpoint(): MethodDecorator {
       description:
         'Optional year filter paired with month. Defaults to the current year.',
     }),
+    ApiQuery({
+      name: 'page',
+      required: false,
+      type: Number,
+      example: 1,
+      description: 'Optional 1-based page number. Defaults to 1.',
+    }),
+    ApiQuery({
+      name: 'limit',
+      required: false,
+      type: Number,
+      example: 12,
+      description: 'Optional page size. Defaults to 12.',
+    }),
     ApiOkResponse({
       description: 'Saving records retrieved successfully.',
-      type: SavingResponseDto,
-      isArray: true,
+      type: PaginatedSavingResponseDto,
     }),
     ApiUnauthorizedResponse({
       description: 'Access token is missing, invalid, or expired.',
