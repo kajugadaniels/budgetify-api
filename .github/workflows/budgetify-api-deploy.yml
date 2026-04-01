@@ -1,0 +1,81 @@
+name: Budgetify API CI/CD
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: budgetify-api-production
+  cancel-in-progress: false
+
+jobs:
+  quality:
+    name: Lint Test Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/budgetify?schema=public
+      DIRECT_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/budgetify?schema=public
+      JWT_ACCESS_SECRET: 12345678901234567890123456789012
+      JWT_REFRESH_SECRET: 12345678901234567890123456789012
+      OTP_HASH_SECRET: 12345678901234567890123456789012
+      GOOGLE_CLIENT_IDS: dummy-google-client-id
+      MAIL_HOST: smtp.example.com
+      MAIL_PORT: 587
+      MAIL_SECURE: false
+      MAIL_USER: no-reply@example.com
+      MAIL_PASS: dummy-password
+      MAIL_FROM: Budgetify <no-reply@example.com>
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npx eslint "{src,apps,libs,test}/**/*.ts"
+
+      - name: Test
+        run: npm test -- --runInBand
+
+      - name: Build
+        run: npm run build
+
+  deploy:
+    name: Deploy
+    needs: quality
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    steps:
+      - name: Configure SSH
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/budgetify_deploy_key
+          chmod 600 ~/.ssh/budgetify_deploy_key
+          printf '%s\n' "${{ secrets.SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Deploy exact commit
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          GIT_SHA: ${{ github.sha }}
+        run: |
+          ssh -i ~/.ssh/budgetify_deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            "${DEPLOY_USER}@${DEPLOY_HOST}" \
+            "/var/www/budgetify/bin/budgetify-api-deploy.sh ${GIT_SHA}"
