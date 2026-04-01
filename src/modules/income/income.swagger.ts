@@ -19,6 +19,7 @@ import { ApiErrorResponseDto } from '../../common/dto/api-error-response.dto';
 import { IncomeCategoryOptionResponseDto } from './dto/income-category-option.response.dto';
 import { CreateIncomeRequestDto } from './dto/create-income.request.dto';
 import { IncomeResponseDto } from './dto/income-response.dto';
+import { PaginatedIncomeResponseDto } from './dto/paginated-income.response.dto';
 import { UpdateIncomeRequestDto } from './dto/update-income.request.dto';
 
 export function ApiListIncomeCategoriesEndpoint(): MethodDecorator {
@@ -70,10 +71,37 @@ export function ApiListCurrentUserIncomeEndpoint(): MethodDecorator {
       description:
         'Optional year filter paired with month. Defaults to the current year.',
     }),
+    ApiQuery({
+      name: 'category',
+      required: false,
+      type: String,
+      example: 'SALARY',
+      description: 'Optional income category filter.',
+    }),
+    ApiQuery({
+      name: 'received',
+      required: false,
+      type: Boolean,
+      example: true,
+      description: 'Optional received-state filter.',
+    }),
+    ApiQuery({
+      name: 'page',
+      required: false,
+      type: Number,
+      example: 1,
+      description: 'Optional 1-based page number. Defaults to 1.',
+    }),
+    ApiQuery({
+      name: 'limit',
+      required: false,
+      type: Number,
+      example: 12,
+      description: 'Optional page size. Defaults to 12.',
+    }),
     ApiOkResponse({
       description: 'Income records retrieved successfully.',
-      type: IncomeResponseDto,
-      isArray: true,
+      type: PaginatedIncomeResponseDto,
     }),
     ApiUnauthorizedResponse({
       description: 'Access token is missing, invalid, or expired.',
