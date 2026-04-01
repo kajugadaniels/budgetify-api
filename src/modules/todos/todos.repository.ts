@@ -1,6 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma, Todo, TodoImage } from '@prisma/client';
 
+import {
+  PaginatedResponse,
+  createPaginatedResponse,
+} from '../../common/interfaces/paginated-response.interface';
 import { PrismaService } from '../../database/prisma/prisma.service';
 
 type PrismaExecutor = Prisma.TransactionClient | PrismaService;
@@ -24,15 +28,37 @@ export class TodosRepository {
 
   async findManyByUserId(
     userId: string,
+    options?: {
+      priority?: Prisma.TodoWhereInput['priority'];
+      done?: boolean;
+      skip?: number;
+      take?: number;
+      page: number;
+      limit: number;
+    },
     db: PrismaExecutor = this.prisma,
-  ): Promise<TodoWithImages[]> {
-    return db.todo.findMany({
-      where: {
-        userId,
-        deletedAt: null,
-      },
-      include: activeTodoImagesInclude,
-      orderBy: [{ priority: 'asc' }, { createdAt: 'desc' }],
+  ): Promise<PaginatedResponse<TodoWithImages>> {
+    const where: Prisma.TodoWhereInput = {
+      userId,
+      deletedAt: null,
+      priority: options?.priority,
+      done: options?.done,
+    };
+
+    const [items, totalItems] = await Promise.all([
+      db.todo.findMany({
+        where,
+        include: activeTodoImagesInclude,
+        orderBy: [{ priority: 'asc' }, { createdAt: 'desc' }],
+        skip: options?.skip,
+        take: options?.take,
+      }),
+      db.todo.count({ where }),
+    ]);
+
+    return createPaginatedResponse(items, totalItems, {
+      page: options?.page ?? 1,
+      limit: options?.limit ?? Math.max(items.length, 1),
     });
   }
 
