@@ -26,6 +26,10 @@ export class IncomeService {
   ): Promise<Income[]> {
     await this.usersService.findActiveByIdOrThrow(userId);
 
+    if (query.month === undefined && query.year === undefined) {
+      return this.incomeRepository.findManyByUserId(userId);
+    }
+
     const { dateFrom, dateTo } = this.buildIncomeMonthRange(query);
 
     return this.incomeRepository.findManyByUserId(userId, {
