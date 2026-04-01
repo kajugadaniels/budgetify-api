@@ -47,8 +47,10 @@ export class TodosService {
     files: TodoUploadFile[],
   ): Promise<TodoWithImages> {
     await this.usersService.findActiveByIdOrThrow(userId);
-    this.todoImageStorageService.ensureConfigured();
-    this.assertFilesPresent(files);
+
+    if (files.length > 0) {
+      this.todoImageStorageService.ensureConfigured();
+    }
 
     const todo = await this.todosRepository.create({
       userId,
@@ -217,12 +219,6 @@ export class TodosService {
       throw new NotFoundException('Todo image was not found.');
     }
 
-    if (todo.images.length <= 1) {
-      throw new BadRequestException(
-        'A todo must keep at least one active image. Upload a replacement image or delete the todo instead.',
-      );
-    }
-
     await this.prisma.$transaction(async (tx) => {
       await this.todosRepository.updateImage(
         image.id,
@@ -316,14 +312,6 @@ export class TodosService {
       format: image.format,
       isPrimary,
     };
-  }
-
-  private assertFilesPresent(files: TodoUploadFile[]): void {
-    if (files.length === 0) {
-      throw new BadRequestException(
-        'Provide at least one todo image when creating a todo item.',
-      );
-    }
   }
 
   private assertImageLimit(imageCount: number): void {
