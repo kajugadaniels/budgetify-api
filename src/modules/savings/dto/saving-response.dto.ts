@@ -1,0 +1,27 @@
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
+export class SavingResponseDto {
+  @ApiProperty({ example: '97bcc638-92b6-4209-a90f-7c10ec6a3a85' })
+  id!: string;
+
+  @ApiProperty({ example: 'Emergency fund transfer' })
+  label!: string;
+
+  @ApiProperty({ example: 350 })
+  amount!: number;
+
+  @ApiProperty({ example: '2026-04-01T00:00:00.000Z' })
+  date!: Date;
+
+  @ApiPropertyOptional({
+    example: 'Transferred to the USD reserve account',
+    nullable: true,
+  })
+  note!: string | null;
+
+  @ApiProperty({ example: '2026-04-01T10:15:00.000Z' })
+  createdAt!: Date;
+
+  @ApiProperty({ example: '2026-04-01T10:15:00.000Z' })
+  updatedAt!: Date;
+}
