@@ -24,6 +24,10 @@ export class SavingsService {
   ): Promise<Saving[]> {
     await this.usersService.findActiveByIdOrThrow(userId);
 
+    if (query.month === undefined && query.year === undefined) {
+      return this.savingsRepository.findManyByUserId(userId);
+    }
+
     const { dateFrom, dateTo } = this.buildSavingMonthRange(query);
 
     return this.savingsRepository.findManyByUserId(userId, {
@@ -44,6 +48,7 @@ export class SavingsService {
       amount: new Prisma.Decimal(payload.amount),
       date: new Date(payload.date),
       note: payload.note ?? null,
+      stillHave: payload.stillHave,
     });
   }
 
@@ -56,7 +61,8 @@ export class SavingsService {
       payload.label === undefined &&
       payload.amount === undefined &&
       payload.date === undefined &&
-      payload.note === undefined
+      payload.note === undefined &&
+      payload.stillHave === undefined
     ) {
       throw new BadRequestException(
         'Provide at least one saving field to update.',
@@ -75,6 +81,7 @@ export class SavingsService {
           : new Prisma.Decimal(payload.amount),
       date: payload.date === undefined ? undefined : new Date(payload.date),
       note: payload.note,
+      stillHave: payload.stillHave,
     });
   }
 
