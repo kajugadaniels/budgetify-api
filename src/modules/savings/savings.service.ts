@@ -5,6 +5,10 @@ import {
 } from '@nestjs/common';
 import { Prisma, Saving } from '@prisma/client';
 
+import {
+  PaginatedResponse,
+  resolvePaginationOptions,
+} from '../../common/interfaces/paginated-response.interface';
 import { UsersService } from '../users/users.service';
 import { CreateSavingRequestDto } from './dto/create-saving.request.dto';
 import { ListSavingsQueryDto } from './dto/list-savings.query.dto';
@@ -21,18 +25,22 @@ export class SavingsService {
   async listCurrentUserSavings(
     userId: string,
     query: ListSavingsQueryDto,
-  ): Promise<Saving[]> {
+  ): Promise<PaginatedResponse<Saving>> {
     await this.usersService.findActiveByIdOrThrow(userId);
+    const pagination = resolvePaginationOptions(query);
 
-    if (query.month === undefined && query.year === undefined) {
-      return this.savingsRepository.findManyByUserId(userId);
-    }
-
-    const { dateFrom, dateTo } = this.buildSavingMonthRange(query);
+    const dateRange =
+      query.month === undefined && query.year === undefined
+        ? undefined
+        : this.buildSavingMonthRange(query);
 
     return this.savingsRepository.findManyByUserId(userId, {
-      dateFrom,
-      dateTo,
+      dateFrom: dateRange?.dateFrom,
+      dateTo: dateRange?.dateTo,
+      page: pagination.page,
+      limit: pagination.limit,
+      skip: pagination.skip,
+      take: pagination.limit,
     });
   }
 
