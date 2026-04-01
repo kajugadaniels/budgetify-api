@@ -10,6 +10,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   UploadedFiles,
   UseGuards,
   UseInterceptors,
@@ -22,6 +23,8 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthenticatedRequestUser } from '../../common/interfaces/authenticated-request.interface';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CreateTodoRequestDto } from './dto/create-todo.request.dto';
+import { ListTodosQueryDto } from './dto/list-todos.query.dto';
+import { PaginatedTodoResponseDto } from './dto/paginated-todo.response.dto';
 import { TodoResponseDto } from './dto/todo-response.dto';
 import { UpdateTodoRequestDto } from './dto/update-todo.request.dto';
 import { TodosMapper } from './mappers/todos.mapper';
@@ -72,10 +75,14 @@ export class TodosController {
   @ApiListCurrentUserTodosEndpoint()
   async listCurrentUserTodos(
     @CurrentUser() user: AuthenticatedRequestUser,
-  ): Promise<TodoResponseDto[]> {
-    const todos = await this.todosService.listCurrentUserTodos(user.userId);
+    @Query() query: ListTodosQueryDto,
+  ): Promise<PaginatedTodoResponseDto> {
+    const todos = await this.todosService.listCurrentUserTodos(
+      user.userId,
+      query,
+    );
 
-    return TodosMapper.toTodoResponseList(todos);
+    return TodosMapper.toPaginatedTodoResponse(todos);
   }
 
   @Get(TODOS_ROUTES.byId)
