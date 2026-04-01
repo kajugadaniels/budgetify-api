@@ -215,6 +215,7 @@ model Saving {
   amount    Decimal  @db.Decimal(15, 2)
   date      DateTime
   note      String?
+  stillHave Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   deletedAt DateTime?
@@ -223,6 +224,7 @@ model Saving {
   @@index([userId])
   @@index([deletedAt])
   @@index([date])
+  @@index([userId, stillHave])
 }
 
 model Todo {
