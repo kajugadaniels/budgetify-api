@@ -52,7 +52,7 @@ export function ApiListCurrentUserIncomeEndpoint(): MethodDecorator {
     ApiOperation({
       summary: 'List current user income records',
       description:
-        'Returns non-deleted income records owned by the authenticated user for the requested month and year, ordered from newest to oldest by recorded date. When no query is provided, the current calendar month is used.',
+        'Returns non-deleted income records owned by the authenticated user for the requested month and year, ordered from newest to oldest by recorded date. When no query is provided, all income records are returned.',
     }),
     ApiQuery({
       name: 'month',
