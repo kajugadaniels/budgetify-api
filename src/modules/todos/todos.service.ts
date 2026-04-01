@@ -5,9 +5,14 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
+import {
+  PaginatedResponse,
+  resolvePaginationOptions,
+} from '../../common/interfaces/paginated-response.interface';
 import { PrismaService } from '../../database/prisma/prisma.service';
 import { UsersService } from '../users/users.service';
 import { CreateTodoRequestDto } from './dto/create-todo.request.dto';
+import { ListTodosQueryDto } from './dto/list-todos.query.dto';
 import { UpdateTodoRequestDto } from './dto/update-todo.request.dto';
 import {
   MAX_TODO_IMAGES,
@@ -26,10 +31,21 @@ export class TodosService {
     private readonly todoImageStorageService: TodoImageStorageService,
   ) {}
 
-  async listCurrentUserTodos(userId: string): Promise<TodoWithImages[]> {
+  async listCurrentUserTodos(
+    userId: string,
+    query: ListTodosQueryDto,
+  ): Promise<PaginatedResponse<TodoWithImages>> {
     await this.usersService.findActiveByIdOrThrow(userId);
+    const pagination = resolvePaginationOptions(query);
 
-    return this.todosRepository.findManyByUserId(userId);
+    return this.todosRepository.findManyByUserId(userId, {
+      priority: query.priority,
+      done: query.done,
+      page: pagination.page,
+      limit: pagination.limit,
+      skip: pagination.skip,
+      take: pagination.limit,
+    });
   }
 
   async getCurrentUserTodo(
