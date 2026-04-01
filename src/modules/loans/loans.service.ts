@@ -5,6 +5,10 @@ import {
 } from '@nestjs/common';
 import { Expense, ExpenseCategory, Loan, Prisma } from '@prisma/client';
 
+import {
+  PaginatedResponse,
+  resolvePaginationOptions,
+} from '../../common/interfaces/paginated-response.interface';
 import { PrismaService } from '../../database/prisma/prisma.service';
 import { ExpensesRepository } from '../expenses/expenses.repository';
 import { UsersService } from '../users/users.service';
@@ -26,18 +30,23 @@ export class LoansService {
   async listCurrentUserLoans(
     userId: string,
     query: ListLoansQueryDto,
-  ): Promise<Loan[]> {
+  ): Promise<PaginatedResponse<Loan>> {
     await this.usersService.findActiveByIdOrThrow(userId);
+    const pagination = resolvePaginationOptions(query);
 
-    if (query.month === undefined && query.year === undefined) {
-      return this.loansRepository.findManyByUserId(userId);
-    }
-
-    const { dateFrom, dateTo } = this.buildLoanMonthRange(query);
+    const dateRange =
+      query.month === undefined && query.year === undefined
+        ? undefined
+        : this.buildLoanMonthRange(query);
 
     return this.loansRepository.findManyByUserId(userId, {
-      dateFrom,
-      dateTo,
+      dateFrom: dateRange?.dateFrom,
+      dateTo: dateRange?.dateTo,
+      paid: query.paid,
+      page: pagination.page,
+      limit: pagination.limit,
+      skip: pagination.skip,
+      take: pagination.limit,
     });
   }
 
