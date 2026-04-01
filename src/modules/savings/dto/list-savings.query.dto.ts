@@ -2,16 +2,12 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsInt, IsOptional, Max, Min } from 'class-validator';
 
-function normalizeOptionalInteger(value: unknown): unknown {
-  if (typeof value !== 'string') {
-    return value;
-  }
+import {
+  normalizeOptionalInteger,
+  PaginationQueryDto,
+} from '../../../common/dto/pagination-query.dto';
 
-  const normalized = value.trim();
-  return normalized.length === 0 ? undefined : Number(normalized);
-}
-
-export class ListSavingsQueryDto {
+export class ListSavingsQueryDto extends PaginationQueryDto {
   @ApiPropertyOptional({
     description: 'Month number used to filter recorded saving dates.',
     example: 4,
