@@ -11,6 +11,7 @@ import {
   ApiOkResponse,
   ApiOperation,
   ApiParam,
+  ApiQuery,
   ApiServiceUnavailableResponse,
   ApiTooManyRequestsResponse,
   ApiUnauthorizedResponse,
@@ -18,6 +19,7 @@ import {
 import { TodoPriority } from '@prisma/client';
 
 import { ApiErrorResponseDto } from '../../common/dto/api-error-response.dto';
+import { PaginatedTodoResponseDto } from './dto/paginated-todo.response.dto';
 import { TodoResponseDto } from './dto/todo-response.dto';
 
 function createTodoMultipartSchema(
@@ -72,12 +74,39 @@ export function ApiListCurrentUserTodosEndpoint(): MethodDecorator {
     ApiOperation({
       summary: 'List current user todo items',
       description:
-        'Returns all non-deleted todo items owned by the authenticated user. Each todo response includes its active images, the primary cover image URL, and the stored priority level.',
+        'Returns paginated non-deleted todo items owned by the authenticated user. Each todo response includes its active images, the primary cover image URL, and the stored priority level.',
+    }),
+    ApiQuery({
+      name: 'priority',
+      required: false,
+      type: String,
+      example: 'TOP_PRIORITY',
+      description: 'Optional todo priority filter.',
+    }),
+    ApiQuery({
+      name: 'done',
+      required: false,
+      type: Boolean,
+      example: false,
+      description: 'Optional done-state filter.',
+    }),
+    ApiQuery({
+      name: 'page',
+      required: false,
+      type: Number,
+      example: 1,
+      description: 'Optional 1-based page number. Defaults to 1.',
+    }),
+    ApiQuery({
+      name: 'limit',
+      required: false,
+      type: Number,
+      example: 12,
+      description: 'Optional page size. Defaults to 12.',
     }),
     ApiOkResponse({
       description: 'Todo items retrieved successfully.',
-      type: TodoResponseDto,
-      isArray: true,
+      type: PaginatedTodoResponseDto,
     }),
     ApiUnauthorizedResponse({
       description: 'Access token is missing, invalid, or expired.',
