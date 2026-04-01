@@ -19,6 +19,7 @@ import { ApiErrorResponseDto } from '../../common/dto/api-error-response.dto';
 import { CreateExpenseRequestDto } from './dto/create-expense.request.dto';
 import { ExpenseCategoryOptionResponseDto } from './dto/expense-category-option.response.dto';
 import { ExpenseResponseDto } from './dto/expense-response.dto';
+import { PaginatedExpenseResponseDto } from './dto/paginated-expense.response.dto';
 import { UpdateExpenseRequestDto } from './dto/update-expense.request.dto';
 
 export function ApiListExpenseCategoriesEndpoint(): MethodDecorator {
@@ -70,10 +71,30 @@ export function ApiListCurrentUserExpensesEndpoint(): MethodDecorator {
       description:
         'Optional year filter paired with month. Defaults to the current year.',
     }),
+    ApiQuery({
+      name: 'category',
+      required: false,
+      type: String,
+      example: 'FOOD_DINING',
+      description: 'Optional expense category filter.',
+    }),
+    ApiQuery({
+      name: 'page',
+      required: false,
+      type: Number,
+      example: 1,
+      description: 'Optional 1-based page number. Defaults to 1.',
+    }),
+    ApiQuery({
+      name: 'limit',
+      required: false,
+      type: Number,
+      example: 12,
+      description: 'Optional page size. Defaults to 12.',
+    }),
     ApiOkResponse({
       description: 'Expense records retrieved successfully.',
-      type: ExpenseResponseDto,
-      isArray: true,
+      type: PaginatedExpenseResponseDto,
     }),
     ApiUnauthorizedResponse({
       description: 'Access token is missing, invalid, or expired.',
