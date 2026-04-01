@@ -22,6 +22,7 @@ import { CreateIncomeRequestDto } from './dto/create-income.request.dto';
 import { IncomeCategoryOptionResponseDto } from './dto/income-category-option.response.dto';
 import { IncomeResponseDto } from './dto/income-response.dto';
 import { ListIncomeQueryDto } from './dto/list-income.query.dto';
+import { PaginatedIncomeResponseDto } from './dto/paginated-income.response.dto';
 import { UpdateIncomeRequestDto } from './dto/update-income.request.dto';
 import { INCOME_ROUTES } from './income.routes';
 import { IncomeMapper } from './mappers/income.mapper';
@@ -51,13 +52,13 @@ export class IncomeController {
   async listCurrentUserIncome(
     @CurrentUser() user: AuthenticatedRequestUser,
     @Query() query: ListIncomeQueryDto,
-  ): Promise<IncomeResponseDto[]> {
+  ): Promise<PaginatedIncomeResponseDto> {
     const incomes = await this.incomeService.listCurrentUserIncome(
       user.userId,
       query,
     );
 
-    return IncomeMapper.toIncomeResponseList(incomes);
+    return IncomeMapper.toPaginatedIncomeResponse(incomes);
   }
 
   @Post()
