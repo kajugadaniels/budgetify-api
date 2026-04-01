@@ -26,6 +26,10 @@ export class ExpensesService {
   ): Promise<Expense[]> {
     await this.usersService.findActiveByIdOrThrow(userId);
 
+    if (query.month === undefined && query.year === undefined) {
+      return this.expensesRepository.findManyByUserId(userId);
+    }
+
     const { dateFrom, dateTo } = this.buildExpenseMonthRange(query);
 
     return this.expensesRepository.findManyByUserId(userId, {
