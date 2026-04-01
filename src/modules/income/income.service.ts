@@ -5,6 +5,10 @@ import {
 } from '@nestjs/common';
 import { Income, Prisma } from '@prisma/client';
 
+import {
+  PaginatedResponse,
+  resolvePaginationOptions,
+} from '../../common/interfaces/paginated-response.interface';
 import { UsersService } from '../users/users.service';
 import { CreateIncomeRequestDto } from './dto/create-income.request.dto';
 import { IncomeCategoryOptionResponseDto } from './dto/income-category-option.response.dto';
@@ -23,18 +27,24 @@ export class IncomeService {
   async listCurrentUserIncome(
     userId: string,
     query: ListIncomeQueryDto,
-  ): Promise<Income[]> {
+  ): Promise<PaginatedResponse<Income>> {
     await this.usersService.findActiveByIdOrThrow(userId);
+    const pagination = resolvePaginationOptions(query);
 
-    if (query.month === undefined && query.year === undefined) {
-      return this.incomeRepository.findManyByUserId(userId);
-    }
-
-    const { dateFrom, dateTo } = this.buildIncomeMonthRange(query);
+    const dateRange =
+      query.month === undefined && query.year === undefined
+        ? undefined
+        : this.buildIncomeMonthRange(query);
 
     return this.incomeRepository.findManyByUserId(userId, {
-      dateFrom,
-      dateTo,
+      dateFrom: dateRange?.dateFrom,
+      dateTo: dateRange?.dateTo,
+      category: query.category,
+      received: query.received,
+      page: pagination.page,
+      limit: pagination.limit,
+      skip: pagination.skip,
+      take: pagination.limit,
     });
   }
 
