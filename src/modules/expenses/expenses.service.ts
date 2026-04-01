@@ -5,6 +5,10 @@ import {
 } from '@nestjs/common';
 import { Expense, Prisma } from '@prisma/client';
 
+import {
+  PaginatedResponse,
+  resolvePaginationOptions,
+} from '../../common/interfaces/paginated-response.interface';
 import { UsersService } from '../users/users.service';
 import { CreateExpenseRequestDto } from './dto/create-expense.request.dto';
 import { ExpenseCategoryOptionResponseDto } from './dto/expense-category-option.response.dto';
@@ -23,18 +27,23 @@ export class ExpensesService {
   async listCurrentUserExpenses(
     userId: string,
     query: ListExpensesQueryDto,
-  ): Promise<Expense[]> {
+  ): Promise<PaginatedResponse<Expense>> {
     await this.usersService.findActiveByIdOrThrow(userId);
+    const pagination = resolvePaginationOptions(query);
 
-    if (query.month === undefined && query.year === undefined) {
-      return this.expensesRepository.findManyByUserId(userId);
-    }
-
-    const { dateFrom, dateTo } = this.buildExpenseMonthRange(query);
+    const dateRange =
+      query.month === undefined && query.year === undefined
+        ? undefined
+        : this.buildExpenseMonthRange(query);
 
     return this.expensesRepository.findManyByUserId(userId, {
-      dateFrom,
-      dateTo,
+      dateFrom: dateRange?.dateFrom,
+      dateTo: dateRange?.dateTo,
+      category: query.category,
+      page: pagination.page,
+      limit: pagination.limit,
+      skip: pagination.skip,
+      take: pagination.limit,
     });
   }
 
