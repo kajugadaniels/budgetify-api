@@ -1,17 +1,15 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsInt, IsOptional, Max, Min } from 'class-validator';
+import { IncomeCategory } from '@prisma/client';
+import { IsEnum, IsInt, IsOptional, Max, Min } from 'class-validator';
 
-function normalizeOptionalInteger(value: unknown): unknown {
-  if (typeof value !== 'string') {
-    return value;
-  }
+import {
+  normalizeOptionalBoolean,
+  normalizeOptionalInteger,
+  PaginationQueryDto,
+} from '../../../common/dto/pagination-query.dto';
 
-  const normalized = value.trim();
-  return normalized.length === 0 ? undefined : Number(normalized);
-}
-
-export class ListIncomeQueryDto {
+export class ListIncomeQueryDto extends PaginationQueryDto {
   @ApiPropertyOptional({
     description: 'Month number used to filter recorded income dates.',
     example: 3,
@@ -37,4 +35,23 @@ export class ListIncomeQueryDto {
   @Min(2000, { message: 'Year must be between 2000 and 2100.' })
   @Max(2100, { message: 'Year must be between 2000 and 2100.' })
   year?: number;
+
+  @ApiPropertyOptional({
+    enum: IncomeCategory,
+    example: IncomeCategory.SALARY,
+    description: 'Optional income category filter.',
+  })
+  @IsOptional()
+  @IsEnum(IncomeCategory, {
+    message: 'Category must be a valid income category.',
+  })
+  category?: IncomeCategory;
+
+  @ApiPropertyOptional({
+    description: 'Optional received-state filter.',
+    example: true,
+  })
+  @Transform(({ value }) => normalizeOptionalBoolean(value))
+  @IsOptional()
+  received?: boolean;
 }
