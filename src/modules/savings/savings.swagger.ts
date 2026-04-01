@@ -26,7 +26,7 @@ export function ApiListCurrentUserSavingsEndpoint(): MethodDecorator {
     ApiOperation({
       summary: 'List current user saving records',
       description:
-        'Returns non-deleted saving records owned by the authenticated user, ordered from newest to oldest by recorded date. When month or year query filters are supplied, only matching recorded dates are returned. When no query is provided, the current month is returned by default.',
+        'Returns non-deleted saving records owned by the authenticated user, ordered from newest to oldest by recorded date. When month or year query filters are supplied, only matching recorded dates are returned. When no query is provided, all saving records are returned.',
     }),
     ApiQuery({
       name: 'month',
@@ -67,7 +67,7 @@ export function ApiCreateCurrentUserSavingEndpoint(): MethodDecorator {
     ApiOperation({
       summary: 'Create a saving record',
       description:
-        'Creates a new saving record for the authenticated user. Captures the saving label, amount in USD, date, and an optional note.',
+        'Creates a new saving record for the authenticated user. Captures the saving label, amount in USD, date, optional note, and whether the money is still currently available.',
     }),
     ApiBody({ type: CreateSavingRequestDto }),
     ApiCreatedResponse({
@@ -101,7 +101,7 @@ export function ApiUpdateCurrentUserSavingEndpoint(): MethodDecorator {
     ApiOperation({
       summary: 'Update a saving record',
       description:
-        'Updates one existing saving record owned by the authenticated user. Only the editable saving fields are accepted: label, amount, date, and note.',
+        'Updates one existing saving record owned by the authenticated user. Only the editable saving fields are accepted: label, amount, date, note, and whether the saving is still currently available.',
     }),
     ApiParam({
       name: 'savingId',
