@@ -10,6 +10,7 @@ export class SavingsMapper {
       amount: Number(saving.amount),
       date: saving.date,
       note: saving.note,
+      stillHave: saving.stillHave,
       createdAt: saving.createdAt,
       updatedAt: saving.updatedAt,
     };
