@@ -1,5 +1,9 @@
-import 'dotenv/config';
 import { defineConfig, env } from 'prisma/config';
+
+const envFilePath =
+  process.env.NODE_ENV === 'production' ? '.env.production' : '.env';
+
+process.loadEnvFile(envFilePath);
 
 const migrationDatabaseUrl =
   process.env.DIRECT_DATABASE_URL ?? env('DATABASE_URL');
