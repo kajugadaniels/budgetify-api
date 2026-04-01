@@ -2,16 +2,13 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsInt, IsOptional, Max, Min } from 'class-validator';
 
-function normalizeOptionalInteger(value: unknown): unknown {
-  if (typeof value !== 'string') {
-    return value;
-  }
+import {
+  normalizeOptionalBoolean,
+  normalizeOptionalInteger,
+  PaginationQueryDto,
+} from '../../../common/dto/pagination-query.dto';
 
-  const normalized = value.trim();
-  return normalized.length === 0 ? undefined : Number(normalized);
-}
-
-export class ListLoansQueryDto {
+export class ListLoansQueryDto extends PaginationQueryDto {
   @ApiPropertyOptional({
     description: 'Month number used to filter recorded loan dates.',
     example: 3,
@@ -37,4 +34,12 @@ export class ListLoansQueryDto {
   @Min(2000, { message: 'Year must be between 2000 and 2100.' })
   @Max(2100, { message: 'Year must be between 2000 and 2100.' })
   year?: number;
+
+  @ApiPropertyOptional({
+    description: 'Optional paid-state filter.',
+    example: false,
+  })
+  @Transform(({ value }) => normalizeOptionalBoolean(value))
+  @IsOptional()
+  paid?: boolean;
 }
