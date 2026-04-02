@@ -1,5 +1,5 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { TodoPriority } from '@prisma/client';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { TodoFrequency, TodoPriority } from '@prisma/client';
 
 import { TodoImageResponseDto } from './todo-image-response.dto';
 
@@ -24,6 +24,59 @@ export class TodoResponseDto {
     description: 'Whether the todo item has already been completed.',
   })
   done!: boolean;
+
+  @ApiProperty({
+    enum: TodoFrequency,
+    example: TodoFrequency.ONCE,
+    description: 'How often this todo recurs.',
+  })
+  frequency!: TodoFrequency;
+
+  @ApiPropertyOptional({
+    example: '2026-04-02',
+    nullable: true,
+    description: 'Start date of the schedule (ISO date). Null for ONCE todos.',
+  })
+  startDate!: string | null;
+
+  @ApiPropertyOptional({
+    example: '2026-04-09',
+    nullable: true,
+    description: 'End date of the schedule (ISO date). Null for ONCE todos.',
+  })
+  endDate!: string | null;
+
+  @ApiProperty({
+    type: [Number],
+    example: [1, 3, 5],
+    description:
+      'Days to repeat on for WEEKLY todos. Uses 0–6 (Sun–Sat). Empty for non-weekly schedules.',
+  })
+  frequencyDays!: number[];
+
+  @ApiProperty({
+    type: [String],
+    example: ['2026-04-04', '2026-04-11', '2026-04-18', '2026-04-25'],
+    description:
+      'Exact occurrence dates currently scheduled for this todo. ONCE todos contain one date.',
+  })
+  occurrenceDates!: string[];
+
+  @ApiProperty({
+    type: [String],
+    example: ['2026-04-04', '2026-04-11'],
+    description:
+      'Occurrence dates that have already been recorded to expenses.',
+  })
+  recordedOccurrenceDates!: string[];
+
+  @ApiPropertyOptional({
+    example: 6000,
+    nullable: true,
+    description:
+      'Remaining budget after expense deductions. Null for ONCE todos. Starts at price for recurring todos.',
+  })
+  remainingAmount!: number | null;
 
   @ApiProperty({
     example:
