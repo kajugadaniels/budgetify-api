@@ -31,6 +31,8 @@ export class TodosRepository {
     options?: {
       priority?: Prisma.TodoWhereInput['priority'];
       done?: boolean;
+      search?: string;
+      occurrenceDates?: string[];
       skip?: number;
       take?: number;
       page: number;
@@ -43,13 +45,30 @@ export class TodosRepository {
       deletedAt: null,
       priority: options?.priority,
       done: options?.done,
+      name:
+        options?.search !== undefined
+          ? {
+              contains: options.search,
+              mode: 'insensitive',
+            }
+          : undefined,
+      occurrenceDates:
+        options?.occurrenceDates && options.occurrenceDates.length > 0
+          ? {
+              hasSome: options.occurrenceDates,
+            }
+          : undefined,
     };
 
     const [items, totalItems] = await Promise.all([
       db.todo.findMany({
         where,
         include: activeTodoImagesInclude,
-        orderBy: [{ priority: 'asc' }, { createdAt: 'desc' }],
+        orderBy: [
+          { startDate: 'desc' },
+          { priority: 'asc' },
+          { createdAt: 'desc' },
+        ],
         skip: options?.skip,
         take: options?.take,
       }),
