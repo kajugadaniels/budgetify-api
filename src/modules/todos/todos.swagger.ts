@@ -16,7 +16,7 @@ import {
   ApiTooManyRequestsResponse,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
-import { TodoPriority } from '@prisma/client';
+import { TodoFrequency, TodoPriority } from '@prisma/client';
 
 import { ApiErrorResponseDto } from '../../common/dto/api-error-response.dto';
 import { PaginatedTodoResponseDto } from './dto/paginated-todo.response.dto';
@@ -49,6 +49,55 @@ function createTodoMultipartSchema(
         type: 'boolean',
         example: false,
         default: false,
+      },
+      frequency: {
+        type: 'string',
+        enum: Object.values(TodoFrequency),
+        example: TodoFrequency.WEEKLY,
+        default: TodoFrequency.ONCE,
+      },
+      startDate: {
+        type: 'string',
+        format: 'date',
+        example: '2026-04-02',
+      },
+      endDate: {
+        type: 'string',
+        format: 'date',
+        example: '2026-04-09',
+        description:
+          'Optional in requests. The backend derives it from startDate and frequency.',
+      },
+      frequencyDays: {
+        type: 'array',
+        items: {
+          type: 'number',
+        },
+        example: [1, 3, 5],
+        description: 'Weekly recurrence days only. Uses 0 (Sun) – 6 (Sat).',
+      },
+      occurrenceDates: {
+        type: 'array',
+        items: {
+          type: 'string',
+          format: 'date',
+        },
+        example: ['2026-04-04', '2026-04-11', '2026-04-18', '2026-04-25'],
+        description:
+          'Exact occurrence dates for MONTHLY and YEARLY todos, inside the current schedule window.',
+      },
+      deductAmount: {
+        type: 'number',
+        example: 1000,
+        description:
+          'Recurring-expense deduction amount applied against remainingAmount.',
+      },
+      recordedOccurrenceDate: {
+        type: 'string',
+        format: 'date',
+        example: '2026-04-04',
+        description:
+          'The exact recurring occurrence date being recorded to expenses.',
       },
       primaryImageId: {
         type: 'string',
@@ -161,7 +210,7 @@ export function ApiCreateCurrentUserTodoEndpoint(): MethodDecorator {
     ApiOperation({
       summary: 'Create a todo item',
       description:
-        'Creates a new todo item for the authenticated user. Images are optional. The request can also mark the item as already done or not done. When images are included, each upload is cropped to a square 1600×1600 asset, renamed using the todo name plus an upload timestamp and unique numeric suffix, then stored in Cloudinary under the configured todo folder.',
+        'Creates a new todo item for the authenticated user. Images are optional. The request can also define a recurring schedule with an auto-derived end date, weekday selection for weekly todos, or exact occurrence dates for monthly and yearly todos. When images are included, each upload is cropped to a square 1600×1600 asset, renamed using the todo name plus an upload timestamp and unique numeric suffix, then stored in Cloudinary under the configured todo folder.',
     }),
     ApiBody({
       schema: createTodoMultipartSchema(false),
@@ -204,7 +253,7 @@ export function ApiUpdateCurrentUserTodoEndpoint(): MethodDecorator {
     ApiOperation({
       summary: 'Update a todo item and optionally append images',
       description:
-        'Updates one existing todo item owned by the authenticated user. Name, price, priority, and done state can be changed. New images may be appended in the same request, and an existing active image can be promoted to become the primary cover image.',
+        'Updates one existing todo item owned by the authenticated user. Name, price, priority, schedule, and done state can be changed. New images may be appended in the same request, an existing active image can be promoted to become the primary cover image, and recurring todos can record expense deductions against their remaining budget.',
     }),
     ApiParam({
       name: 'todoId',
