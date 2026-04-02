@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma, Todo, TodoImage } from '@prisma/client';
+import { Prisma, Todo, TodoFrequency, TodoImage } from '@prisma/client';
 
 import {
   PaginatedResponse,
@@ -29,6 +29,7 @@ export class TodosRepository {
   async findManyByUserId(
     userId: string,
     options?: {
+      frequency?: TodoFrequency;
       priority?: Prisma.TodoWhereInput['priority'];
       done?: boolean;
       search?: string;
@@ -40,9 +41,30 @@ export class TodosRepository {
     },
     db: PrismaExecutor = this.prisma,
   ): Promise<PaginatedResponse<TodoWithImages>> {
+    const frequencyWhere =
+      options?.frequency === TodoFrequency.ONCE
+        ? {
+            OR: [
+              { frequency: TodoFrequency.ONCE },
+              {
+                // Older one-time todos may exist without a stored schedule shape.
+                AND: [
+                  { startDate: null },
+                  { endDate: null },
+                  { frequencyDays: { isEmpty: true } },
+                  { occurrenceDates: { isEmpty: true } },
+                ],
+              },
+            ],
+          }
+        : options?.frequency !== undefined
+          ? { frequency: options.frequency }
+          : undefined;
+
     const where: Prisma.TodoWhereInput = {
       userId,
       deletedAt: null,
+      ...(frequencyWhere ?? {}),
       priority: options?.priority,
       done: options?.done,
       name:
