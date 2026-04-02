@@ -9,6 +9,10 @@ import {
   PaginatedResponse,
   resolvePaginationOptions,
 } from '../../common/interfaces/paginated-response.interface';
+import {
+  normalizeListSearch,
+  resolveListDateRange,
+} from '../../common/utils/list-query.utils';
 import { PrismaService } from '../../database/prisma/prisma.service';
 import { ExpensesRepository } from '../expenses/expenses.repository';
 import { UsersService } from '../users/users.service';
@@ -33,15 +37,12 @@ export class LoansService {
   ): Promise<PaginatedResponse<Loan>> {
     await this.usersService.findActiveByIdOrThrow(userId);
     const pagination = resolvePaginationOptions(query);
-
-    const dateRange =
-      query.month === undefined && query.year === undefined
-        ? undefined
-        : this.buildLoanMonthRange(query);
+    const dateRange = resolveListDateRange(query);
 
     return this.loansRepository.findManyByUserId(userId, {
       dateFrom: dateRange?.dateFrom,
       dateTo: dateRange?.dateTo,
+      search: normalizeListSearch(query.search),
       paid: query.paid,
       page: pagination.page,
       limit: pagination.limit,
@@ -166,19 +167,5 @@ export class LoansService {
     }
 
     return loan;
-  }
-
-  private buildLoanMonthRange(query: ListLoansQueryDto): {
-    dateFrom: Date;
-    dateTo: Date;
-  } {
-    const now = new Date();
-    const resolvedYear = query.year ?? now.getUTCFullYear();
-    const resolvedMonthIndex = (query.month ?? now.getUTCMonth() + 1) - 1;
-
-    return {
-      dateFrom: new Date(Date.UTC(resolvedYear, resolvedMonthIndex, 1)),
-      dateTo: new Date(Date.UTC(resolvedYear, resolvedMonthIndex + 1, 1)),
-    };
   }
 }
