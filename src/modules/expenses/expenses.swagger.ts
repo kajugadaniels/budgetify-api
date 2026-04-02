@@ -53,7 +53,7 @@ export function ApiListCurrentUserExpensesEndpoint(): MethodDecorator {
     ApiOperation({
       summary: 'List current user expense records',
       description:
-        'Returns non-deleted expense records owned by the authenticated user for the requested month and year, ordered from newest to oldest by recorded date. When no query is provided, all expense records are returned.',
+        'Returns non-deleted expense records owned by the authenticated user for the requested month and year, ordered from newest to oldest by recorded date. Explicit dateFrom/dateTo filters override month and year, and text search matches the expense label, note, and matching category names when at least 3 characters are provided. When no query is provided, all expense records are returned.',
     }),
     ApiQuery({
       name: 'month',
@@ -77,6 +77,30 @@ export function ApiListCurrentUserExpensesEndpoint(): MethodDecorator {
       type: String,
       example: 'FOOD_DINING',
       description: 'Optional expense category filter.',
+    }),
+    ApiQuery({
+      name: 'search',
+      required: false,
+      type: String,
+      example: 'food',
+      description:
+        'Optional text search applied when at least 3 characters are provided. Matches the expense label, note, and matching category names.',
+    }),
+    ApiQuery({
+      name: 'dateFrom',
+      required: false,
+      type: String,
+      example: '2026-03-10',
+      description:
+        'Optional inclusive start date filter applied against the recorded expense date. Overrides month/year filtering when provided.',
+    }),
+    ApiQuery({
+      name: 'dateTo',
+      required: false,
+      type: String,
+      example: '2026-03-25',
+      description:
+        'Optional inclusive end date filter applied against the recorded expense date. Overrides month/year filtering when provided.',
     }),
     ApiQuery({
       name: 'page',
