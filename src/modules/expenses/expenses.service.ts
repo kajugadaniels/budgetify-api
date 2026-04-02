@@ -9,6 +9,11 @@ import {
   PaginatedResponse,
   resolvePaginationOptions,
 } from '../../common/interfaces/paginated-response.interface';
+import {
+  findMatchingOptionValues,
+  normalizeListSearch,
+  resolveListDateRange,
+} from '../../common/utils/list-query.utils';
 import { UsersService } from '../users/users.service';
 import { CreateExpenseRequestDto } from './dto/create-expense.request.dto';
 import { ExpenseCategoryOptionResponseDto } from './dto/expense-category-option.response.dto';
@@ -30,15 +35,18 @@ export class ExpensesService {
   ): Promise<PaginatedResponse<Expense>> {
     await this.usersService.findActiveByIdOrThrow(userId);
     const pagination = resolvePaginationOptions(query);
-
-    const dateRange =
-      query.month === undefined && query.year === undefined
-        ? undefined
-        : this.buildExpenseMonthRange(query);
+    const dateRange = resolveListDateRange(query);
+    const search = normalizeListSearch(query.search);
+    const searchCategories = findMatchingOptionValues(
+      EXPENSE_CATEGORY_OPTIONS,
+      search,
+    );
 
     return this.expensesRepository.findManyByUserId(userId, {
       dateFrom: dateRange?.dateFrom,
       dateTo: dateRange?.dateTo,
+      search,
+      searchCategories,
       category: query.category,
       page: pagination.page,
       limit: pagination.limit,
@@ -127,19 +135,5 @@ export class ExpensesService {
     }
 
     return expense;
-  }
-
-  private buildExpenseMonthRange(query: ListExpensesQueryDto): {
-    dateFrom: Date;
-    dateTo: Date;
-  } {
-    const now = new Date();
-    const resolvedYear = query.year ?? now.getUTCFullYear();
-    const resolvedMonthIndex = (query.month ?? now.getUTCMonth() + 1) - 1;
-
-    return {
-      dateFrom: new Date(Date.UTC(resolvedYear, resolvedMonthIndex, 1)),
-      dateTo: new Date(Date.UTC(resolvedYear, resolvedMonthIndex + 1, 1)),
-    };
   }
 }
