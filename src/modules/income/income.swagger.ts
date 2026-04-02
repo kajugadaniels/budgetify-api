@@ -53,7 +53,7 @@ export function ApiListCurrentUserIncomeEndpoint(): MethodDecorator {
     ApiOperation({
       summary: 'List current user income records',
       description:
-        'Returns non-deleted income records owned by the authenticated user for the requested month and year, ordered from newest to oldest by recorded date. When no query is provided, all income records are returned.',
+        'Returns non-deleted income records owned by the authenticated user for the requested month and year, ordered from newest to oldest by recorded date. Explicit dateFrom/dateTo filters override month and year, and text search matches both the income label and income category when at least 3 characters are provided. When no query is provided, all income records are returned.',
     }),
     ApiQuery({
       name: 'month',
@@ -77,6 +77,30 @@ export function ApiListCurrentUserIncomeEndpoint(): MethodDecorator {
       type: String,
       example: 'SALARY',
       description: 'Optional income category filter.',
+    }),
+    ApiQuery({
+      name: 'search',
+      required: false,
+      type: String,
+      example: 'salary',
+      description:
+        'Optional text search applied when at least 3 characters are provided. Matches both the income label and matching category names.',
+    }),
+    ApiQuery({
+      name: 'dateFrom',
+      required: false,
+      type: String,
+      example: '2026-03-10',
+      description:
+        'Optional inclusive start date filter applied against the recorded income date. Overrides month/year filtering when provided.',
+    }),
+    ApiQuery({
+      name: 'dateTo',
+      required: false,
+      type: String,
+      example: '2026-03-25',
+      description:
+        'Optional inclusive end date filter applied against the recorded income date. Overrides month/year filtering when provided.',
     }),
     ApiQuery({
       name: 'received',
