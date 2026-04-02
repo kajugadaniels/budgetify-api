@@ -9,6 +9,10 @@ import {
   PaginatedResponse,
   resolvePaginationOptions,
 } from '../../common/interfaces/paginated-response.interface';
+import {
+  normalizeListSearch,
+  resolveListDateRange,
+} from '../../common/utils/list-query.utils';
 import { PrismaService } from '../../database/prisma/prisma.service';
 import { UsersService } from '../users/users.service';
 import { CreateTodoRequestDto } from './dto/create-todo.request.dto';
@@ -47,10 +51,13 @@ export class TodosService {
   ): Promise<PaginatedResponse<TodoWithImages>> {
     await this.usersService.findActiveByIdOrThrow(userId);
     const pagination = resolvePaginationOptions(query);
+    const dateRange = resolveListDateRange(query);
 
     return this.todosRepository.findManyByUserId(userId, {
       priority: query.priority,
       done: query.done,
+      search: normalizeListSearch(query.search),
+      occurrenceDates: dateRange?.isoDates,
       page: pagination.page,
       limit: pagination.limit,
       skip: pagination.skip,
