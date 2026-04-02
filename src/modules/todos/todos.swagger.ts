@@ -123,7 +123,15 @@ export function ApiListCurrentUserTodosEndpoint(): MethodDecorator {
     ApiOperation({
       summary: 'List current user todo items',
       description:
-        'Returns paginated non-deleted todo items owned by the authenticated user. Each todo response includes its active images, the primary cover image URL, and the stored priority level. Text search matches the todo name when at least 3 characters are provided. dateFrom/dateTo filters are applied against the todo schedule occurrence dates, not createdAt.',
+        'Returns paginated non-deleted todo items owned by the authenticated user. Each todo response includes its active images, the primary cover image URL, and the stored priority level. Text search matches the todo name when at least 3 characters are provided. Frequency filtering supports ONCE, WEEKLY, MONTHLY, and YEARLY. dateFrom/dateTo filters are applied against the todo schedule occurrence dates, not createdAt.',
+    }),
+    ApiQuery({
+      name: 'frequency',
+      required: false,
+      enum: TodoFrequency,
+      example: TodoFrequency.ONCE,
+      description:
+        'Optional todo frequency filter. Use ONCE for one-time todos.',
     }),
     ApiQuery({
       name: 'priority',
