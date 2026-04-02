@@ -36,6 +36,13 @@ enum TodoPriority {
   NOT_PRIORITY
 }
 
+enum TodoFrequency {
+  ONCE
+  WEEKLY
+  MONTHLY
+  YEARLY
+}
+
 enum ExpenseCategory {
   FOOD_DINING
   TRANSPORT
@@ -228,23 +235,31 @@ model Saving {
 }
 
 model Todo {
-  id        String       @id @default(uuid()) @db.Uuid
-  userId    String       @db.Uuid
-  name      String
-  price     Decimal      @db.Decimal(15, 2)
-  priority  TodoPriority
-  done      Boolean      @default(false)
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
-  deletedAt DateTime?
-  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  images    TodoImage[]
+  id                     String        @id @default(uuid()) @db.Uuid
+  userId                 String        @db.Uuid
+  name                   String
+  price                  Decimal       @db.Decimal(15, 2)
+  priority               TodoPriority
+  done                   Boolean       @default(false)
+  frequency              TodoFrequency @default(ONCE)
+  startDate              DateTime?     @db.Date
+  endDate                DateTime?     @db.Date
+  frequencyDays          Int[]         @default([])
+  occurrenceDates        String[]      @default([])
+  recordedOccurrenceDates String[]     @default([])
+  remainingAmount        Decimal?      @db.Decimal(15, 2)
+  createdAt              DateTime      @default(now())
+  updatedAt              DateTime      @updatedAt
+  deletedAt              DateTime?
+  user                   User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  images                 TodoImage[]
 
   @@index([userId])
   @@index([deletedAt])
   @@index([createdAt])
   @@index([userId, priority])
   @@index([userId, done])
+  @@index([userId, frequency])
 }
 
 model TodoImage {
