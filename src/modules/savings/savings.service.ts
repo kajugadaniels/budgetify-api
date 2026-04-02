@@ -9,6 +9,10 @@ import {
   PaginatedResponse,
   resolvePaginationOptions,
 } from '../../common/interfaces/paginated-response.interface';
+import {
+  normalizeListSearch,
+  resolveListDateRange,
+} from '../../common/utils/list-query.utils';
 import { UsersService } from '../users/users.service';
 import { CreateSavingRequestDto } from './dto/create-saving.request.dto';
 import { ListSavingsQueryDto } from './dto/list-savings.query.dto';
@@ -28,15 +32,12 @@ export class SavingsService {
   ): Promise<PaginatedResponse<Saving>> {
     await this.usersService.findActiveByIdOrThrow(userId);
     const pagination = resolvePaginationOptions(query);
-
-    const dateRange =
-      query.month === undefined && query.year === undefined
-        ? undefined
-        : this.buildSavingMonthRange(query);
+    const dateRange = resolveListDateRange(query);
 
     return this.savingsRepository.findManyByUserId(userId, {
       dateFrom: dateRange?.dateFrom,
       dateTo: dateRange?.dateTo,
+      search: normalizeListSearch(query.search),
       page: pagination.page,
       limit: pagination.limit,
       skip: pagination.skip,
@@ -120,19 +121,5 @@ export class SavingsService {
     }
 
     return saving;
-  }
-
-  private buildSavingMonthRange(query: ListSavingsQueryDto): {
-    dateFrom: Date;
-    dateTo: Date;
-  } {
-    const now = new Date();
-    const resolvedYear = query.year ?? now.getUTCFullYear();
-    const resolvedMonthIndex = (query.month ?? now.getUTCMonth() + 1) - 1;
-
-    return {
-      dateFrom: new Date(Date.UTC(resolvedYear, resolvedMonthIndex, 1)),
-      dateTo: new Date(Date.UTC(resolvedYear, resolvedMonthIndex + 1, 1)),
-    };
   }
 }
