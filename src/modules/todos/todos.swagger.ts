@@ -123,7 +123,7 @@ export function ApiListCurrentUserTodosEndpoint(): MethodDecorator {
     ApiOperation({
       summary: 'List current user todo items',
       description:
-        'Returns paginated non-deleted todo items owned by the authenticated user. Each todo response includes its active images, the primary cover image URL, and the stored priority level.',
+        'Returns paginated non-deleted todo items owned by the authenticated user. Each todo response includes its active images, the primary cover image URL, and the stored priority level. Text search matches the todo name when at least 3 characters are provided. dateFrom/dateTo filters are applied against the todo schedule occurrence dates, not createdAt.',
     }),
     ApiQuery({
       name: 'priority',
@@ -138,6 +138,30 @@ export function ApiListCurrentUserTodosEndpoint(): MethodDecorator {
       type: Boolean,
       example: false,
       description: 'Optional done-state filter.',
+    }),
+    ApiQuery({
+      name: 'search',
+      required: false,
+      type: String,
+      example: 'insurance',
+      description:
+        'Optional text search applied when at least 3 characters are provided. Matches the todo name.',
+    }),
+    ApiQuery({
+      name: 'dateFrom',
+      required: false,
+      type: String,
+      example: '2026-04-01',
+      description:
+        'Optional inclusive start date filter applied against scheduled occurrence dates, not createdAt.',
+    }),
+    ApiQuery({
+      name: 'dateTo',
+      required: false,
+      type: String,
+      example: '2026-04-30',
+      description:
+        'Optional inclusive end date filter applied against scheduled occurrence dates, not createdAt.',
     }),
     ApiQuery({
       name: 'page',
