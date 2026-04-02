@@ -17,6 +17,16 @@ export class TodosMapper {
       price: Number(todo.price),
       priority: todo.priority,
       done: todo.done,
+      frequency: todo.frequency,
+      startDate: todo.startDate
+        ? todo.startDate.toISOString().slice(0, 10)
+        : null,
+      endDate: todo.endDate ? todo.endDate.toISOString().slice(0, 10) : null,
+      frequencyDays: todo.frequencyDays,
+      occurrenceDates: todo.occurrenceDates,
+      recordedOccurrenceDates: todo.recordedOccurrenceDates,
+      remainingAmount:
+        todo.remainingAmount !== null ? Number(todo.remainingAmount) : null,
       coverImageUrl: coverImage?.imageUrl ?? null,
       imageCount: todo.images.length,
       images: todo.images.map((image) =>
