@@ -1,6 +1,14 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsInt, IsOptional, Max, Min } from 'class-validator';
+import {
+  IsDateString,
+  IsInt,
+  IsOptional,
+  IsString,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
 
 import {
   DEFAULT_PAGE_LIMIT,
@@ -38,6 +46,15 @@ export function normalizeOptionalBoolean(value: unknown): unknown {
   return value;
 }
 
+export function normalizeOptionalString(value: unknown): unknown {
+  if (typeof value !== 'string') {
+    return value;
+  }
+
+  const normalized = value.trim();
+  return normalized.length === 0 ? undefined : normalized;
+}
+
 export class PaginationQueryDto {
   @ApiPropertyOptional({
     description: '1-based page number.',
@@ -66,4 +83,42 @@ export class PaginationQueryDto {
     message: `Limit must be at most ${MAX_PAGE_LIMIT}.`,
   })
   limit?: number;
+
+  @ApiPropertyOptional({
+    description:
+      'Optional text search. The backend only applies it when at least 3 characters are provided.',
+    example: 'salary',
+    maxLength: 100,
+  })
+  @Transform(({ value }) => normalizeOptionalString(value))
+  @IsOptional()
+  @IsString({ message: 'Search must be a string.' })
+  @MaxLength(100, { message: 'Search must not exceed 100 characters.' })
+  search?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Optional inclusive start date filter applied against the entity date field selected by the user.',
+    example: '2026-04-01',
+  })
+  @Transform(({ value }) => normalizeOptionalString(value))
+  @IsOptional()
+  @IsDateString(
+    {},
+    { message: 'dateFrom must be a valid ISO date string (YYYY-MM-DD).' },
+  )
+  dateFrom?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Optional inclusive end date filter applied against the entity date field selected by the user.',
+    example: '2026-04-30',
+  })
+  @Transform(({ value }) => normalizeOptionalString(value))
+  @IsOptional()
+  @IsDateString(
+    {},
+    { message: 'dateTo must be a valid ISO date string (YYYY-MM-DD).' },
+  )
+  dateTo?: string;
 }
