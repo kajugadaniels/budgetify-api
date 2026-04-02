@@ -1,14 +1,28 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { TodoPriority } from '@prisma/client';
+import { TodoFrequency, TodoPriority } from '@prisma/client';
 import { Transform } from 'class-transformer';
 import { IsEnum, IsOptional } from 'class-validator';
 
 import {
   normalizeOptionalBoolean,
+  normalizeOptionalString,
   PaginationQueryDto,
 } from '../../../common/dto/pagination-query.dto';
 
 export class ListTodosQueryDto extends PaginationQueryDto {
+  @ApiPropertyOptional({
+    enum: TodoFrequency,
+    example: TodoFrequency.ONCE,
+    description:
+      'Optional todo frequency filter. Legacy empty frequency values are treated as ONCE.',
+  })
+  @Transform(({ value }) => normalizeOptionalString(value))
+  @IsOptional()
+  @IsEnum(TodoFrequency, {
+    message: 'Frequency must be a valid todo frequency.',
+  })
+  frequency?: TodoFrequency;
+
   @ApiPropertyOptional({
     enum: TodoPriority,
     example: TodoPriority.TOP_PRIORITY,
