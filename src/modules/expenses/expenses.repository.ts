@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Expense, Prisma } from '@prisma/client';
+import { Expense, ExpenseCategory, Prisma } from '@prisma/client';
 
 import {
   PaginatedResponse,
@@ -18,6 +18,8 @@ export class ExpensesRepository {
     options?: {
       dateFrom?: Date;
       dateTo?: Date;
+      search?: string;
+      searchCategories?: ExpenseCategory[];
       category?: Prisma.ExpenseWhereInput['category'];
       skip?: number;
       take?: number;
@@ -26,10 +28,43 @@ export class ExpensesRepository {
     },
     db: PrismaExecutor = this.prisma,
   ): Promise<PaginatedResponse<Expense>> {
+    const searchFilters: Prisma.ExpenseWhereInput[] = [];
+
+    if (options?.search) {
+      searchFilters.push({
+        label: {
+          contains: options.search,
+          mode: 'insensitive',
+        },
+      });
+      searchFilters.push({
+        note: {
+          contains: options.search,
+          mode: 'insensitive',
+        },
+      });
+
+      if (options.searchCategories && options.searchCategories.length > 0) {
+        searchFilters.push({
+          category: {
+            in: options.searchCategories,
+          },
+        });
+      }
+    }
+
     const where: Prisma.ExpenseWhereInput = {
       userId,
       deletedAt: null,
       category: options?.category,
+      AND:
+        searchFilters.length > 0
+          ? [
+              {
+                OR: searchFilters,
+              },
+            ]
+          : undefined,
       date:
         options?.dateFrom && options?.dateTo
           ? {
