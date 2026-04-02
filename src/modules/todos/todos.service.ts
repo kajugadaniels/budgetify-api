@@ -54,6 +54,7 @@ export class TodosService {
     const dateRange = resolveListDateRange(query);
 
     return this.todosRepository.findManyByUserId(userId, {
+      frequency: query.frequency,
       priority: query.priority,
       done: query.done,
       search: normalizeListSearch(query.search),
