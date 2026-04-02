@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Income, Prisma } from '@prisma/client';
+import { Income, IncomeCategory, Prisma } from '@prisma/client';
 
 import {
   PaginatedResponse,
@@ -18,6 +18,8 @@ export class IncomeRepository {
     options?: {
       dateFrom?: Date;
       dateTo?: Date;
+      search?: string;
+      searchCategories?: IncomeCategory[];
       category?: Prisma.IncomeWhereInput['category'];
       received?: boolean;
       skip?: number;
@@ -27,11 +29,38 @@ export class IncomeRepository {
     },
     db: PrismaExecutor = this.prisma,
   ): Promise<PaginatedResponse<Income>> {
+    const searchFilters: Prisma.IncomeWhereInput[] = [];
+
+    if (options?.search) {
+      searchFilters.push({
+        label: {
+          contains: options.search,
+          mode: 'insensitive',
+        },
+      });
+
+      if (options.searchCategories && options.searchCategories.length > 0) {
+        searchFilters.push({
+          category: {
+            in: options.searchCategories,
+          },
+        });
+      }
+    }
+
     const where: Prisma.IncomeWhereInput = {
       userId,
       deletedAt: null,
       category: options?.category,
       received: options?.received,
+      AND:
+        searchFilters.length > 0
+          ? [
+              {
+                OR: searchFilters,
+              },
+            ]
+          : undefined,
       date:
         options?.dateFrom && options?.dateTo
           ? {
