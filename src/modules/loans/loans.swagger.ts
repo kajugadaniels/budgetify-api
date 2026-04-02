@@ -29,7 +29,7 @@ export function ApiListCurrentUserLoansEndpoint(): MethodDecorator {
     ApiOperation({
       summary: 'List current user loan records',
       description:
-        'Returns non-deleted loan records owned by the authenticated user, ordered from newest to oldest by recorded date. When month or year query filters are supplied, only matching recorded dates are returned. When no query is provided, all loan records are returned.',
+        'Returns non-deleted loan records owned by the authenticated user, ordered from newest to oldest by recorded date. Explicit dateFrom/dateTo filters override month and year, and text search matches the loan label and note when at least 3 characters are provided. When no query is provided, all loan records are returned.',
     }),
     ApiQuery({
       name: 'month',
@@ -53,6 +53,30 @@ export function ApiListCurrentUserLoansEndpoint(): MethodDecorator {
       type: Boolean,
       example: false,
       description: 'Optional paid-state filter.',
+    }),
+    ApiQuery({
+      name: 'search',
+      required: false,
+      type: String,
+      example: 'rent',
+      description:
+        'Optional text search applied when at least 3 characters are provided. Matches the loan label and note.',
+    }),
+    ApiQuery({
+      name: 'dateFrom',
+      required: false,
+      type: String,
+      example: '2026-03-10',
+      description:
+        'Optional inclusive start date filter applied against the recorded loan date. Overrides month/year filtering when provided.',
+    }),
+    ApiQuery({
+      name: 'dateTo',
+      required: false,
+      type: String,
+      example: '2026-03-25',
+      description:
+        'Optional inclusive end date filter applied against the recorded loan date. Overrides month/year filtering when provided.',
     }),
     ApiQuery({
       name: 'page',
