@@ -9,6 +9,11 @@ import {
   PaginatedResponse,
   resolvePaginationOptions,
 } from '../../common/interfaces/paginated-response.interface';
+import {
+  findMatchingOptionValues,
+  normalizeListSearch,
+  resolveListDateRange,
+} from '../../common/utils/list-query.utils';
 import { UsersService } from '../users/users.service';
 import { CreateIncomeRequestDto } from './dto/create-income.request.dto';
 import { IncomeCategoryOptionResponseDto } from './dto/income-category-option.response.dto';
@@ -30,15 +35,18 @@ export class IncomeService {
   ): Promise<PaginatedResponse<Income>> {
     await this.usersService.findActiveByIdOrThrow(userId);
     const pagination = resolvePaginationOptions(query);
-
-    const dateRange =
-      query.month === undefined && query.year === undefined
-        ? undefined
-        : this.buildIncomeMonthRange(query);
+    const dateRange = resolveListDateRange(query);
+    const search = normalizeListSearch(query.search);
+    const searchCategories = findMatchingOptionValues(
+      INCOME_CATEGORY_OPTIONS,
+      search,
+    );
 
     return this.incomeRepository.findManyByUserId(userId, {
       dateFrom: dateRange?.dateFrom,
       dateTo: dateRange?.dateTo,
+      search,
+      searchCategories,
       category: query.category,
       received: query.received,
       page: pagination.page,
@@ -128,19 +136,5 @@ export class IncomeService {
     }
 
     return income;
-  }
-
-  private buildIncomeMonthRange(query: ListIncomeQueryDto): {
-    dateFrom: Date;
-    dateTo: Date;
-  } {
-    const now = new Date();
-    const resolvedYear = query.year ?? now.getUTCFullYear();
-    const resolvedMonthIndex = (query.month ?? now.getUTCMonth() + 1) - 1;
-
-    return {
-      dateFrom: new Date(Date.UTC(resolvedYear, resolvedMonthIndex, 1)),
-      dateTo: new Date(Date.UTC(resolvedYear, resolvedMonthIndex + 1, 1)),
-    };
   }
 }
