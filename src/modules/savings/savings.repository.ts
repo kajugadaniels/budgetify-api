@@ -18,6 +18,7 @@ export class SavingsRepository {
     options?: {
       dateFrom?: Date;
       dateTo?: Date;
+      search?: string;
       skip?: number;
       take?: number;
       page: number;
@@ -25,9 +26,35 @@ export class SavingsRepository {
     },
     db: PrismaExecutor = this.prisma,
   ): Promise<PaginatedResponse<Saving>> {
+    const searchFilters: Prisma.SavingWhereInput[] =
+      options?.search === undefined
+        ? []
+        : [
+            {
+              label: {
+                contains: options.search,
+                mode: 'insensitive',
+              },
+            },
+            {
+              note: {
+                contains: options.search,
+                mode: 'insensitive',
+              },
+            },
+          ];
+
     const where: Prisma.SavingWhereInput = {
       userId,
       deletedAt: null,
+      AND:
+        searchFilters.length > 0
+          ? [
+              {
+                OR: searchFilters,
+              },
+            ]
+          : undefined,
       date:
         options?.dateFrom && options?.dateTo
           ? {
