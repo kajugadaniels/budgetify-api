@@ -27,7 +27,7 @@ export function ApiListCurrentUserSavingsEndpoint(): MethodDecorator {
     ApiOperation({
       summary: 'List current user saving records',
       description:
-        'Returns non-deleted saving records owned by the authenticated user, ordered from newest to oldest by recorded date. When month or year query filters are supplied, only matching recorded dates are returned. When no query is provided, all saving records are returned.',
+        'Returns non-deleted saving records owned by the authenticated user, ordered from newest to oldest by recorded date. Explicit dateFrom/dateTo filters override month and year, and text search matches the saving label and note when at least 3 characters are provided. When no query is provided, all saving records are returned.',
     }),
     ApiQuery({
       name: 'month',
@@ -44,6 +44,30 @@ export function ApiListCurrentUserSavingsEndpoint(): MethodDecorator {
       example: 2026,
       description:
         'Optional year filter paired with month. Defaults to the current year.',
+    }),
+    ApiQuery({
+      name: 'search',
+      required: false,
+      type: String,
+      example: 'trip',
+      description:
+        'Optional text search applied when at least 3 characters are provided. Matches the saving label and note.',
+    }),
+    ApiQuery({
+      name: 'dateFrom',
+      required: false,
+      type: String,
+      example: '2026-04-01',
+      description:
+        'Optional inclusive start date filter applied against the recorded saving date. Overrides month/year filtering when provided.',
+    }),
+    ApiQuery({
+      name: 'dateTo',
+      required: false,
+      type: String,
+      example: '2026-04-15',
+      description:
+        'Optional inclusive end date filter applied against the recorded saving date. Overrides month/year filtering when provided.',
     }),
     ApiQuery({
       name: 'page',
