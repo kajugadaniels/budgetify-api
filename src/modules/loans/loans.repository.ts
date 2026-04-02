@@ -18,6 +18,7 @@ export class LoansRepository {
     options?: {
       dateFrom?: Date;
       dateTo?: Date;
+      search?: string;
       paid?: boolean;
       skip?: number;
       take?: number;
@@ -26,10 +27,36 @@ export class LoansRepository {
     },
     db: PrismaExecutor = this.prisma,
   ): Promise<PaginatedResponse<Loan>> {
+    const searchFilters: Prisma.LoanWhereInput[] =
+      options?.search === undefined
+        ? []
+        : [
+            {
+              label: {
+                contains: options.search,
+                mode: 'insensitive',
+              },
+            },
+            {
+              note: {
+                contains: options.search,
+                mode: 'insensitive',
+              },
+            },
+          ];
+
     const where: Prisma.LoanWhereInput = {
       userId,
       deletedAt: null,
       paid: options?.paid,
+      AND:
+        searchFilters.length > 0
+          ? [
+              {
+                OR: searchFilters,
+              },
+            ]
+          : undefined,
       date:
         options?.dateFrom && options?.dateTo
           ? {
