@@ -109,7 +109,17 @@ export class PartnershipsRepository {
     tokenHash: string;
     expiresAt: Date;
   }): Promise<Partnership> {
-    return this.prisma.partnership.create({ data });
+    return this.prisma.partnership.upsert({
+      where: { ownerId: data.ownerId },
+      create: data,
+      update: {
+        partnerId: null,
+        inviteeEmail: data.inviteeEmail,
+        tokenHash: data.tokenHash,
+        status: PartnershipStatus.PENDING,
+        expiresAt: data.expiresAt,
+      },
+    });
   }
 
   async accept(id: string, partnerId: string): Promise<Partnership> {
@@ -122,7 +132,24 @@ export class PartnershipsRepository {
   async revoke(id: string): Promise<Partnership> {
     return this.prisma.partnership.update({
       where: { id },
-      data: { status: PartnershipStatus.REVOKED },
+      data: {
+        partnerId: null,
+        status: PartnershipStatus.REVOKED,
+      },
+    });
+  }
+
+  async clearRevokedPartnerLocks(
+    partnerId: string,
+  ): Promise<Prisma.BatchPayload> {
+    return this.prisma.partnership.updateMany({
+      where: {
+        partnerId,
+        status: PartnershipStatus.REVOKED,
+      },
+      data: {
+        partnerId: null,
+      },
     });
   }
 }
