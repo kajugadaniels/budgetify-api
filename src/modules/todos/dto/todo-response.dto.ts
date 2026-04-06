@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { TodoFrequency, TodoPriority } from '@prisma/client';
 
+import { CreatedByResponseDto } from '../../../common/dto/created-by.response.dto';
 import { TodoImageResponseDto } from './todo-image-response.dto';
 
 export class TodoResponseDto {
@@ -99,4 +100,7 @@ export class TodoResponseDto {
 
   @ApiProperty({ example: '2026-03-29T20:15:30.000Z' })
   updatedAt!: Date;
+
+  @ApiProperty({ type: CreatedByResponseDto })
+  createdBy!: CreatedByResponseDto;
 }

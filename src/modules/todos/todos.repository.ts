@@ -95,11 +95,7 @@ export class TodosRepository {
       db.todo.findMany({
         where,
         include: activeTodoInclude,
-        orderBy: [
-          { startDate: 'desc' },
-          { priority: 'asc' },
-          { createdAt: 'desc' },
-        ],
+        orderBy: [{ createdAt: 'desc' }],
         skip: options?.skip,
         take: options?.take,
       }),
