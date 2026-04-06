@@ -153,6 +153,7 @@ export class PartnershipsService {
       );
     }
 
+    await this.partnershipsRepository.clearRevokedPartnerLocks(userId);
     await this.partnershipsRepository.accept(partnership.id, userId);
 
     const accepted =
