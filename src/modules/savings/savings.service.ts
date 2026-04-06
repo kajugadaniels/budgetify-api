@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, Saving } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 
 import {
   PaginatedResponse,
@@ -13,28 +13,32 @@ import {
   normalizeListSearch,
   resolveListDateRange,
 } from '../../common/utils/list-query.utils';
+import { PartnershipsService } from '../partnerships/partnerships.service';
 import { UsersService } from '../users/users.service';
 import { CreateSavingRequestDto } from './dto/create-saving.request.dto';
 import { ListSavingsQueryDto } from './dto/list-savings.query.dto';
 import { UpdateSavingRequestDto } from './dto/update-saving.request.dto';
-import { SavingsRepository } from './savings.repository';
+import { SavingWithCreator, SavingsRepository } from './savings.repository';
 
 @Injectable()
 export class SavingsService {
   constructor(
     private readonly savingsRepository: SavingsRepository,
     private readonly usersService: UsersService,
+    private readonly partnershipsService: PartnershipsService,
   ) {}
 
   async listCurrentUserSavings(
     userId: string,
     query: ListSavingsQueryDto,
-  ): Promise<PaginatedResponse<Saving>> {
+  ): Promise<PaginatedResponse<SavingWithCreator>> {
     await this.usersService.findActiveByIdOrThrow(userId);
+    const visibleUserIds =
+      await this.partnershipsService.getVisibleUserIds(userId);
     const pagination = resolvePaginationOptions(query);
     const dateRange = resolveListDateRange(query);
 
-    return this.savingsRepository.findManyByUserId(userId, {
+    return this.savingsRepository.findManyByUserIds(visibleUserIds, {
       dateFrom: dateRange?.dateFrom,
       dateTo: dateRange?.dateTo,
       search: normalizeListSearch(query.search),
@@ -48,7 +52,7 @@ export class SavingsService {
   async createCurrentUserSaving(
     userId: string,
     payload: CreateSavingRequestDto,
-  ): Promise<Saving> {
+  ): Promise<SavingWithCreator> {
     await this.usersService.findActiveByIdOrThrow(userId);
 
     return this.savingsRepository.create({
@@ -65,7 +69,7 @@ export class SavingsService {
     userId: string,
     savingId: string,
     payload: UpdateSavingRequestDto,
-  ): Promise<Saving> {
+  ): Promise<SavingWithCreator> {
     if (
       payload.label === undefined &&
       payload.amount === undefined &&
@@ -80,7 +84,7 @@ export class SavingsService {
 
     await this.usersService.findActiveByIdOrThrow(userId);
 
-    const saving = await this.findOwnedSavingOrThrow(userId, savingId);
+    const saving = await this.findVisibleSavingOrThrow(userId, savingId);
 
     return this.savingsRepository.update(saving.id, {
       label: payload.label,
@@ -110,10 +114,19 @@ export class SavingsService {
   private async findOwnedSavingOrThrow(
     userId: string,
     savingId: string,
-  ): Promise<Saving> {
-    const saving = await this.savingsRepository.findActiveByIdAndUserId(
+  ): Promise<SavingWithCreator> {
+    return this.findVisibleSavingOrThrow(userId, savingId);
+  }
+
+  private async findVisibleSavingOrThrow(
+    userId: string,
+    savingId: string,
+  ): Promise<SavingWithCreator> {
+    const visibleUserIds =
+      await this.partnershipsService.getVisibleUserIds(userId);
+    const saving = await this.savingsRepository.findActiveByIdAndUserIds(
       savingId,
-      userId,
+      visibleUserIds,
     );
 
     if (!saving) {
