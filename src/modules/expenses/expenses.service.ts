@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Expense, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 
 import {
   PaginatedResponse,
@@ -14,26 +14,30 @@ import {
   normalizeListSearch,
   resolveListDateRange,
 } from '../../common/utils/list-query.utils';
+import { PartnershipsService } from '../partnerships/partnerships.service';
 import { UsersService } from '../users/users.service';
 import { CreateExpenseRequestDto } from './dto/create-expense.request.dto';
 import { ExpenseCategoryOptionResponseDto } from './dto/expense-category-option.response.dto';
 import { ListExpensesQueryDto } from './dto/list-expenses.query.dto';
 import { UpdateExpenseRequestDto } from './dto/update-expense.request.dto';
 import { EXPENSE_CATEGORY_OPTIONS } from './expense-category-options';
-import { ExpensesRepository } from './expenses.repository';
+import { ExpenseWithCreator, ExpensesRepository } from './expenses.repository';
 
 @Injectable()
 export class ExpensesService {
   constructor(
     private readonly expensesRepository: ExpensesRepository,
     private readonly usersService: UsersService,
+    private readonly partnershipsService: PartnershipsService,
   ) {}
 
   async listCurrentUserExpenses(
     userId: string,
     query: ListExpensesQueryDto,
-  ): Promise<PaginatedResponse<Expense>> {
+  ): Promise<PaginatedResponse<ExpenseWithCreator>> {
     await this.usersService.findActiveByIdOrThrow(userId);
+    const visibleUserIds =
+      await this.partnershipsService.getVisibleUserIds(userId);
     const pagination = resolvePaginationOptions(query);
     const dateRange = resolveListDateRange(query);
     const search = normalizeListSearch(query.search);
@@ -42,7 +46,7 @@ export class ExpensesService {
       search,
     );
 
-    return this.expensesRepository.findManyByUserId(userId, {
+    return this.expensesRepository.findManyByUserIds(visibleUserIds, {
       dateFrom: dateRange?.dateFrom,
       dateTo: dateRange?.dateTo,
       search,
@@ -62,7 +66,7 @@ export class ExpensesService {
   async createCurrentUserExpense(
     userId: string,
     payload: CreateExpenseRequestDto,
-  ): Promise<Expense> {
+  ): Promise<ExpenseWithCreator> {
     await this.usersService.findActiveByIdOrThrow(userId);
 
     return this.expensesRepository.create({
@@ -79,7 +83,7 @@ export class ExpensesService {
     userId: string,
     expenseId: string,
     payload: UpdateExpenseRequestDto,
-  ): Promise<Expense> {
+  ): Promise<ExpenseWithCreator> {
     if (
       payload.label === undefined &&
       payload.amount === undefined &&
@@ -94,7 +98,7 @@ export class ExpensesService {
 
     await this.usersService.findActiveByIdOrThrow(userId);
 
-    const expense = await this.findOwnedExpenseOrThrow(userId, expenseId);
+    const expense = await this.findVisibleExpenseOrThrow(userId, expenseId);
 
     return this.expensesRepository.update(expense.id, {
       label: payload.label,
@@ -124,10 +128,19 @@ export class ExpensesService {
   private async findOwnedExpenseOrThrow(
     userId: string,
     expenseId: string,
-  ): Promise<Expense> {
-    const expense = await this.expensesRepository.findActiveByIdAndUserId(
+  ): Promise<ExpenseWithCreator> {
+    return this.findVisibleExpenseOrThrow(userId, expenseId);
+  }
+
+  private async findVisibleExpenseOrThrow(
+    userId: string,
+    expenseId: string,
+  ): Promise<ExpenseWithCreator> {
+    const visibleUserIds =
+      await this.partnershipsService.getVisibleUserIds(userId);
+    const expense = await this.expensesRepository.findActiveByIdAndUserIds(
       expenseId,
-      userId,
+      visibleUserIds,
     );
 
     if (!expense) {
