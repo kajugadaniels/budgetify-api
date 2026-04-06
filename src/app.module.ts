@@ -16,6 +16,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { ExpensesModule } from './modules/expenses/expenses.module';
 import { IncomeModule } from './modules/income/income.module';
 import { LoansModule } from './modules/loans/loans.module';
+import { PartnershipsModule } from './modules/partnerships/partnerships.module';
 import { SavingsModule } from './modules/savings/savings.module';
 import { TodosModule } from './modules/todos/todos.module';
 import { UsersModule } from './modules/users/users.module';
@@ -128,6 +129,7 @@ function getRequestSignature(context: ExecutionContext): {
     SavingsModule,
     LoansModule,
     TodosModule,
+    PartnershipsModule,
     AuthModule,
   ],
   providers: [
