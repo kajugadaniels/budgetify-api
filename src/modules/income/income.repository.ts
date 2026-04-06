@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Income, IncomeCategory, Prisma } from '@prisma/client';
+import { IncomeCategory, Prisma } from '@prisma/client';
 
 import {
   PaginatedResponse,
@@ -9,12 +9,23 @@ import { PrismaService } from '../../database/prisma/prisma.service';
 
 type PrismaExecutor = Prisma.TransactionClient | PrismaService;
 
+const USER_SELECT = {
+  id: true,
+  firstName: true,
+  lastName: true,
+  avatarUrl: true,
+} as const;
+
+export type IncomeWithCreator = Prisma.IncomeGetPayload<{
+  include: { user: { select: typeof USER_SELECT } };
+}>;
+
 @Injectable()
 export class IncomeRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findManyByUserId(
-    userId: string,
+  async findManyByUserIds(
+    userIds: string[],
     options?: {
       dateFrom?: Date;
       dateTo?: Date;
@@ -28,7 +39,7 @@ export class IncomeRepository {
       limit: number;
     },
     db: PrismaExecutor = this.prisma,
-  ): Promise<PaginatedResponse<Income>> {
+  ): Promise<PaginatedResponse<IncomeWithCreator>> {
     const searchFilters: Prisma.IncomeWhereInput[] = [];
 
     if (options?.search) {
@@ -49,7 +60,7 @@ export class IncomeRepository {
     }
 
     const where: Prisma.IncomeWhereInput = {
-      userId,
+      userId: { in: userIds },
       deletedAt: null,
       category: options?.category,
       received: options?.received,
@@ -73,6 +84,7 @@ export class IncomeRepository {
     const [items, totalItems] = await Promise.all([
       db.income.findMany({
         where,
+        include: { user: { select: USER_SELECT } },
         orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
         skip: options?.skip,
         take: options?.take,
@@ -90,31 +102,44 @@ export class IncomeRepository {
     id: string,
     userId: string,
     db: PrismaExecutor = this.prisma,
-  ): Promise<Income | null> {
+  ): Promise<IncomeWithCreator | null> {
+    return this.findActiveByIdAndUserIds(id, [userId], db);
+  }
+
+  async findActiveByIdAndUserIds(
+    id: string,
+    userIds: string[],
+    db: PrismaExecutor = this.prisma,
+  ): Promise<IncomeWithCreator | null> {
     return db.income.findFirst({
       where: {
         id,
-        userId,
+        userId: { in: userIds },
         deletedAt: null,
       },
+      include: { user: { select: USER_SELECT } },
     });
   }
 
   async create(
     data: Prisma.IncomeUncheckedCreateInput,
     db: PrismaExecutor = this.prisma,
-  ): Promise<Income> {
-    return db.income.create({ data });
+  ): Promise<IncomeWithCreator> {
+    return db.income.create({
+      data,
+      include: { user: { select: USER_SELECT } },
+    });
   }
 
   async update(
     id: string,
     data: Prisma.IncomeUpdateInput,
     db: PrismaExecutor = this.prisma,
-  ): Promise<Income> {
+  ): Promise<IncomeWithCreator> {
     return db.income.update({
       where: { id },
       data,
+      include: { user: { select: USER_SELECT } },
     });
   }
 }
