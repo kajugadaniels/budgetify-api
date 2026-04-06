@@ -7,4 +7,5 @@ export const appConfig = registerAs('app', () => ({
   port: Number(process.env.PORT ?? 3000),
   apiPrefix: API_PREFIX,
   apiVersion: API_VERSION,
+  frontendUrl: process.env.FRONTEND_URL ?? 'http://localhost:3001',
 }));
