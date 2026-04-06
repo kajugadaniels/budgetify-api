@@ -3,13 +3,18 @@ import { PassportModule } from '@nestjs/passport';
 
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ExpensesRepository } from '../expenses/expenses.repository';
+import { PartnershipsModule } from '../partnerships/partnerships.module';
 import { UsersModule } from '../users/users.module';
 import { LoansController } from './loans.controller';
 import { LoansRepository } from './loans.repository';
 import { LoansService } from './loans.service';
 
 @Module({
-  imports: [PassportModule.register({ defaultStrategy: 'jwt' }), UsersModule],
+  imports: [
+    PassportModule.register({ defaultStrategy: 'jwt' }),
+    UsersModule,
+    PartnershipsModule,
+  ],
   controllers: [LoansController],
   providers: [LoansRepository, ExpensesRepository, LoansService, JwtAuthGuard],
   exports: [LoansService],
