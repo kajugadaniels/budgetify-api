@@ -14,6 +14,7 @@ import {
   resolveListDateRange,
 } from '../../common/utils/list-query.utils';
 import { PrismaService } from '../../database/prisma/prisma.service';
+import { PartnershipsService } from '../partnerships/partnerships.service';
 import { UsersService } from '../users/users.service';
 import { CreateTodoRequestDto } from './dto/create-todo.request.dto';
 import { ListTodosQueryDto } from './dto/list-todos.query.dto';
@@ -42,6 +43,7 @@ export class TodosService {
     private readonly prisma: PrismaService,
     private readonly todosRepository: TodosRepository,
     private readonly usersService: UsersService,
+    private readonly partnershipsService: PartnershipsService,
     private readonly todoImageStorageService: TodoImageStorageService,
   ) {}
 
@@ -50,10 +52,12 @@ export class TodosService {
     query: ListTodosQueryDto,
   ): Promise<PaginatedResponse<TodoWithImages>> {
     await this.usersService.findActiveByIdOrThrow(userId);
+    const visibleUserIds =
+      await this.partnershipsService.getVisibleUserIds(userId);
     const pagination = resolvePaginationOptions(query);
     const dateRange = resolveListDateRange(query);
 
-    return this.todosRepository.findManyByUserId(userId, {
+    return this.todosRepository.findManyByUserIds(visibleUserIds, {
       frequency: query.frequency,
       priority: query.priority,
       done: query.done,
@@ -72,7 +76,7 @@ export class TodosService {
   ): Promise<TodoWithImages> {
     await this.usersService.findActiveByIdOrThrow(userId);
 
-    return this.findOwnedTodoOrThrow(userId, todoId);
+    return this.findVisibleTodoOrThrow(userId, todoId);
   }
 
   async createCurrentUserTodo(
@@ -169,7 +173,7 @@ export class TodosService {
 
     await this.usersService.findActiveByIdOrThrow(userId);
 
-    const todo = await this.findOwnedTodoOrThrow(userId, todoId);
+    const todo = await this.findVisibleTodoOrThrow(userId, todoId);
 
     const nextName = payload.name ?? todo.name;
     const uploadedImages =
@@ -375,7 +379,7 @@ export class TodosService {
   async deleteCurrentUserTodo(userId: string, todoId: string): Promise<void> {
     await this.usersService.findActiveByIdOrThrow(userId);
 
-    const todo = await this.findOwnedTodoOrThrow(userId, todoId);
+    const todo = await this.findVisibleTodoOrThrow(userId, todoId);
     const deletedAt = new Date();
 
     await this.prisma.$transaction(async (tx) => {
@@ -395,7 +399,7 @@ export class TodosService {
   ): Promise<TodoWithImages> {
     await this.usersService.findActiveByIdOrThrow(userId);
 
-    const todo = await this.findOwnedTodoOrThrow(userId, todoId);
+    const todo = await this.findVisibleTodoOrThrow(userId, todoId);
     const image = todo.images.find((entry) => entry.id === imageId);
 
     if (!image) {
@@ -693,9 +697,18 @@ export class TodosService {
     userId: string,
     todoId: string,
   ): Promise<TodoWithImages> {
-    const todo = await this.todosRepository.findActiveByIdAndUserId(
+    return this.findVisibleTodoOrThrow(userId, todoId);
+  }
+
+  private async findVisibleTodoOrThrow(
+    userId: string,
+    todoId: string,
+  ): Promise<TodoWithImages> {
+    const visibleUserIds =
+      await this.partnershipsService.getVisibleUserIds(userId);
+    const todo = await this.todosRepository.findActiveByIdAndUserIds(
       todoId,
-      userId,
+      visibleUserIds,
     );
 
     if (!todo) {
