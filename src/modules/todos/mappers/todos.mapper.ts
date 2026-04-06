@@ -34,6 +34,12 @@ export class TodosMapper {
       ),
       createdAt: todo.createdAt,
       updatedAt: todo.updatedAt,
+      createdBy: {
+        id: todo.user.id,
+        firstName: todo.user.firstName,
+        lastName: todo.user.lastName,
+        avatarUrl: todo.user.avatarUrl,
+      },
     };
   }
 
