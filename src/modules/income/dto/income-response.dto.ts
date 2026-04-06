@@ -1,6 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IncomeCategory } from '@prisma/client';
 
+import { CreatedByResponseDto } from '../../../common/dto/created-by.response.dto';
+
 export class IncomeResponseDto {
   @ApiProperty({ example: '8d65c09f-e7fa-4ee1-9428-3b1ebc80a918' })
   id!: string;
@@ -31,4 +33,7 @@ export class IncomeResponseDto {
 
   @ApiProperty({ example: '2026-03-29T19:30:00.000Z' })
   updatedAt!: Date;
+
+  @ApiProperty({ type: CreatedByResponseDto })
+  createdBy!: CreatedByResponseDto;
 }
