@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Income, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 
 import {
   PaginatedResponse,
@@ -14,26 +14,30 @@ import {
   normalizeListSearch,
   resolveListDateRange,
 } from '../../common/utils/list-query.utils';
+import { PartnershipsService } from '../partnerships/partnerships.service';
 import { UsersService } from '../users/users.service';
 import { CreateIncomeRequestDto } from './dto/create-income.request.dto';
 import { IncomeCategoryOptionResponseDto } from './dto/income-category-option.response.dto';
 import { ListIncomeQueryDto } from './dto/list-income.query.dto';
 import { UpdateIncomeRequestDto } from './dto/update-income.request.dto';
 import { INCOME_CATEGORY_OPTIONS } from './income-category-options';
-import { IncomeRepository } from './income.repository';
+import { IncomeRepository, IncomeWithCreator } from './income.repository';
 
 @Injectable()
 export class IncomeService {
   constructor(
     private readonly incomeRepository: IncomeRepository,
     private readonly usersService: UsersService,
+    private readonly partnershipsService: PartnershipsService,
   ) {}
 
   async listCurrentUserIncome(
     userId: string,
     query: ListIncomeQueryDto,
-  ): Promise<PaginatedResponse<Income>> {
+  ): Promise<PaginatedResponse<IncomeWithCreator>> {
     await this.usersService.findActiveByIdOrThrow(userId);
+    const visibleUserIds =
+      await this.partnershipsService.getVisibleUserIds(userId);
     const pagination = resolvePaginationOptions(query);
     const dateRange = resolveListDateRange(query);
     const search = normalizeListSearch(query.search);
@@ -42,7 +46,7 @@ export class IncomeService {
       search,
     );
 
-    return this.incomeRepository.findManyByUserId(userId, {
+    return this.incomeRepository.findManyByUserIds(visibleUserIds, {
       dateFrom: dateRange?.dateFrom,
       dateTo: dateRange?.dateTo,
       search,
@@ -63,7 +67,7 @@ export class IncomeService {
   async createCurrentUserIncome(
     userId: string,
     payload: CreateIncomeRequestDto,
-  ): Promise<Income> {
+  ): Promise<IncomeWithCreator> {
     await this.usersService.findActiveByIdOrThrow(userId);
 
     return this.incomeRepository.create({
@@ -80,7 +84,7 @@ export class IncomeService {
     userId: string,
     incomeId: string,
     payload: UpdateIncomeRequestDto,
-  ): Promise<Income> {
+  ): Promise<IncomeWithCreator> {
     if (
       payload.label === undefined &&
       payload.amount === undefined &&
@@ -95,7 +99,7 @@ export class IncomeService {
 
     await this.usersService.findActiveByIdOrThrow(userId);
 
-    const income = await this.findOwnedIncomeOrThrow(userId, incomeId);
+    const income = await this.findVisibleIncomeOrThrow(userId, incomeId);
 
     return this.incomeRepository.update(income.id, {
       label: payload.label,
@@ -125,10 +129,19 @@ export class IncomeService {
   private async findOwnedIncomeOrThrow(
     userId: string,
     incomeId: string,
-  ): Promise<Income> {
-    const income = await this.incomeRepository.findActiveByIdAndUserId(
+  ): Promise<IncomeWithCreator> {
+    return this.findVisibleIncomeOrThrow(userId, incomeId);
+  }
+
+  private async findVisibleIncomeOrThrow(
+    userId: string,
+    incomeId: string,
+  ): Promise<IncomeWithCreator> {
+    const visibleUserIds =
+      await this.partnershipsService.getVisibleUserIds(userId);
+    const income = await this.incomeRepository.findActiveByIdAndUserIds(
       incomeId,
-      userId,
+      visibleUserIds,
     );
 
     if (!income) {
