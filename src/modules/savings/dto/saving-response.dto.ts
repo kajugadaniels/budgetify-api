@@ -1,5 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
+import { CreatedByResponseDto } from '../../../common/dto/created-by.response.dto';
+
 export class SavingResponseDto {
   @ApiProperty({ example: '97bcc638-92b6-4209-a90f-7c10ec6a3a85' })
   id!: string;
@@ -30,4 +32,7 @@ export class SavingResponseDto {
 
   @ApiProperty({ example: '2026-04-01T10:15:00.000Z' })
   updatedAt!: Date;
+
+  @ApiProperty({ type: CreatedByResponseDto })
+  createdBy!: CreatedByResponseDto;
 }
