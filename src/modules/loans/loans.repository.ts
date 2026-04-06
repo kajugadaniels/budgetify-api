@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Loan, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 
 import {
   PaginatedResponse,
@@ -9,12 +9,23 @@ import { PrismaService } from '../../database/prisma/prisma.service';
 
 type PrismaExecutor = Prisma.TransactionClient | PrismaService;
 
+const USER_SELECT = {
+  id: true,
+  firstName: true,
+  lastName: true,
+  avatarUrl: true,
+} as const;
+
+export type LoanWithCreator = Prisma.LoanGetPayload<{
+  include: { user: { select: typeof USER_SELECT } };
+}>;
+
 @Injectable()
 export class LoansRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findManyByUserId(
-    userId: string,
+  async findManyByUserIds(
+    userIds: string[],
     options?: {
       dateFrom?: Date;
       dateTo?: Date;
@@ -26,7 +37,7 @@ export class LoansRepository {
       limit: number;
     },
     db: PrismaExecutor = this.prisma,
-  ): Promise<PaginatedResponse<Loan>> {
+  ): Promise<PaginatedResponse<LoanWithCreator>> {
     const searchFilters: Prisma.LoanWhereInput[] =
       options?.search === undefined
         ? []
@@ -46,7 +57,7 @@ export class LoansRepository {
           ];
 
     const where: Prisma.LoanWhereInput = {
-      userId,
+      userId: { in: userIds },
       deletedAt: null,
       paid: options?.paid,
       AND:
@@ -69,6 +80,7 @@ export class LoansRepository {
     const [items, totalItems] = await Promise.all([
       db.loan.findMany({
         where,
+        include: { user: { select: USER_SELECT } },
         orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
         skip: options?.skip,
         take: options?.take,
@@ -86,31 +98,44 @@ export class LoansRepository {
     id: string,
     userId: string,
     db: PrismaExecutor = this.prisma,
-  ): Promise<Loan | null> {
+  ): Promise<LoanWithCreator | null> {
+    return this.findActiveByIdAndUserIds(id, [userId], db);
+  }
+
+  async findActiveByIdAndUserIds(
+    id: string,
+    userIds: string[],
+    db: PrismaExecutor = this.prisma,
+  ): Promise<LoanWithCreator | null> {
     return db.loan.findFirst({
       where: {
         id,
-        userId,
+        userId: { in: userIds },
         deletedAt: null,
       },
+      include: { user: { select: USER_SELECT } },
     });
   }
 
   async create(
     data: Prisma.LoanUncheckedCreateInput,
     db: PrismaExecutor = this.prisma,
-  ): Promise<Loan> {
-    return db.loan.create({ data });
+  ): Promise<LoanWithCreator> {
+    return db.loan.create({
+      data,
+      include: { user: { select: USER_SELECT } },
+    });
   }
 
   async update(
     id: string,
     data: Prisma.LoanUpdateInput,
     db: PrismaExecutor = this.prisma,
-  ): Promise<Loan> {
+  ): Promise<LoanWithCreator> {
     return db.loan.update({
       where: { id },
       data,
+      include: { user: { select: USER_SELECT } },
     });
   }
 }
