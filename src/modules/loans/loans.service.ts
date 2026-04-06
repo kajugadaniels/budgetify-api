@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Expense, ExpenseCategory, Loan, Prisma } from '@prisma/client';
+import { ExpenseCategory, Prisma } from '@prisma/client';
 
 import {
   PaginatedResponse,
@@ -14,13 +14,17 @@ import {
   resolveListDateRange,
 } from '../../common/utils/list-query.utils';
 import { PrismaService } from '../../database/prisma/prisma.service';
-import { ExpensesRepository } from '../expenses/expenses.repository';
+import {
+  ExpenseWithCreator,
+  ExpensesRepository,
+} from '../expenses/expenses.repository';
+import { PartnershipsService } from '../partnerships/partnerships.service';
 import { UsersService } from '../users/users.service';
 import { CreateLoanRequestDto } from './dto/create-loan.request.dto';
 import { ListLoansQueryDto } from './dto/list-loans.query.dto';
 import { SendLoanToExpenseRequestDto } from './dto/send-loan-to-expense.request.dto';
 import { UpdateLoanRequestDto } from './dto/update-loan.request.dto';
-import { LoansRepository } from './loans.repository';
+import { LoanWithCreator, LoansRepository } from './loans.repository';
 
 @Injectable()
 export class LoansService {
@@ -29,17 +33,20 @@ export class LoansService {
     private readonly expensesRepository: ExpensesRepository,
     private readonly prisma: PrismaService,
     private readonly usersService: UsersService,
+    private readonly partnershipsService: PartnershipsService,
   ) {}
 
   async listCurrentUserLoans(
     userId: string,
     query: ListLoansQueryDto,
-  ): Promise<PaginatedResponse<Loan>> {
+  ): Promise<PaginatedResponse<LoanWithCreator>> {
     await this.usersService.findActiveByIdOrThrow(userId);
+    const visibleUserIds =
+      await this.partnershipsService.getVisibleUserIds(userId);
     const pagination = resolvePaginationOptions(query);
     const dateRange = resolveListDateRange(query);
 
-    return this.loansRepository.findManyByUserId(userId, {
+    return this.loansRepository.findManyByUserIds(visibleUserIds, {
       dateFrom: dateRange?.dateFrom,
       dateTo: dateRange?.dateTo,
       search: normalizeListSearch(query.search),
@@ -54,7 +61,7 @@ export class LoansService {
   async createCurrentUserLoan(
     userId: string,
     payload: CreateLoanRequestDto,
-  ): Promise<Loan> {
+  ): Promise<LoanWithCreator> {
     await this.usersService.findActiveByIdOrThrow(userId);
 
     return this.loansRepository.create({
@@ -71,7 +78,7 @@ export class LoansService {
     userId: string,
     loanId: string,
     payload: UpdateLoanRequestDto,
-  ): Promise<Loan> {
+  ): Promise<LoanWithCreator> {
     if (
       payload.label === undefined &&
       payload.amount === undefined &&
@@ -86,7 +93,7 @@ export class LoansService {
 
     await this.usersService.findActiveByIdOrThrow(userId);
 
-    const loan = await this.findOwnedLoanOrThrow(userId, loanId);
+    const loan = await this.findVisibleLoanOrThrow(userId, loanId);
 
     return this.loansRepository.update(loan.id, {
       label: payload.label,
@@ -104,10 +111,10 @@ export class LoansService {
     userId: string,
     loanId: string,
     payload: SendLoanToExpenseRequestDto,
-  ): Promise<{ loan: Loan; expense: Expense }> {
+  ): Promise<{ loan: LoanWithCreator; expense: ExpenseWithCreator }> {
     await this.usersService.findActiveByIdOrThrow(userId);
 
-    const loan = await this.findOwnedLoanOrThrow(userId, loanId);
+    const loan = await this.findVisibleLoanOrThrow(userId, loanId);
 
     if (loan.paid) {
       throw new BadRequestException(
@@ -156,10 +163,19 @@ export class LoansService {
   private async findOwnedLoanOrThrow(
     userId: string,
     loanId: string,
-  ): Promise<Loan> {
-    const loan = await this.loansRepository.findActiveByIdAndUserId(
+  ): Promise<LoanWithCreator> {
+    return this.findVisibleLoanOrThrow(userId, loanId);
+  }
+
+  private async findVisibleLoanOrThrow(
+    userId: string,
+    loanId: string,
+  ): Promise<LoanWithCreator> {
+    const visibleUserIds =
+      await this.partnershipsService.getVisibleUserIds(userId);
+    const loan = await this.loansRepository.findActiveByIdAndUserIds(
       loanId,
-      userId,
+      visibleUserIds,
     );
 
     if (!loan) {
