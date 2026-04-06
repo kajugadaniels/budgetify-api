@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma, Todo, TodoFrequency, TodoImage } from '@prisma/client';
+import { Prisma, TodoFrequency, TodoImage } from '@prisma/client';
 
 import {
   PaginatedResponse,
@@ -9,25 +9,34 @@ import { PrismaService } from '../../database/prisma/prisma.service';
 
 type PrismaExecutor = Prisma.TransactionClient | PrismaService;
 
-export const activeTodoImagesInclude = {
+const USER_SELECT = {
+  id: true,
+  firstName: true,
+  lastName: true,
+  avatarUrl: true,
+} as const;
+
+export const activeTodoInclude = {
   images: {
-    where: {
-      deletedAt: null,
-    },
+    where: { deletedAt: null },
     orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
   },
+  user: { select: USER_SELECT },
 } satisfies Prisma.TodoInclude;
 
+/** @deprecated Use activeTodoInclude */
+export const activeTodoImagesInclude = activeTodoInclude;
+
 export type TodoWithImages = Prisma.TodoGetPayload<{
-  include: typeof activeTodoImagesInclude;
+  include: typeof activeTodoInclude;
 }>;
 
 @Injectable()
 export class TodosRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findManyByUserId(
-    userId: string,
+  async findManyByUserIds(
+    userIds: string[],
     options?: {
       frequency?: TodoFrequency;
       priority?: Prisma.TodoWhereInput['priority'];
@@ -62,7 +71,7 @@ export class TodosRepository {
           : undefined;
 
     const where: Prisma.TodoWhereInput = {
-      userId,
+      userId: { in: userIds },
       deletedAt: null,
       ...(frequencyWhere ?? {}),
       priority: options?.priority,
@@ -85,7 +94,7 @@ export class TodosRepository {
     const [items, totalItems] = await Promise.all([
       db.todo.findMany({
         where,
-        include: activeTodoImagesInclude,
+        include: activeTodoInclude,
         orderBy: [
           { startDate: 'desc' },
           { priority: 'asc' },
@@ -108,13 +117,21 @@ export class TodosRepository {
     userId: string,
     db: PrismaExecutor = this.prisma,
   ): Promise<TodoWithImages | null> {
+    return this.findActiveByIdAndUserIds(id, [userId], db);
+  }
+
+  async findActiveByIdAndUserIds(
+    id: string,
+    userIds: string[],
+    db: PrismaExecutor = this.prisma,
+  ): Promise<TodoWithImages | null> {
     return db.todo.findFirst({
       where: {
         id,
-        userId,
+        userId: { in: userIds },
         deletedAt: null,
       },
-      include: activeTodoImagesInclude,
+      include: activeTodoInclude,
     });
   }
 
@@ -152,8 +169,8 @@ export class TodosRepository {
   async create(
     data: Prisma.TodoUncheckedCreateInput,
     db: PrismaExecutor = this.prisma,
-  ): Promise<Todo> {
-    return db.todo.create({ data });
+  ): Promise<TodoWithImages> {
+    return db.todo.create({ data, include: activeTodoInclude });
   }
 
   async update(
@@ -164,7 +181,7 @@ export class TodosRepository {
     return db.todo.update({
       where: { id },
       data,
-      include: activeTodoImagesInclude,
+      include: activeTodoInclude,
     });
   }
 
