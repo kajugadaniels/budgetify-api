@@ -1,11 +1,10 @@
-import { Expense } from '@prisma/client';
-
 import { PaginatedResponse } from '../../../common/interfaces/paginated-response.interface';
 import { PaginatedExpenseResponseDto } from '../dto/paginated-expense.response.dto';
 import { ExpenseResponseDto } from '../dto/expense-response.dto';
+import { ExpenseWithCreator } from '../expenses.repository';
 
 export class ExpensesMapper {
-  static toExpenseResponse(expense: Expense): ExpenseResponseDto {
+  static toExpenseResponse(expense: ExpenseWithCreator): ExpenseResponseDto {
     return {
       id: expense.id,
       label: expense.label,
@@ -15,15 +14,23 @@ export class ExpensesMapper {
       note: expense.note,
       createdAt: expense.createdAt,
       updatedAt: expense.updatedAt,
+      createdBy: {
+        id: expense.user.id,
+        firstName: expense.user.firstName,
+        lastName: expense.user.lastName,
+        avatarUrl: expense.user.avatarUrl,
+      },
     };
   }
 
-  static toExpenseResponseList(expenses: Expense[]): ExpenseResponseDto[] {
+  static toExpenseResponseList(
+    expenses: ExpenseWithCreator[],
+  ): ExpenseResponseDto[] {
     return expenses.map((expense) => ExpensesMapper.toExpenseResponse(expense));
   }
 
   static toPaginatedExpenseResponse(
-    payload: PaginatedResponse<Expense>,
+    payload: PaginatedResponse<ExpenseWithCreator>,
   ): PaginatedExpenseResponseDto {
     return {
       items: ExpensesMapper.toExpenseResponseList(payload.items),
