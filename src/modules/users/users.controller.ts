@@ -4,6 +4,7 @@ import {
   Controller,
   Get,
   Patch,
+  Post,
   UploadedFile,
   UseGuards,
   UseInterceptors,
@@ -27,6 +28,7 @@ import { USERS_ROUTES } from './users.routes';
 import { UsersService } from './users.service';
 import {
   ApiGetCurrentUserEndpoint,
+  ApiRequestCurrentUserDeletionEndpoint,
   ApiUploadCurrentUserAvatarEndpoint,
   ApiUpdateCurrentUserEndpoint,
 } from './users.swagger';
@@ -94,6 +96,18 @@ export class UsersController {
     const updatedUser = await this.usersService.updateProfileNames(
       user.userId,
       body,
+    );
+
+    return UsersMapper.toUserProfileResponse(updatedUser);
+  }
+
+  @Post(USERS_ROUTES.deletionRequest)
+  @ApiRequestCurrentUserDeletionEndpoint()
+  async requestCurrentUserDeletion(
+    @CurrentUser() user: AuthenticatedRequestUser,
+  ): Promise<UserProfileResponseDto> {
+    const updatedUser = await this.usersService.requestAccountDeletion(
+      user.userId,
     );
 
     return UsersMapper.toUserProfileResponse(updatedUser);
