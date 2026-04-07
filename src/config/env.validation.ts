@@ -8,6 +8,9 @@ const envSchema = Joi.object({
   FRONTEND_URL: Joi.string()
     .uri({ scheme: ['http', 'https'] })
     .optional(),
+  MOBILE_APP_INVITE_URL: Joi.string()
+    .pattern(/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\/.+$/)
+    .optional(),
 
   // ── Database ─────────────────────────────────────────────────────────────────
   DATABASE_URL: Joi.string()
