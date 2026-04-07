@@ -37,8 +37,8 @@ export function buildPartnershipInviteEmail(
         </div>
 
         <div style="margin:0 0 20px;text-align:left;">
-          <a href="${appAcceptUrl}" style="display:inline-block;border-radius:999px;background:#d3ccb8;padding:13px 22px;color:#0b0d10;font-size:14px;font-weight:700;text-decoration:none;">
-            Open in app
+          <a href="${webAcceptUrl}" style="display:inline-block;border-radius:999px;background:#d3ccb8;padding:13px 22px;color:#0b0d10;font-size:14px;font-weight:700;text-decoration:none;">
+            Accept invitation
           </a>
         </div>
 
@@ -46,8 +46,9 @@ export function buildPartnershipInviteEmail(
           Sign in with <span style="color:#f5f1e8;">${inviteeEmail}</span> to accept it.
         </p>
         <p style="margin:0 0 10px;color:#9ea6b2;font-size:13px;line-height:1.7;">
-          Prefer the browser instead?
-          <a href="${webAcceptUrl}" style="color:#d3ccb8;text-decoration:none;">Open the web invitation</a>.
+          If Budgetify is installed, this link can open the invitation directly in the app.
+          Need a direct app link instead?
+          <a href="${appAcceptUrl}" style="color:#d3ccb8;text-decoration:none;">Open the app invitation</a>.
         </p>
         <p style="margin:0;color:#7e8795;font-size:13px;line-height:1.7;">
           This invitation expires in 7 days. If you were not expecting it, just ignore this email.
