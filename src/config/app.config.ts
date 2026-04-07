@@ -8,4 +8,6 @@ export const appConfig = registerAs('app', () => ({
   apiPrefix: API_PREFIX,
   apiVersion: API_VERSION,
   frontendUrl: process.env.FRONTEND_URL ?? 'http://localhost:3001',
+  mobileAppInviteUrl:
+    process.env.MOBILE_APP_INVITE_URL ?? 'budgetify://partnership/accept',
 }));
