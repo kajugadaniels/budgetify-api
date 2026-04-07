@@ -102,3 +102,28 @@ export function ApiUploadCurrentUserAvatarEndpoint(): MethodDecorator {
     }),
   );
 }
+
+export function ApiRequestCurrentUserDeletionEndpoint(): MethodDecorator {
+  return applyDecorators(
+    ApiBearerAuth('access-token'),
+    ApiOperation({
+      summary: 'Request current user account deletion',
+      description:
+        "Schedules the authenticated user's account for deletion in 30 days. " +
+        'Any later account activity, including signing in or recording data, automatically cancels the deletion request.',
+    }),
+    ApiOkResponse({
+      description: 'Account deletion was scheduled successfully.',
+      type: UserProfileResponseDto,
+    }),
+    ApiUnauthorizedResponse({
+      description: 'Access token is missing, invalid, or expired.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiForbiddenResponse({
+      description:
+        'Authenticated user account is not allowed to request deletion.',
+      type: ApiErrorResponseDto,
+    }),
+  );
+}
