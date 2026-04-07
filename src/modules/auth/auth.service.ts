@@ -107,7 +107,13 @@ export class AuthService {
   ): Promise<EmailInitiateResponseDto> {
     void metadata;
     const email = payload.email.toLowerCase().trim();
-    const existingUser = await this.usersService.findActiveByEmail(email);
+    const existingUser = await this.usersService.findActiveByEmail(
+      email,
+      undefined,
+      {
+        cancelPendingDeletionOnActivity: true,
+      },
+    );
 
     if (existingUser) {
       const otp = await this.otpService.createLoginChallenge(existingUser.id);
@@ -151,7 +157,13 @@ export class AuthService {
     metadata: RequestMetadata,
   ): Promise<AuthResponseDto> {
     const email = payload.email.toLowerCase().trim();
-    const existingUser = await this.usersService.findActiveByEmail(email);
+    const existingUser = await this.usersService.findActiveByEmail(
+      email,
+      undefined,
+      {
+        cancelPendingDeletionOnActivity: true,
+      },
+    );
 
     if (existingUser) {
       return this.completeLoginWithOtp(existingUser, payload.otp, metadata);
@@ -216,7 +228,11 @@ export class AuthService {
 
       const updatedUser = await tx.user.update({
         where: { id: user.id },
-        data: { lastLoginAt: new Date() },
+        data: {
+          lastLoginAt: new Date(),
+          accountDeletionRequestedAt: null,
+          accountDeletionScheduledFor: null,
+        },
       });
 
       const tokens = await this.sessionService.createAuthenticatedSession({
