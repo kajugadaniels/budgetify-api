@@ -12,7 +12,8 @@ interface EmailPayload {
 export function buildPartnershipInviteEmail(
   inviteeEmail: string,
   ownerName: string | null,
-  acceptUrl: string,
+  appAcceptUrl: string,
+  webAcceptUrl: string,
 ): EmailPayload {
   const senderLabel = ownerName ?? 'Someone';
 
@@ -36,13 +37,17 @@ export function buildPartnershipInviteEmail(
         </div>
 
         <div style="margin:0 0 20px;text-align:left;">
-          <a href="${acceptUrl}" style="display:inline-block;border-radius:999px;background:#d3ccb8;padding:13px 22px;color:#0b0d10;font-size:14px;font-weight:700;text-decoration:none;">
-            Accept invitation
+          <a href="${appAcceptUrl}" style="display:inline-block;border-radius:999px;background:#d3ccb8;padding:13px 22px;color:#0b0d10;font-size:14px;font-weight:700;text-decoration:none;">
+            Open in app
           </a>
         </div>
 
         <p style="margin:0 0 10px;color:#c8ced8;font-size:13px;line-height:1.7;">
           Sign in with <span style="color:#f5f1e8;">${inviteeEmail}</span> to accept it.
+        </p>
+        <p style="margin:0 0 10px;color:#9ea6b2;font-size:13px;line-height:1.7;">
+          Prefer the browser instead?
+          <a href="${webAcceptUrl}" style="color:#d3ccb8;text-decoration:none;">Open the web invitation</a>.
         </p>
         <p style="margin:0;color:#7e8795;font-size:13px;line-height:1.7;">
           This invitation expires in 7 days. If you were not expecting it, just ignore this email.
