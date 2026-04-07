@@ -53,12 +53,14 @@ export class EmailService {
   async sendPartnershipInviteEmail(
     to: string,
     ownerName: string | null,
-    acceptUrl: string,
+    appAcceptUrl: string,
+    webAcceptUrl: string,
   ): Promise<void> {
     const { subject, html } = buildPartnershipInviteEmail(
       to,
       ownerName,
-      acceptUrl,
+      appAcceptUrl,
+      webAcceptUrl,
     );
     await this.send(to, subject, html);
   }
