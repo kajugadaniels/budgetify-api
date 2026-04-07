@@ -32,6 +32,22 @@ export class UserProfileResponseDto {
   @ApiProperty({ example: '2026-03-06T10:00:00.000Z', nullable: true })
   lastLoginAt!: Date | null;
 
+  @ApiProperty({
+    example: '2026-04-07T09:00:00.000Z',
+    nullable: true,
+    description:
+      'When the user requested account deletion. Null when no deletion is pending.',
+  })
+  accountDeletionRequestedAt!: Date | null;
+
+  @ApiProperty({
+    example: '2026-05-07T09:00:00.000Z',
+    nullable: true,
+    description:
+      'When the account is scheduled to be deleted if no further activity happens.',
+  })
+  accountDeletionScheduledFor!: Date | null;
+
   @ApiProperty({ example: '2026-03-06T09:30:00.000Z' })
   createdAt!: Date;
 
