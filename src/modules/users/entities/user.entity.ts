@@ -10,6 +10,8 @@ export class UserEntity {
   isEmailVerified!: boolean;
   status!: UserStatus;
   lastLoginAt!: Date | null;
+  accountDeletionRequestedAt!: Date | null;
+  accountDeletionScheduledFor!: Date | null;
   createdAt!: Date;
   updatedAt!: Date;
   deletedAt!: Date | null;
