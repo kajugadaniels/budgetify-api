@@ -76,14 +76,40 @@ function normalizeOptionalNumber(value: unknown): unknown {
 
 function normalizeFrequencyDays(value: unknown): unknown {
   if (value === undefined || value === null) return undefined;
-  if (typeof value === 'string') return [Number(value)];
+  if (typeof value === 'string') {
+    const normalized = value.trim();
+
+    if (normalized.startsWith('[') && normalized.endsWith(']')) {
+      try {
+        const parsed = JSON.parse(normalized);
+        return Array.isArray(parsed) ? parsed.map(Number) : undefined;
+      } catch {
+        return undefined;
+      }
+    }
+
+    return [Number(value)];
+  }
   if (Array.isArray(value)) return value.map(Number);
   return undefined;
 }
 
 function normalizeDateArray(value: unknown): unknown {
   if (value === undefined || value === null) return undefined;
-  if (typeof value === 'string') return [value];
+  if (typeof value === 'string') {
+    const normalized = value.trim();
+
+    if (normalized.startsWith('[') && normalized.endsWith(']')) {
+      try {
+        const parsed = JSON.parse(normalized);
+        return Array.isArray(parsed) ? parsed : undefined;
+      } catch {
+        return undefined;
+      }
+    }
+
+    return [value];
+  }
   if (Array.isArray(value)) return value;
   return undefined;
 }
