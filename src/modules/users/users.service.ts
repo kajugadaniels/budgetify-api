@@ -2,10 +2,13 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma, User, UserStatus } from '@prisma/client';
 
+import { PrismaService } from '../../database/prisma/prisma.service';
+import { EmailService } from '../email/email.service';
 import { UpdateUserProfileRequestDto } from './dto/update-user-profile.request.dto';
 import {
   AvatarImageStorageService,
@@ -23,30 +26,47 @@ interface UpsertGoogleUserInput {
   isEmailVerified: boolean;
 }
 
-type PrismaExecutor = Prisma.TransactionClient | undefined;
+type PrismaExecutor = Prisma.TransactionClient | PrismaService;
+
+const ACCOUNT_DELETION_GRACE_DAYS = 30;
+const ACCOUNT_DELETION_GRACE_MS =
+  ACCOUNT_DELETION_GRACE_DAYS * 24 * 60 * 60 * 1000;
 
 @Injectable()
 export class UsersService {
+  private readonly logger = new Logger(UsersService.name);
+
   constructor(
     private readonly usersRepository: UsersRepository,
     private readonly avatarImageStorageService: AvatarImageStorageService,
+    private readonly prisma: PrismaService,
+    private readonly emailService: EmailService,
   ) {}
 
-  async findActiveByIdOrThrow(id: string): Promise<UserEntity> {
-    const user = await this.usersRepository.findById(id);
+  async findActiveByIdOrThrow(
+    id: string,
+    db?: PrismaExecutor,
+  ): Promise<UserEntity> {
+    const user = await this.usersRepository.findById(id, db);
+    const activeUser = user
+      ? await this.applyAccountDeletionLifecycle(user, { db })
+      : null;
 
-    if (!user || user.deletedAt) {
+    if (!activeUser) {
       throw new NotFoundException('Authenticated user no longer exists.');
     }
 
-    this.assertUserCanAuthenticate(user);
+    this.assertUserCanAuthenticate(activeUser);
 
-    return user;
+    return activeUser;
   }
 
   async findActiveByEmail(
     email: string,
     db?: PrismaExecutor,
+    options?: {
+      cancelPendingDeletionOnActivity?: boolean;
+    },
   ): Promise<User | null> {
     const user = await this.usersRepository.findByEmail(email, db);
 
@@ -54,9 +74,40 @@ export class UsersService {
       return null;
     }
 
-    this.assertUserCanAuthenticate(user);
+    const activeUser = await this.applyAccountDeletionLifecycle(user, {
+      db,
+      cancelPendingDeletionOnActivity:
+        options?.cancelPendingDeletionOnActivity ?? false,
+    });
 
-    return user;
+    if (!activeUser) {
+      return null;
+    }
+
+    this.assertUserCanAuthenticate(activeUser);
+
+    return activeUser;
+  }
+
+  async recordAuthenticatedActivityOrThrow(
+    id: string,
+    db?: PrismaExecutor,
+  ): Promise<UserEntity> {
+    const user = await this.usersRepository.findById(id, db);
+    const activeUser = user
+      ? await this.applyAccountDeletionLifecycle(user, {
+          db,
+          cancelPendingDeletionOnActivity: true,
+        })
+      : null;
+
+    if (!activeUser) {
+      throw new NotFoundException('Authenticated user no longer exists.');
+    }
+
+    this.assertUserCanAuthenticate(activeUser);
+
+    return activeUser;
   }
 
   async createFromGoogleProfile(
@@ -114,6 +165,8 @@ export class UsersService {
         avatarUrl: profile.avatarUrl ?? user.avatarUrl,
         isEmailVerified: user.isEmailVerified || profile.isEmailVerified,
         lastLoginAt: new Date(),
+        accountDeletionRequestedAt: null,
+        accountDeletionScheduledFor: null,
       },
       db,
     );
@@ -172,10 +225,131 @@ export class UsersService {
     );
   }
 
+  async requestAccountDeletion(userId: string): Promise<UserEntity> {
+    const user = await this.findActiveByIdOrThrow(userId);
+    const now = new Date();
+
+    if (
+      user.accountDeletionScheduledFor &&
+      user.accountDeletionScheduledFor > now
+    ) {
+      return user;
+    }
+
+    const scheduledFor = new Date(now.getTime() + ACCOUNT_DELETION_GRACE_MS);
+    const updatedUser = await this.usersRepository.update(user.id, {
+      accountDeletionRequestedAt: now,
+      accountDeletionScheduledFor: scheduledFor,
+    });
+
+    try {
+      await this.emailService.sendAccountDeletionRequestEmail(
+        updatedUser.email,
+        updatedUser.firstName ?? updatedUser.fullName ?? null,
+        scheduledFor,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to send account deletion request email to ${updatedUser.email}: ${String(error)}`,
+      );
+    }
+
+    return updatedUser;
+  }
+
+  async processDueAccountDeletionBatch(limit = 100): Promise<number> {
+    const dueIds = await this.usersRepository.findIdsDueForAccountDeletion(
+      new Date(),
+      limit,
+    );
+
+    for (const userId of dueIds) {
+      await this.finalizeAccountDeletion(userId);
+    }
+
+    return dueIds.length;
+  }
+
+  async finalizeAccountDeletion(
+    userId: string,
+    deletedAt = new Date(),
+    db?: PrismaExecutor,
+  ): Promise<void> {
+    const execute = async (executor: PrismaExecutor) => {
+      const user = await this.usersRepository.findById(userId, executor);
+
+      if (!user || user.deletedAt) {
+        return;
+      }
+
+      await this.usersRepository.revokeSessionsByUserId(
+        user.id,
+        deletedAt,
+        executor,
+      );
+      await this.usersRepository.revokePartnershipsByUserId(user.id, executor);
+      await this.usersRepository.update(
+        user.id,
+        {
+          status: UserStatus.DISABLED,
+          deletedAt,
+          accountDeletionRequestedAt: null,
+          accountDeletionScheduledFor: null,
+        },
+        executor,
+      );
+    };
+
+    if (db) {
+      await execute(db);
+      return;
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await execute(tx);
+    });
+  }
+
   private assertUserCanAuthenticate(user: User): void {
     if (user.status !== UserStatus.ACTIVE) {
       throw new ForbiddenException('User account is not allowed to sign in.');
     }
+  }
+
+  private async applyAccountDeletionLifecycle(
+    user: User,
+    options?: {
+      db?: PrismaExecutor;
+      cancelPendingDeletionOnActivity?: boolean;
+    },
+  ): Promise<User | null> {
+    if (user.deletedAt) {
+      return null;
+    }
+
+    const scheduledFor = user.accountDeletionScheduledFor;
+    if (!scheduledFor) {
+      return user;
+    }
+
+    const now = new Date();
+    if (scheduledFor <= now) {
+      await this.finalizeAccountDeletion(user.id, now, options?.db);
+      return null;
+    }
+
+    if (!options?.cancelPendingDeletionOnActivity) {
+      return user;
+    }
+
+    return this.usersRepository.update(
+      user.id,
+      {
+        accountDeletionRequestedAt: null,
+        accountDeletionScheduledFor: null,
+      },
+      options.db,
+    );
   }
 
   private buildFullName(
