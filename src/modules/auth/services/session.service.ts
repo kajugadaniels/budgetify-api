@@ -1,13 +1,10 @@
-import {
-  ForbiddenException,
-  Injectable,
-  UnauthorizedException,
-} from '@nestjs/common';
-import { Prisma, User, UserStatus } from '@prisma/client';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Prisma, User } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 
 import { RequestMetadata } from '../../../common/interfaces/request-metadata.interface';
 import { PrismaService } from '../../../database/prisma/prisma.service';
+import { UsersService } from '../../users/users.service';
 import { JwtRefreshPayload } from '../interfaces/jwt-refresh-payload.interface';
 import { TokenPair } from '../interfaces/token-pair.interface';
 import { TokenService } from './token.service';
@@ -19,6 +16,7 @@ export class SessionService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tokenService: TokenService,
+    private readonly usersService: UsersService,
   ) {}
 
   async createAuthenticatedSession(params: {
@@ -64,7 +62,11 @@ export class SessionService {
       });
 
       this.assertSessionCanRefresh(session, payload.sub, refreshToken);
-      this.assertUserIsAvailable(session.user);
+      const userWithActivityApplied =
+        await this.usersService.recordAuthenticatedActivityOrThrow(
+          session.user.id,
+          tx,
+        );
 
       await tx.session.update({
         where: { id: session.id },
@@ -74,13 +76,13 @@ export class SessionService {
       });
 
       const tokens = await this.createAuthenticatedSession({
-        user: session.user,
+        user: userWithActivityApplied,
         metadata,
         db: tx,
       });
 
       return {
-        user: session.user,
+        user: userWithActivityApplied,
         tokens,
       };
     });
@@ -141,16 +143,6 @@ export class SessionService {
       )
     ) {
       throw new UnauthorizedException('Refresh token does not match session.');
-    }
-  }
-
-  private assertUserIsAvailable(user: User): void {
-    if (user.deletedAt) {
-      throw new ForbiddenException('User account is no longer available.');
-    }
-
-    if (user.status !== UserStatus.ACTIVE) {
-      throw new ForbiddenException('User account is not active.');
     }
   }
 }
