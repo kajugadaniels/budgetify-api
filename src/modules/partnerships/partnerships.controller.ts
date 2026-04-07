@@ -51,6 +51,7 @@ export class PartnershipsController {
       user.userId,
       body,
       this.config.frontendUrl,
+      this.config.mobileAppInviteUrl,
     );
   }
 
