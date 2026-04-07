@@ -81,7 +81,7 @@ function normalizeFrequencyDays(value: unknown): unknown {
 
     if (normalized.startsWith('[') && normalized.endsWith(']')) {
       try {
-        const parsed = JSON.parse(normalized);
+        const parsed: unknown = JSON.parse(normalized);
         return Array.isArray(parsed) ? parsed.map(Number) : undefined;
       } catch {
         return undefined;
@@ -101,7 +101,7 @@ function normalizeDateArray(value: unknown): unknown {
 
     if (normalized.startsWith('[') && normalized.endsWith(']')) {
       try {
-        const parsed = JSON.parse(normalized);
+        const parsed: unknown = JSON.parse(normalized);
         return Array.isArray(parsed) ? parsed : undefined;
       } catch {
         return undefined;
