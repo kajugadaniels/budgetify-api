@@ -16,6 +16,8 @@ export abstract class AuthMapper {
       isEmailVerified: user.isEmailVerified,
       status: user.status,
       lastLoginAt: user.lastLoginAt,
+      accountDeletionRequestedAt: user.accountDeletionRequestedAt,
+      accountDeletionScheduledFor: user.accountDeletionScheduledFor,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     };
