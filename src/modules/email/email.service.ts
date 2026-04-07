@@ -4,6 +4,7 @@ import * as nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
 
 import { emailConfig } from '../../config/email.config';
+import { buildAccountDeletionRequestEmail } from './templates/account-deletion-request.email';
 import { buildOtpLoginEmail } from './templates/otp-login.email';
 import { buildOtpRegisterEmail } from './templates/otp-register.email';
 import { buildPartnershipInviteEmail } from './templates/partnership-invite.email';
@@ -61,6 +62,18 @@ export class EmailService {
       ownerName,
       appAcceptUrl,
       webAcceptUrl,
+    );
+    await this.send(to, subject, html);
+  }
+
+  async sendAccountDeletionRequestEmail(
+    to: string,
+    firstName: string | null,
+    scheduledFor: Date,
+  ): Promise<void> {
+    const { subject, html } = buildAccountDeletionRequestEmail(
+      firstName,
+      scheduledFor,
     );
     await this.send(to, subject, html);
   }
