@@ -47,6 +47,7 @@ export class PartnershipsService {
     userId: string,
     payload: InvitePartnerRequestDto,
     frontendUrl: string,
+    mobileAppInviteUrl: string,
   ): Promise<PartnershipResponseDto> {
     const owner = await this.usersService.findActiveByIdOrThrow(userId);
 
@@ -77,10 +78,12 @@ export class PartnershipsService {
 
     const ownerName = owner.fullName ?? owner.firstName ?? null;
     const acceptUrl = `${frontendUrl}/partnership/accept?token=${rawToken}`;
+    const appAcceptUrl = this.appendTokenToUrl(mobileAppInviteUrl, rawToken);
 
     await this.emailService.sendPartnershipInviteEmail(
       payload.email.toLowerCase(),
       ownerName,
+      appAcceptUrl,
       acceptUrl,
     );
 
@@ -244,5 +247,10 @@ export class PartnershipsService {
 
   private hashToken(rawToken: string): string {
     return crypto.createHash('sha256').update(rawToken).digest('hex');
+  }
+
+  private appendTokenToUrl(baseUrl: string, rawToken: string): string {
+    const separator = baseUrl.includes('?') ? '&' : '?';
+    return `${baseUrl}${separator}token=${rawToken}`;
   }
 }
