@@ -30,6 +30,11 @@ enum IncomeCategory {
   OTHER
 }
 
+enum Currency {
+  RWF
+  USD
+}
+
 enum TodoPriority {
   TOP_PRIORITY
   PRIORITY
@@ -172,6 +177,8 @@ model Income {
   userId    String         @db.Uuid
   label     String
   amount    Decimal        @db.Decimal(15, 2)
+  currency  Currency       @default(RWF)
+  amountRwf Decimal        @default(0) @db.Decimal(15, 2)
   category  IncomeCategory
   date      DateTime
   received  Boolean        @default(false)
@@ -185,6 +192,7 @@ model Income {
   @@index([date])
   @@index([userId, category])
   @@index([userId, received])
+  @@index([userId, currency])
 }
 
 model Expense {
@@ -230,6 +238,8 @@ model Saving {
   userId    String   @db.Uuid
   label     String
   amount    Decimal  @db.Decimal(15, 2)
+  currency  Currency @default(RWF)
+  amountRwf Decimal  @default(0) @db.Decimal(15, 2)
   date      DateTime
   note      String?
   stillHave Boolean  @default(true)
@@ -242,6 +252,15 @@ model Saving {
   @@index([deletedAt])
   @@index([date])
   @@index([userId, stillHave])
+  @@index([userId, currency])
+}
+
+model AppSetting {
+  id        String   @id @default(uuid()) @db.Uuid
+  key       String   @unique
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Todo {
