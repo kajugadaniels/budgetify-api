@@ -9,6 +9,8 @@ export class IncomeMapper {
       id: income.id,
       label: income.label,
       amount: Number(income.amount),
+      currency: income.currency,
+      amountRwf: Number(income.amountRwf),
       category: income.category,
       date: income.date,
       received: income.received,
