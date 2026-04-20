@@ -8,6 +8,7 @@ import {
 import { PrismaService } from '../../database/prisma/prisma.service';
 
 type PrismaExecutor = Prisma.TransactionClient | PrismaService;
+const LEGACY_WITHDRAWAL_NOTE = 'Legacy withdrawal from inactive saving';
 
 const USER_SELECT = {
   id: true,
@@ -190,6 +191,13 @@ export class SavingsRepository {
     await db.savingTransactionIncomeSource.createMany({ data });
   }
 
+  async createMoneyMovement(
+    data: Prisma.MoneyMovementUncheckedCreateInput,
+    db: PrismaExecutor = this.prisma,
+  ): Promise<void> {
+    await db.moneyMovement.create({ data });
+  }
+
   async findTransactionsBySavingId(
     savingId: string,
     db: PrismaExecutor = this.prisma,
@@ -277,6 +285,7 @@ export class SavingsRepository {
           savingId: saving.id,
           type: SavingTransactionType.WITHDRAWAL,
           deletedAt: null,
+          note: { contains: LEGACY_WITHDRAWAL_NOTE },
         },
         data: { deletedAt: new Date() },
       });
@@ -289,6 +298,7 @@ export class SavingsRepository {
         savingId: saving.id,
         type: SavingTransactionType.WITHDRAWAL,
         deletedAt: null,
+        note: { contains: LEGACY_WITHDRAWAL_NOTE },
       },
       orderBy: [{ createdAt: 'asc' }],
     });
@@ -302,8 +312,8 @@ export class SavingsRepository {
       date: saving.date,
       note:
         saving.note === null
-          ? 'Legacy withdrawal from inactive saving'
-          : `${saving.note} - Legacy withdrawal from inactive saving`,
+          ? LEGACY_WITHDRAWAL_NOTE
+          : `${saving.note} - ${LEGACY_WITHDRAWAL_NOTE}`,
     };
 
     if (!withdrawal) {
