@@ -61,15 +61,25 @@ export class SavingsService {
       payload.currency,
     );
 
-    return this.savingsRepository.create({
-      userId,
-      label: payload.label,
-      amount: new Prisma.Decimal(payload.amount),
-      currency: payload.currency,
-      amountRwf,
-      date: new Date(payload.date),
-      note: payload.note ?? null,
-      stillHave: payload.stillHave,
+    return this.savingsRepository.runInTransaction(async (db) => {
+      const saving = await this.savingsRepository.create(
+        {
+          userId,
+          label: payload.label,
+          amount: new Prisma.Decimal(payload.amount),
+          currency: payload.currency,
+          amountRwf,
+          date: new Date(payload.date),
+          note: payload.note ?? null,
+          stillHave: payload.stillHave,
+        },
+        db,
+      );
+
+      await this.savingsRepository.syncPrimaryDeposit(saving, db);
+      await this.savingsRepository.syncLegacyAvailabilityWithdrawal(saving, db);
+
+      return this.findSavingByIdOrThrow(saving.id, saving.userId, db);
     });
   }
 
@@ -105,17 +115,35 @@ export class SavingsService {
         )
       : undefined;
 
-    return this.savingsRepository.update(saving.id, {
-      label: payload.label,
-      amount:
-        payload.amount === undefined
-          ? undefined
-          : new Prisma.Decimal(payload.amount),
-      currency: payload.currency,
-      amountRwf,
-      date: payload.date === undefined ? undefined : new Date(payload.date),
-      note: payload.note,
-      stillHave: payload.stillHave,
+    return this.savingsRepository.runInTransaction(async (db) => {
+      const updatedSaving = await this.savingsRepository.update(
+        saving.id,
+        {
+          label: payload.label,
+          amount:
+            payload.amount === undefined
+              ? undefined
+              : new Prisma.Decimal(payload.amount),
+          currency: payload.currency,
+          amountRwf,
+          date: payload.date === undefined ? undefined : new Date(payload.date),
+          note: payload.note,
+          stillHave: payload.stillHave,
+        },
+        db,
+      );
+
+      await this.savingsRepository.syncPrimaryDeposit(updatedSaving, db);
+      await this.savingsRepository.syncLegacyAvailabilityWithdrawal(
+        updatedSaving,
+        db,
+      );
+
+      return this.findSavingByIdOrThrow(
+        updatedSaving.id,
+        updatedSaving.userId,
+        db,
+      );
     });
   }
 
@@ -148,6 +176,24 @@ export class SavingsService {
     const saving = await this.savingsRepository.findActiveByIdAndUserIds(
       savingId,
       visibleUserIds,
+    );
+
+    if (!saving) {
+      throw new NotFoundException('Saving record was not found.');
+    }
+
+    return saving;
+  }
+
+  private async findSavingByIdOrThrow(
+    savingId: string,
+    userId: string,
+    db: Prisma.TransactionClient,
+  ): Promise<SavingWithCreator> {
+    const saving = await this.savingsRepository.findActiveByIdAndUserIds(
+      savingId,
+      [userId],
+      db,
     );
 
     if (!saving) {
