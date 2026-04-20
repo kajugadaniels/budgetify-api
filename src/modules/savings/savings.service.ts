@@ -74,6 +74,13 @@ export class SavingsService {
       resolvedAmount,
       payload.currency,
     );
+    const targetAmountRwf = await this.currencyService.convertToRwf(
+      payload.targetAmount,
+      payload.targetCurrency,
+    );
+    const startDate = this.parseDateOnly(payload.startDate);
+    const endDate = this.parseDateOnly(payload.endDate);
+    this.assertValidTimeframe(startDate, endDate);
 
     return this.savingsRepository.runInTransaction(async (db) => {
       const saving = await this.savingsRepository.create(
@@ -83,6 +90,11 @@ export class SavingsService {
           amount: new Prisma.Decimal(resolvedAmount),
           currency: payload.currency,
           amountRwf,
+          targetAmount: new Prisma.Decimal(payload.targetAmount),
+          targetCurrency: payload.targetCurrency,
+          targetAmountRwf,
+          startDate,
+          endDate,
           date: new Date(payload.date),
           note: payload.note ?? null,
           stillHave: payload.stillHave,
@@ -106,6 +118,10 @@ export class SavingsService {
       payload.label === undefined &&
       payload.amount === undefined &&
       payload.currency === undefined &&
+      payload.targetAmount === undefined &&
+      payload.targetCurrency === undefined &&
+      payload.startDate === undefined &&
+      payload.endDate === undefined &&
       payload.date === undefined &&
       payload.note === undefined &&
       payload.stillHave === undefined
@@ -122,12 +138,52 @@ export class SavingsService {
     const resolvedCurrency = payload.currency ?? saving.currency;
     const shouldUpdateAmountRwf =
       payload.amount !== undefined || payload.currency !== undefined;
+    const resolvedTargetAmount =
+      payload.targetAmount ??
+      (saving.targetAmount === null ? null : Number(saving.targetAmount));
+    const resolvedTargetCurrency =
+      payload.targetCurrency ?? saving.targetCurrency;
+    const shouldUpdateTargetAmountRwf =
+      payload.targetAmount !== undefined ||
+      payload.targetCurrency !== undefined;
     const amountRwf = shouldUpdateAmountRwf
       ? await this.currencyService.convertToRwf(
           resolvedAmount,
           resolvedCurrency,
         )
       : undefined;
+    const targetAmountRwf =
+      shouldUpdateTargetAmountRwf &&
+      resolvedTargetAmount !== null &&
+      resolvedTargetCurrency !== null
+        ? await this.currencyService.convertToRwf(
+            resolvedTargetAmount,
+            resolvedTargetCurrency,
+          )
+        : undefined;
+    const resolvedStartDate =
+      payload.startDate === undefined
+        ? saving.startDate
+        : this.parseDateOnly(payload.startDate);
+    const resolvedEndDate =
+      payload.endDate === undefined
+        ? saving.endDate
+        : this.parseDateOnly(payload.endDate);
+
+    if (
+      payload.startDate !== undefined ||
+      payload.endDate !== undefined ||
+      resolvedStartDate !== null ||
+      resolvedEndDate !== null
+    ) {
+      if (!resolvedStartDate || !resolvedEndDate) {
+        throw new BadRequestException(
+          'Both startDate and endDate are required for a saving timeframe.',
+        );
+      }
+
+      this.assertValidTimeframe(resolvedStartDate, resolvedEndDate);
+    }
 
     return this.savingsRepository.runInTransaction(async (db) => {
       const updatedSaving = await this.savingsRepository.update(
@@ -140,6 +196,15 @@ export class SavingsService {
               : new Prisma.Decimal(payload.amount),
           currency: payload.currency,
           amountRwf,
+          targetAmount:
+            payload.targetAmount === undefined
+              ? undefined
+              : new Prisma.Decimal(payload.targetAmount),
+          targetCurrency: payload.targetCurrency,
+          targetAmountRwf,
+          startDate:
+            payload.startDate === undefined ? undefined : resolvedStartDate,
+          endDate: payload.endDate === undefined ? undefined : resolvedEndDate,
           date: payload.date === undefined ? undefined : new Date(payload.date),
           note: payload.note,
           stillHave: payload.stillHave,
@@ -435,6 +500,19 @@ export class SavingsService {
 
       return balance.add(amountRwf);
     }, new Prisma.Decimal(0));
+  }
+
+  private parseDateOnly(value: string): Date {
+    const dateOnly = value.slice(0, 10);
+    return new Date(`${dateOnly}T00:00:00.000Z`);
+  }
+
+  private assertValidTimeframe(startDate: Date, endDate: Date): void {
+    if (endDate.getTime() < startDate.getTime()) {
+      throw new BadRequestException(
+        'End date must be the same as or later than the start date.',
+      );
+    }
   }
 
   private findDuplicateIncomeId(incomeIds: string[]): string | null {
