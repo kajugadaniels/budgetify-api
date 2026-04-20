@@ -19,6 +19,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthenticatedRequestUser } from '../../common/interfaces/authenticated-request.interface';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CreateSavingDepositRequestDto } from './dto/create-saving-deposit.request.dto';
+import { CreateSavingWithdrawalRequestDto } from './dto/create-saving-withdrawal.request.dto';
 import { CreateSavingRequestDto } from './dto/create-saving.request.dto';
 import { ListSavingsQueryDto } from './dto/list-savings.query.dto';
 import { PaginatedSavingResponseDto } from './dto/paginated-saving.response.dto';
@@ -31,6 +32,7 @@ import { SavingsService } from './savings.service';
 import {
   ApiCreateCurrentUserSavingEndpoint,
   ApiCreateCurrentUserSavingDepositEndpoint,
+  ApiCreateCurrentUserSavingWithdrawalEndpoint,
   ApiDeleteCurrentUserSavingEndpoint,
   ApiListCurrentUserSavingsEndpoint,
   ApiListCurrentUserSavingTransactionsEndpoint,
@@ -115,6 +117,24 @@ export class SavingsController {
     @Body() body: CreateSavingDepositRequestDto,
   ): Promise<SavingResponseDto> {
     const saving = await this.savingsService.createCurrentUserSavingDeposit(
+      user.userId,
+      savingId,
+      body,
+    );
+
+    return SavingsMapper.toSavingResponse(saving);
+  }
+
+  @Post(SAVINGS_ROUTES.withdrawals)
+  @HttpCode(HttpStatus.CREATED)
+  @Throttle({ write: { limit: 1, ttl: 15_000, blockDuration: 15_000 } })
+  @ApiCreateCurrentUserSavingWithdrawalEndpoint()
+  async createCurrentUserSavingWithdrawal(
+    @CurrentUser() user: AuthenticatedRequestUser,
+    @Param('savingId', ParseUUIDPipe) savingId: string,
+    @Body() body: CreateSavingWithdrawalRequestDto,
+  ): Promise<SavingResponseDto> {
+    const saving = await this.savingsService.createCurrentUserSavingWithdrawal(
       user.userId,
       savingId,
       body,
