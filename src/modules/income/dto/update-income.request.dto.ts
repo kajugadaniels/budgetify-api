@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IncomeCategory } from '@prisma/client';
+import { Currency, IncomeCategory } from '@prisma/client';
 import { Transform } from 'class-transformer';
 import {
   IsBoolean,
@@ -65,7 +65,7 @@ export class UpdateIncomeRequestDto {
 
   @ApiPropertyOptional({
     description:
-      'Updated income amount in RWF. Omit to keep the current value.',
+      'Updated income amount in the selected currency. Omit to keep the current value.',
     example: 85000,
   })
   @Transform(({ value }) => normalizeOptionalAmount(value))
@@ -76,6 +76,19 @@ export class UpdateIncomeRequestDto {
   )
   @Min(1, { message: 'Amount must be greater than zero.' })
   amount?: number;
+
+  @ApiPropertyOptional({
+    description:
+      'Updated currency for the submitted amount. Omit to keep the current currency.',
+    enum: Currency,
+    enumName: 'Currency',
+    example: Currency.RWF,
+  })
+  @IsOptional()
+  @IsEnum(Currency, {
+    message: 'Currency must be either RWF or USD.',
+  })
+  currency?: Currency;
 
   @ApiPropertyOptional({
     description:
