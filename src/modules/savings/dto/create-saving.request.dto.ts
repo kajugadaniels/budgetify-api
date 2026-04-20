@@ -1,7 +1,9 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Currency } from '@prisma/client';
 import { Transform } from 'class-transformer';
 import {
   IsBoolean,
+  IsEnum,
   IsISO8601,
   IsNotEmpty,
   IsNumber,
@@ -67,8 +69,9 @@ export class CreateSavingRequestDto {
   label!: string;
 
   @ApiProperty({
-    description: 'Saving amount in USD.',
-    example: 350,
+    description:
+      'Saving amount in the selected currency. RWF is used when currency is omitted.',
+    example: 350000,
   })
   @Transform(({ value }) => normalizeAmount(value))
   @IsNumber(
@@ -77,6 +80,19 @@ export class CreateSavingRequestDto {
   )
   @Min(0.01, { message: 'Amount must be greater than zero.' })
   amount!: number;
+
+  @ApiPropertyOptional({
+    description:
+      'Currency for the submitted amount. USD amounts are converted to RWF for reporting using the configured exchange rate.',
+    enum: Currency,
+    enumName: 'Currency',
+    example: Currency.RWF,
+    default: Currency.RWF,
+  })
+  @IsEnum(Currency, {
+    message: 'Currency must be either RWF or USD.',
+  })
+  currency: Currency = Currency.RWF;
 
   @ApiProperty({
     description: 'Date the saving was recorded.',
