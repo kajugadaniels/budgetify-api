@@ -1,7 +1,9 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { Currency } from '@prisma/client';
 import { Transform } from 'class-transformer';
 import {
   IsBoolean,
+  IsEnum,
   IsISO8601,
   IsNumber,
   IsOptional,
@@ -66,8 +68,9 @@ export class UpdateSavingRequestDto {
   label?: string;
 
   @ApiPropertyOptional({
-    description: 'Updated saving amount in USD.',
-    example: 425,
+    description:
+      'Updated saving amount in the selected currency. Omit to keep the current value.',
+    example: 425000,
   })
   @Transform(({ value }) => normalizeAmount(value))
   @IsOptional()
@@ -77,6 +80,19 @@ export class UpdateSavingRequestDto {
   )
   @Min(0.01, { message: 'Amount must be greater than zero.' })
   amount?: number;
+
+  @ApiPropertyOptional({
+    description:
+      'Updated currency for the submitted amount. Omit to keep the current currency.',
+    enum: Currency,
+    enumName: 'Currency',
+    example: Currency.RWF,
+  })
+  @IsOptional()
+  @IsEnum(Currency, {
+    message: 'Currency must be either RWF or USD.',
+  })
+  currency?: Currency;
 
   @ApiPropertyOptional({
     description: 'Updated saving date.',
