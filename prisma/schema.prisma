@@ -35,6 +35,12 @@ enum Currency {
   USD
 }
 
+enum SavingTransactionType {
+  DEPOSIT
+  WITHDRAWAL
+  ADJUSTMENT
+}
+
 enum TodoPriority {
   TOP_PRIORITY
   PRIORITY
@@ -96,6 +102,7 @@ model User {
   expenses          Expense[]
   loans             Loan[]
   savings           Saving[]
+  savingTransactions SavingTransaction[]
   loginOtpChallenge   LoginOtpChallenge?
   sentPartnership     Partnership?       @relation("PartnershipOwner")
   receivedPartnership Partnership?       @relation("PartnershipPartner")
@@ -247,12 +254,36 @@ model Saving {
   updatedAt DateTime @updatedAt
   deletedAt DateTime?
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions SavingTransaction[]
 
   @@index([userId])
   @@index([deletedAt])
   @@index([date])
   @@index([userId, stillHave])
   @@index([userId, currency])
+}
+
+model SavingTransaction {
+  id        String                @id @default(uuid()) @db.Uuid
+  savingId  String                @db.Uuid
+  userId    String                @db.Uuid
+  type      SavingTransactionType
+  amount    Decimal               @db.Decimal(15, 2)
+  currency  Currency              @default(RWF)
+  amountRwf Decimal               @db.Decimal(15, 2)
+  date      DateTime
+  note      String?
+  createdAt DateTime              @default(now())
+  updatedAt DateTime              @updatedAt
+  deletedAt DateTime?
+  saving    Saving                @relation(fields: [savingId], references: [id], onDelete: Cascade)
+  user      User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([savingId])
+  @@index([userId])
+  @@index([type])
+  @@index([date])
+  @@index([deletedAt])
 }
 
 model AppSetting {
