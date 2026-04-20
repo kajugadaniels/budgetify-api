@@ -16,6 +16,7 @@ import {
 } from '../../common/utils/list-query.utils';
 import { PartnershipsService } from '../partnerships/partnerships.service';
 import { UsersService } from '../users/users.service';
+import { CurrencyService } from '../currency/currency.service';
 import { CreateIncomeRequestDto } from './dto/create-income.request.dto';
 import { IncomeCategoryOptionResponseDto } from './dto/income-category-option.response.dto';
 import { ListIncomeQueryDto } from './dto/list-income.query.dto';
@@ -29,6 +30,7 @@ export class IncomeService {
     private readonly incomeRepository: IncomeRepository,
     private readonly usersService: UsersService,
     private readonly partnershipsService: PartnershipsService,
+    private readonly currencyService: CurrencyService,
   ) {}
 
   async listCurrentUserIncome(
@@ -69,11 +71,17 @@ export class IncomeService {
     payload: CreateIncomeRequestDto,
   ): Promise<IncomeWithCreator> {
     await this.usersService.findActiveByIdOrThrow(userId);
+    const amountRwf = await this.currencyService.convertToRwf(
+      payload.amount,
+      payload.currency,
+    );
 
     return this.incomeRepository.create({
       userId,
       label: payload.label,
       amount: new Prisma.Decimal(payload.amount),
+      currency: payload.currency,
+      amountRwf,
       category: payload.category,
       date: new Date(payload.date),
       received: payload.received,
@@ -88,6 +96,7 @@ export class IncomeService {
     if (
       payload.label === undefined &&
       payload.amount === undefined &&
+      payload.currency === undefined &&
       payload.category === undefined &&
       payload.date === undefined &&
       payload.received === undefined
@@ -100,6 +109,16 @@ export class IncomeService {
     await this.usersService.findActiveByIdOrThrow(userId);
 
     const income = await this.findVisibleIncomeOrThrow(userId, incomeId);
+    const resolvedAmount = payload.amount ?? Number(income.amount);
+    const resolvedCurrency = payload.currency ?? income.currency;
+    const shouldUpdateAmountRwf =
+      payload.amount !== undefined || payload.currency !== undefined;
+    const amountRwf = shouldUpdateAmountRwf
+      ? await this.currencyService.convertToRwf(
+          resolvedAmount,
+          resolvedCurrency,
+        )
+      : undefined;
 
     return this.incomeRepository.update(income.id, {
       label: payload.label,
@@ -107,6 +126,8 @@ export class IncomeService {
         payload.amount === undefined
           ? undefined
           : new Prisma.Decimal(payload.amount),
+      currency: payload.currency,
+      amountRwf,
       category: payload.category,
       date: payload.date === undefined ? undefined : new Date(payload.date),
       received: payload.received,
