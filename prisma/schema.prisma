@@ -193,6 +193,7 @@ model Income {
   updatedAt DateTime       @updatedAt
   deletedAt DateTime?
   user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  savingTransactionSources SavingTransactionIncomeSource[]
 
   @@index([userId])
   @@index([deletedAt])
@@ -278,12 +279,28 @@ model SavingTransaction {
   deletedAt DateTime?
   saving    Saving                @relation(fields: [savingId], references: [id], onDelete: Cascade)
   user      User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  incomeSources SavingTransactionIncomeSource[]
 
   @@index([savingId])
   @@index([userId])
   @@index([type])
   @@index([date])
   @@index([deletedAt])
+}
+
+model SavingTransactionIncomeSource {
+  id                  String            @id @default(uuid()) @db.Uuid
+  savingTransactionId String            @db.Uuid
+  incomeId            String            @db.Uuid
+  amount              Decimal           @db.Decimal(15, 2)
+  currency            Currency          @default(RWF)
+  amountRwf           Decimal           @db.Decimal(15, 2)
+  savingTransaction   SavingTransaction @relation(fields: [savingTransactionId], references: [id], onDelete: Cascade)
+  income              Income            @relation(fields: [incomeId], references: [id], onDelete: Restrict)
+
+  @@unique([savingTransactionId, incomeId])
+  @@index([savingTransactionId])
+  @@index([incomeId])
 }
 
 model AppSetting {
