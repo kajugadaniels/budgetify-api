@@ -69,8 +69,9 @@ export class SavingsService {
     payload: CreateSavingRequestDto,
   ): Promise<SavingWithCreator> {
     await this.usersService.findActiveByIdOrThrow(userId);
+    const resolvedAmount = payload.amount ?? 0;
     const amountRwf = await this.currencyService.convertToRwf(
-      payload.amount,
+      resolvedAmount,
       payload.currency,
     );
 
@@ -79,7 +80,7 @@ export class SavingsService {
         {
           userId,
           label: payload.label,
-          amount: new Prisma.Decimal(payload.amount),
+          amount: new Prisma.Decimal(resolvedAmount),
           currency: payload.currency,
           amountRwf,
           date: new Date(payload.date),
