@@ -17,6 +17,7 @@ import {
 
 import { ApiErrorResponseDto } from '../../common/dto/api-error-response.dto';
 import { CreateSavingDepositRequestDto } from './dto/create-saving-deposit.request.dto';
+import { CreateSavingWithdrawalRequestDto } from './dto/create-saving-withdrawal.request.dto';
 import { CreateSavingRequestDto } from './dto/create-saving.request.dto';
 import { PaginatedSavingResponseDto } from './dto/paginated-saving.response.dto';
 import { SavingResponseDto } from './dto/saving-response.dto';
@@ -250,6 +251,51 @@ export function ApiCreateCurrentUserSavingDepositEndpoint(): MethodDecorator {
     ApiNotFoundResponse({
       description:
         'The requested saving or income source record does not exist for the authenticated user.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiTooManyRequestsResponse({
+      description:
+        'Too many saving write requests were sent in a short time. Wait about 15 seconds before trying again.',
+      type: ApiErrorResponseDto,
+    }),
+  );
+}
+
+export function ApiCreateCurrentUserSavingWithdrawalEndpoint(): MethodDecorator {
+  return applyDecorators(
+    ApiBearerAuth('access-token'),
+    ApiOperation({
+      summary: 'Create a saving withdrawal',
+      description:
+        'Pulls money out of an existing saving record, records a withdrawal transaction, and creates an available-money movement linked to that withdrawal. The withdrawal amount cannot exceed the current saving balance after RWF conversion.',
+    }),
+    ApiParam({
+      name: 'savingId',
+      description: 'UUID of the saving record receiving the withdrawal.',
+      format: 'uuid',
+    }),
+    ApiBody({ type: CreateSavingWithdrawalRequestDto }),
+    ApiCreatedResponse({
+      description: 'Saving withdrawal created successfully.',
+      type: SavingResponseDto,
+    }),
+    ApiBadRequestResponse({
+      description:
+        'Request validation failed or the withdrawal exceeds the current saving balance.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiUnauthorizedResponse({
+      description: 'Access token is missing, invalid, or expired.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiForbiddenResponse({
+      description:
+        'Authenticated user account is not allowed to create saving withdrawals.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiNotFoundResponse({
+      description:
+        'The requested saving record does not exist for the authenticated user.',
       type: ApiErrorResponseDto,
     }),
     ApiTooManyRequestsResponse({
