@@ -3,6 +3,7 @@ import { PassportModule } from '@nestjs/passport';
 
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrencyModule } from '../currency/currency.module';
+import { IncomeModule } from '../income/income.module';
 import { PartnershipsModule } from '../partnerships/partnerships.module';
 import { UsersModule } from '../users/users.module';
 import { SavingsController } from './savings.controller';
@@ -13,6 +14,7 @@ import { SavingsService } from './savings.service';
   imports: [
     PassportModule.register({ defaultStrategy: 'jwt' }),
     CurrencyModule,
+    IncomeModule,
     UsersModule,
     PartnershipsModule,
   ],
