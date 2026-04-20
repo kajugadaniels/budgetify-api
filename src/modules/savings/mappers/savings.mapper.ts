@@ -9,6 +9,8 @@ export class SavingsMapper {
       id: saving.id,
       label: saving.label,
       amount: Number(saving.amount),
+      currency: saving.currency,
+      amountRwf: Number(saving.amountRwf),
       date: saving.date,
       note: saving.note,
       stillHave: saving.stillHave,
