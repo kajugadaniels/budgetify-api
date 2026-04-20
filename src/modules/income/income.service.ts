@@ -66,6 +66,15 @@ export class IncomeService {
     return INCOME_CATEGORY_OPTIONS.map((option) => ({ ...option }));
   }
 
+  async findVisibleIncomeForCurrentUser(
+    userId: string,
+    incomeId: string,
+  ): Promise<IncomeWithCreator> {
+    await this.usersService.findActiveByIdOrThrow(userId);
+
+    return this.findVisibleIncomeOrThrow(userId, incomeId);
+  }
+
   async createCurrentUserIncome(
     userId: string,
     payload: CreateIncomeRequestDto,
