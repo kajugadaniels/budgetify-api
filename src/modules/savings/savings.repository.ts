@@ -26,8 +26,24 @@ const SAVING_WITH_LEDGER_ARGS = Prisma.validator<Prisma.SavingDefaultArgs>()({
   },
 });
 
+const SAVING_TRANSACTION_WITH_SOURCES_ARGS =
+  Prisma.validator<Prisma.SavingTransactionDefaultArgs>()({
+    include: {
+      incomeSources: {
+        include: {
+          income: true,
+        },
+        orderBy: [{ incomeId: 'asc' }],
+      },
+    },
+  });
+
 export type SavingWithCreator = Prisma.SavingGetPayload<
   typeof SAVING_WITH_LEDGER_ARGS
+>;
+
+export type SavingTransactionWithSources = Prisma.SavingTransactionGetPayload<
+  typeof SAVING_TRANSACTION_WITH_SOURCES_ARGS
 >;
 
 @Injectable()
@@ -156,8 +172,59 @@ export class SavingsRepository {
   async createTransaction(
     data: Prisma.SavingTransactionUncheckedCreateInput,
     db: PrismaExecutor = this.prisma,
+  ): Promise<SavingTransactionWithSources> {
+    return db.savingTransaction.create({
+      data,
+      ...SAVING_TRANSACTION_WITH_SOURCES_ARGS,
+    });
+  }
+
+  async createTransactionIncomeSources(
+    data: Prisma.SavingTransactionIncomeSourceCreateManyInput[],
+    db: PrismaExecutor = this.prisma,
   ): Promise<void> {
-    await db.savingTransaction.create({ data });
+    if (data.length === 0) {
+      return;
+    }
+
+    await db.savingTransactionIncomeSource.createMany({ data });
+  }
+
+  async findTransactionsBySavingId(
+    savingId: string,
+    db: PrismaExecutor = this.prisma,
+  ): Promise<SavingTransactionWithSources[]> {
+    return db.savingTransaction.findMany({
+      where: {
+        savingId,
+        deletedAt: null,
+      },
+      ...SAVING_TRANSACTION_WITH_SOURCES_ARGS,
+      orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
+    });
+  }
+
+  async sumDepositSourceAmountRwfByIncomeId(
+    incomeId: string,
+    db: PrismaExecutor = this.prisma,
+  ): Promise<Prisma.Decimal> {
+    const aggregate = await db.savingTransactionIncomeSource.aggregate({
+      where: {
+        incomeId,
+        savingTransaction: {
+          type: SavingTransactionType.DEPOSIT,
+          deletedAt: null,
+          saving: {
+            deletedAt: null,
+          },
+        },
+      },
+      _sum: {
+        amountRwf: true,
+      },
+    });
+
+    return aggregate._sum.amountRwf ?? new Prisma.Decimal(0);
   }
 
   async syncPrimaryDeposit(
