@@ -3,7 +3,12 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Currency, Prisma, SavingTransactionType } from '@prisma/client';
+import {
+  Currency,
+  MoneyMovementType,
+  Prisma,
+  SavingTransactionType,
+} from '@prisma/client';
 
 import {
   PaginatedResponse,
@@ -20,6 +25,7 @@ import { IncomeService } from '../income/income.service';
 import { CreateSavingRequestDto } from './dto/create-saving.request.dto';
 import { CreateSavingDepositRequestDto } from './dto/create-saving-deposit.request.dto';
 import { ListSavingsQueryDto } from './dto/list-savings.query.dto';
+import { CreateSavingWithdrawalRequestDto } from './dto/create-saving-withdrawal.request.dto';
 import { UpdateSavingRequestDto } from './dto/update-saving.request.dto';
 import {
   SavingTransactionWithSources,
@@ -284,6 +290,69 @@ export class SavingsService {
     });
   }
 
+  async createCurrentUserSavingWithdrawal(
+    userId: string,
+    savingId: string,
+    payload: CreateSavingWithdrawalRequestDto,
+  ): Promise<SavingWithCreator> {
+    await this.usersService.findActiveByIdOrThrow(userId);
+
+    const saving = await this.findVisibleSavingOrThrow(userId, savingId);
+    const withdrawalAmountRwf = await this.toRoundedRwf(
+      payload.amount,
+      payload.currency,
+    );
+    const currentBalanceRwf = this.calculateCurrentBalanceRwf(saving);
+
+    if (withdrawalAmountRwf.greaterThan(currentBalanceRwf)) {
+      throw new BadRequestException(
+        `Withdrawal exceeds the current saving balance of RWF ${currentBalanceRwf.toFixed(0)}.`,
+      );
+    }
+
+    const remainingBalanceRwf = currentBalanceRwf.minus(withdrawalAmountRwf);
+
+    return this.savingsRepository.runInTransaction(async (db) => {
+      const transaction = await this.savingsRepository.createTransaction(
+        {
+          savingId: saving.id,
+          userId: saving.userId,
+          type: SavingTransactionType.WITHDRAWAL,
+          amount: new Prisma.Decimal(payload.amount),
+          currency: payload.currency,
+          amountRwf: withdrawalAmountRwf,
+          date: new Date(payload.date),
+          note: payload.note ?? null,
+        },
+        db,
+      );
+
+      await this.savingsRepository.createMoneyMovement(
+        {
+          userId: saving.userId,
+          type: MoneyMovementType.SAVING_WITHDRAWAL,
+          amount: new Prisma.Decimal(payload.amount),
+          currency: payload.currency,
+          amountRwf: withdrawalAmountRwf,
+          date: new Date(payload.date),
+          note: payload.note ?? null,
+          savingTransactionId: transaction.id,
+        },
+        db,
+      );
+
+      if (saving.stillHave !== remainingBalanceRwf.greaterThan(0)) {
+        await this.savingsRepository.update(
+          saving.id,
+          { stillHave: remainingBalanceRwf.greaterThan(0) },
+          db,
+        );
+      }
+
+      return this.findSavingByIdOrThrow(saving.id, saving.userId, db);
+    });
+  }
+
   async deleteCurrentUserSaving(
     userId: string,
     savingId: string,
@@ -347,6 +416,24 @@ export class SavingsService {
     const amountRwf = await this.currencyService.convertToRwf(amount, currency);
 
     return amountRwf.toDecimalPlaces(2);
+  }
+
+  private calculateCurrentBalanceRwf(
+    saving: SavingWithCreator,
+  ): Prisma.Decimal {
+    return saving.transactions.reduce((balance, transaction) => {
+      const amountRwf = new Prisma.Decimal(transaction.amountRwf);
+
+      if (transaction.type === SavingTransactionType.DEPOSIT) {
+        return balance.add(amountRwf);
+      }
+
+      if (transaction.type === SavingTransactionType.WITHDRAWAL) {
+        return balance.minus(amountRwf);
+      }
+
+      return balance.add(amountRwf);
+    }, new Prisma.Decimal(0));
   }
 
   private findDuplicateIncomeId(incomeIds: string[]): string | null {
