@@ -244,9 +244,23 @@ export class SavingsRepository {
         savingId: saving.id,
         type: SavingTransactionType.DEPOSIT,
         deletedAt: null,
+        incomeSources: {
+          none: {},
+        },
       },
       orderBy: [{ createdAt: 'asc' }],
     });
+
+    if (new Prisma.Decimal(saving.amountRwf).lessThanOrEqualTo(0)) {
+      if (primaryDeposit) {
+        await db.savingTransaction.update({
+          where: { id: primaryDeposit.id },
+          data: { deletedAt: new Date() },
+        });
+      }
+
+      return;
+    }
 
     const data = {
       userId: saving.userId,
