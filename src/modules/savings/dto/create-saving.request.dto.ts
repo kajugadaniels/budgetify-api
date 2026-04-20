@@ -68,18 +68,20 @@ export class CreateSavingRequestDto {
   @MaxLength(120, { message: 'Label must not exceed 120 characters.' })
   label!: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     description:
-      'Saving amount in the selected currency. RWF is used when currency is omitted.',
+      'Optional opening amount in the selected currency. Leave it empty or use 0 to create a saving bucket without an initial deposit.',
     example: 350000,
+    default: 0,
   })
   @Transform(({ value }) => normalizeAmount(value))
+  @IsOptional()
   @IsNumber(
     { allowInfinity: false, allowNaN: false, maxDecimalPlaces: 2 },
     { message: 'Amount must be a valid number.' },
   )
-  @Min(0.01, { message: 'Amount must be greater than zero.' })
-  amount!: number;
+  @Min(0, { message: 'Amount must be zero or greater.' })
+  amount?: number;
 
   @ApiPropertyOptional({
     description:
