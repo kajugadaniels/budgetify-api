@@ -41,6 +41,11 @@ enum SavingTransactionType {
   ADJUSTMENT
 }
 
+enum MoneyMovementType {
+  SAVING_WITHDRAWAL
+  MANUAL_ADJUSTMENT
+}
+
 enum TodoPriority {
   TOP_PRIORITY
   PRIORITY
@@ -103,6 +108,7 @@ model User {
   loans             Loan[]
   savings           Saving[]
   savingTransactions SavingTransaction[]
+  moneyMovements    MoneyMovement[]
   loginOtpChallenge   LoginOtpChallenge?
   sentPartnership     Partnership?       @relation("PartnershipOwner")
   receivedPartnership Partnership?       @relation("PartnershipPartner")
@@ -280,6 +286,7 @@ model SavingTransaction {
   saving    Saving                @relation(fields: [savingId], references: [id], onDelete: Cascade)
   user      User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   incomeSources SavingTransactionIncomeSource[]
+  moneyMovement MoneyMovement?
 
   @@index([savingId])
   @@index([userId])
@@ -301,6 +308,28 @@ model SavingTransactionIncomeSource {
   @@unique([savingTransactionId, incomeId])
   @@index([savingTransactionId])
   @@index([incomeId])
+}
+
+model MoneyMovement {
+  id                  String             @id @default(uuid()) @db.Uuid
+  userId              String             @db.Uuid
+  type                MoneyMovementType
+  amount              Decimal            @db.Decimal(15, 2)
+  currency            Currency           @default(RWF)
+  amountRwf           Decimal            @db.Decimal(15, 2)
+  date                DateTime
+  note                String?
+  savingTransactionId String?            @unique @db.Uuid
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  deletedAt           DateTime?
+  user                User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  savingTransaction   SavingTransaction? @relation(fields: [savingTransactionId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([type])
+  @@index([date])
+  @@index([deletedAt])
 }
 
 model AppSetting {
