@@ -27,6 +27,66 @@ export class SavingResponseDto {
   })
   amountRwf!: number;
 
+  @ApiPropertyOptional({
+    example: 1000000,
+    nullable: true,
+    description:
+      'Target amount for the saving bucket in the selected currency.',
+  })
+  targetAmount!: number | null;
+
+  @ApiPropertyOptional({
+    enum: Currency,
+    enumName: 'Currency',
+    example: Currency.RWF,
+    nullable: true,
+  })
+  targetCurrency!: Currency | null;
+
+  @ApiPropertyOptional({
+    example: 1000000,
+    nullable: true,
+    description:
+      'RWF value stored at the exchange rate used when the target amount was saved.',
+  })
+  targetAmountRwf!: number | null;
+
+  @ApiPropertyOptional({
+    example: '2026-04-21',
+    nullable: true,
+    description: 'Saving timeframe start date.',
+  })
+  startDate!: string | null;
+
+  @ApiPropertyOptional({
+    example: '2027-04-21',
+    nullable: true,
+    description: 'Saving timeframe end date.',
+  })
+  endDate!: string | null;
+
+  @ApiPropertyOptional({
+    example: 365,
+    nullable: true,
+    description: 'Number of days between the saving start and end dates.',
+  })
+  timeframeDays!: number | null;
+
+  @ApiPropertyOptional({
+    example: 35,
+    nullable: true,
+    description: 'Progress toward the target saving amount, clamped to 0-100.',
+  })
+  targetProgressPercentage!: number | null;
+
+  @ApiPropertyOptional({
+    example: 12,
+    nullable: true,
+    description:
+      'Elapsed timeframe percentage between the saving start and end dates, clamped to 0-100.',
+  })
+  timeframeProgressPercentage!: number | null;
+
   @ApiProperty({
     example: 350000,
     description: 'Total active deposit transactions for this saving in RWF.',
