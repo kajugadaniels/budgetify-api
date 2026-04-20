@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, SavingTransactionType } from '@prisma/client';
 
 import {
   PaginatedResponse,
@@ -16,13 +16,29 @@ const USER_SELECT = {
   avatarUrl: true,
 } as const;
 
-export type SavingWithCreator = Prisma.SavingGetPayload<{
-  include: { user: { select: typeof USER_SELECT } };
-}>;
+const SAVING_WITH_LEDGER_ARGS = Prisma.validator<Prisma.SavingDefaultArgs>()({
+  include: {
+    user: { select: USER_SELECT },
+    transactions: {
+      where: { deletedAt: null },
+      orderBy: [{ date: 'asc' }, { createdAt: 'asc' }],
+    },
+  },
+});
+
+export type SavingWithCreator = Prisma.SavingGetPayload<
+  typeof SAVING_WITH_LEDGER_ARGS
+>;
 
 @Injectable()
 export class SavingsRepository {
   constructor(private readonly prisma: PrismaService) {}
+
+  runInTransaction<T>(
+    callback: (db: Prisma.TransactionClient) => Promise<T>,
+  ): Promise<T> {
+    return this.prisma.$transaction(callback);
+  }
 
   async findManyByUserIds(
     userIds: string[],
@@ -78,7 +94,7 @@ export class SavingsRepository {
     const [items, totalItems] = await Promise.all([
       db.saving.findMany({
         where,
-        include: { user: { select: USER_SELECT } },
+        ...SAVING_WITH_LEDGER_ARGS,
         orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
         skip: options?.skip,
         take: options?.take,
@@ -106,12 +122,12 @@ export class SavingsRepository {
     db: PrismaExecutor = this.prisma,
   ): Promise<SavingWithCreator | null> {
     return db.saving.findFirst({
+      ...SAVING_WITH_LEDGER_ARGS,
       where: {
         id,
         userId: { in: userIds },
         deletedAt: null,
       },
-      include: { user: { select: USER_SELECT } },
     });
   }
 
@@ -121,7 +137,7 @@ export class SavingsRepository {
   ): Promise<SavingWithCreator> {
     return db.saving.create({
       data,
-      include: { user: { select: USER_SELECT } },
+      ...SAVING_WITH_LEDGER_ARGS,
     });
   }
 
@@ -133,7 +149,110 @@ export class SavingsRepository {
     return db.saving.update({
       where: { id },
       data,
-      include: { user: { select: USER_SELECT } },
+      ...SAVING_WITH_LEDGER_ARGS,
+    });
+  }
+
+  async createTransaction(
+    data: Prisma.SavingTransactionUncheckedCreateInput,
+    db: PrismaExecutor = this.prisma,
+  ): Promise<void> {
+    await db.savingTransaction.create({ data });
+  }
+
+  async syncPrimaryDeposit(
+    saving: SavingWithCreator,
+    db: PrismaExecutor = this.prisma,
+  ): Promise<void> {
+    const primaryDeposit = await db.savingTransaction.findFirst({
+      where: {
+        savingId: saving.id,
+        type: SavingTransactionType.DEPOSIT,
+        deletedAt: null,
+      },
+      orderBy: [{ createdAt: 'asc' }],
+    });
+
+    const data = {
+      userId: saving.userId,
+      type: SavingTransactionType.DEPOSIT,
+      amount: saving.amount,
+      currency: saving.currency,
+      amountRwf: saving.amountRwf,
+      date: saving.date,
+      note: saving.note,
+    };
+
+    if (!primaryDeposit) {
+      await db.savingTransaction.create({
+        data: {
+          savingId: saving.id,
+          ...data,
+        },
+      });
+
+      return;
+    }
+
+    await db.savingTransaction.update({
+      where: { id: primaryDeposit.id },
+      data,
+    });
+  }
+
+  async syncLegacyAvailabilityWithdrawal(
+    saving: SavingWithCreator,
+    db: PrismaExecutor = this.prisma,
+  ): Promise<void> {
+    if (saving.stillHave) {
+      await db.savingTransaction.updateMany({
+        where: {
+          savingId: saving.id,
+          type: SavingTransactionType.WITHDRAWAL,
+          deletedAt: null,
+        },
+        data: { deletedAt: new Date() },
+      });
+
+      return;
+    }
+
+    const withdrawal = await db.savingTransaction.findFirst({
+      where: {
+        savingId: saving.id,
+        type: SavingTransactionType.WITHDRAWAL,
+        deletedAt: null,
+      },
+      orderBy: [{ createdAt: 'asc' }],
+    });
+
+    const data = {
+      userId: saving.userId,
+      type: SavingTransactionType.WITHDRAWAL,
+      amount: saving.amount,
+      currency: saving.currency,
+      amountRwf: saving.amountRwf,
+      date: saving.date,
+      note:
+        saving.note === null
+          ? 'Legacy withdrawal from inactive saving'
+          : `${saving.note} - Legacy withdrawal from inactive saving`,
+    };
+
+    if (!withdrawal) {
+      await db.savingTransaction.create({
+        data: {
+          savingId: saving.id,
+          ...data,
+        },
+      });
+
+      return;
+    }
+
+    await db.savingTransaction.update({
+      where: { id: withdrawal.id },
+      data,
     });
   }
 }
