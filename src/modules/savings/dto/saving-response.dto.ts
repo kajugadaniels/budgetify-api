@@ -27,6 +27,25 @@ export class SavingResponseDto {
   })
   amountRwf!: number;
 
+  @ApiProperty({
+    example: 350000,
+    description: 'Total active deposit transactions for this saving in RWF.',
+  })
+  totalDepositedRwf!: number;
+
+  @ApiProperty({
+    example: 0,
+    description: 'Total active withdrawal transactions for this saving in RWF.',
+  })
+  totalWithdrawnRwf!: number;
+
+  @ApiProperty({
+    example: 350000,
+    description:
+      'Current saving balance in RWF, calculated from active ledger transactions.',
+  })
+  currentBalanceRwf!: number;
+
   @ApiProperty({ example: '2026-04-01T00:00:00.000Z' })
   date!: Date;
 
