@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Currency, Prisma, SavingTransactionType } from '@prisma/client';
 
 import {
   PaginatedResponse,
@@ -16,10 +16,16 @@ import {
 import { PartnershipsService } from '../partnerships/partnerships.service';
 import { UsersService } from '../users/users.service';
 import { CurrencyService } from '../currency/currency.service';
+import { IncomeService } from '../income/income.service';
 import { CreateSavingRequestDto } from './dto/create-saving.request.dto';
+import { CreateSavingDepositRequestDto } from './dto/create-saving-deposit.request.dto';
 import { ListSavingsQueryDto } from './dto/list-savings.query.dto';
 import { UpdateSavingRequestDto } from './dto/update-saving.request.dto';
-import { SavingWithCreator, SavingsRepository } from './savings.repository';
+import {
+  SavingTransactionWithSources,
+  SavingWithCreator,
+  SavingsRepository,
+} from './savings.repository';
 
 @Injectable()
 export class SavingsService {
@@ -28,6 +34,7 @@ export class SavingsService {
     private readonly usersService: UsersService,
     private readonly partnershipsService: PartnershipsService,
     private readonly currencyService: CurrencyService,
+    private readonly incomeService: IncomeService,
   ) {}
 
   async listCurrentUserSavings(
@@ -147,6 +154,136 @@ export class SavingsService {
     });
   }
 
+  async listCurrentUserSavingTransactions(
+    userId: string,
+    savingId: string,
+  ): Promise<SavingTransactionWithSources[]> {
+    await this.usersService.findActiveByIdOrThrow(userId);
+
+    const saving = await this.findVisibleSavingOrThrow(userId, savingId);
+
+    return this.savingsRepository.findTransactionsBySavingId(saving.id);
+  }
+
+  async createCurrentUserSavingDeposit(
+    userId: string,
+    savingId: string,
+    payload: CreateSavingDepositRequestDto,
+  ): Promise<SavingWithCreator> {
+    await this.usersService.findActiveByIdOrThrow(userId);
+
+    const saving = await this.findVisibleSavingOrThrow(userId, savingId);
+    const depositAmountRwf = await this.toRoundedRwf(
+      payload.amount,
+      payload.currency,
+    );
+    const sourceInputs = await Promise.all(
+      payload.incomeSources.map(async (source) => ({
+        ...source,
+        amountRwf: await this.toRoundedRwf(source.amount, source.currency),
+      })),
+    );
+
+    const duplicateIncomeId = this.findDuplicateIncomeId(
+      sourceInputs.map((source) => source.incomeId),
+    );
+
+    if (duplicateIncomeId) {
+      throw new BadRequestException(
+        'Each income record can only be listed once per saving deposit.',
+      );
+    }
+
+    const sourceTotalRwf = sourceInputs.reduce(
+      (sum, source) => sum.add(source.amountRwf),
+      new Prisma.Decimal(0),
+    );
+
+    if (!sourceTotalRwf.equals(depositAmountRwf)) {
+      throw new BadRequestException(
+        'Income source amounts must equal the deposit amount after RWF conversion.',
+      );
+    }
+
+    const incomeRecords = await Promise.all(
+      sourceInputs.map((source) =>
+        this.incomeService.findVisibleIncomeForCurrentUser(
+          userId,
+          source.incomeId,
+        ),
+      ),
+    );
+
+    for (const source of sourceInputs) {
+      const income = incomeRecords.find((item) => item.id === source.incomeId);
+
+      if (!income) {
+        throw new BadRequestException('Income source was not found.');
+      }
+
+      if (!income.received) {
+        throw new BadRequestException(
+          `Income source "${income.label}" must be marked as received before it can fund savings.`,
+        );
+      }
+
+      const allocatedAmountRwf =
+        await this.savingsRepository.sumDepositSourceAmountRwfByIncomeId(
+          source.incomeId,
+        );
+      const remainingAmountRwf = new Prisma.Decimal(income.amountRwf).minus(
+        allocatedAmountRwf,
+      );
+
+      if (source.amountRwf.greaterThan(remainingAmountRwf)) {
+        throw new BadRequestException(
+          `Income source "${income.label}" only has RWF ${remainingAmountRwf.toFixed(0)} remaining for savings.`,
+        );
+      }
+    }
+
+    return this.savingsRepository.runInTransaction(async (db) => {
+      const transaction = await this.savingsRepository.createTransaction(
+        {
+          savingId: saving.id,
+          userId: saving.userId,
+          type: SavingTransactionType.DEPOSIT,
+          amount: new Prisma.Decimal(payload.amount),
+          currency: payload.currency,
+          amountRwf: depositAmountRwf,
+          date: new Date(payload.date),
+          note: payload.note ?? null,
+        },
+        db,
+      );
+
+      await this.savingsRepository.createTransactionIncomeSources(
+        sourceInputs.map((source) => ({
+          savingTransactionId: transaction.id,
+          incomeId: source.incomeId,
+          amount: new Prisma.Decimal(source.amount),
+          currency: source.currency,
+          amountRwf: source.amountRwf,
+        })),
+        db,
+      );
+
+      if (!saving.stillHave) {
+        const updatedSaving = await this.savingsRepository.update(
+          saving.id,
+          { stillHave: true },
+          db,
+        );
+        await this.savingsRepository.syncLegacyAvailabilityWithdrawal(
+          updatedSaving,
+          db,
+        );
+      }
+
+      return this.findSavingByIdOrThrow(saving.id, saving.userId, db);
+    });
+  }
+
   async deleteCurrentUserSaving(
     userId: string,
     savingId: string,
@@ -201,5 +338,28 @@ export class SavingsService {
     }
 
     return saving;
+  }
+
+  private async toRoundedRwf(
+    amount: number,
+    currency: Currency,
+  ): Promise<Prisma.Decimal> {
+    const amountRwf = await this.currencyService.convertToRwf(amount, currency);
+
+    return amountRwf.toDecimalPlaces(2);
+  }
+
+  private findDuplicateIncomeId(incomeIds: string[]): string | null {
+    const seenIncomeIds = new Set<string>();
+
+    for (const incomeId of incomeIds) {
+      if (seenIncomeIds.has(incomeId)) {
+        return incomeId;
+      }
+
+      seenIncomeIds.add(incomeId);
+    }
+
+    return null;
   }
 }
