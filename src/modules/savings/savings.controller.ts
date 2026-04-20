@@ -18,18 +18,22 @@ import { Throttle } from '@nestjs/throttler';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthenticatedRequestUser } from '../../common/interfaces/authenticated-request.interface';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { CreateSavingDepositRequestDto } from './dto/create-saving-deposit.request.dto';
 import { CreateSavingRequestDto } from './dto/create-saving.request.dto';
 import { ListSavingsQueryDto } from './dto/list-savings.query.dto';
 import { PaginatedSavingResponseDto } from './dto/paginated-saving.response.dto';
 import { SavingResponseDto } from './dto/saving-response.dto';
+import { SavingTransactionResponseDto } from './dto/saving-transaction.response.dto';
 import { UpdateSavingRequestDto } from './dto/update-saving.request.dto';
 import { SavingsMapper } from './mappers/savings.mapper';
 import { SAVINGS_ROUTES } from './savings.routes';
 import { SavingsService } from './savings.service';
 import {
   ApiCreateCurrentUserSavingEndpoint,
+  ApiCreateCurrentUserSavingDepositEndpoint,
   ApiDeleteCurrentUserSavingEndpoint,
   ApiListCurrentUserSavingsEndpoint,
+  ApiListCurrentUserSavingTransactionsEndpoint,
   ApiUpdateCurrentUserSavingEndpoint,
 } from './savings.swagger';
 
@@ -78,6 +82,39 @@ export class SavingsController {
     @Body() body: UpdateSavingRequestDto,
   ): Promise<SavingResponseDto> {
     const saving = await this.savingsService.updateCurrentUserSaving(
+      user.userId,
+      savingId,
+      body,
+    );
+
+    return SavingsMapper.toSavingResponse(saving);
+  }
+
+  @Get(SAVINGS_ROUTES.transactions)
+  @ApiListCurrentUserSavingTransactionsEndpoint()
+  async listCurrentUserSavingTransactions(
+    @CurrentUser() user: AuthenticatedRequestUser,
+    @Param('savingId', ParseUUIDPipe) savingId: string,
+  ): Promise<SavingTransactionResponseDto[]> {
+    const transactions =
+      await this.savingsService.listCurrentUserSavingTransactions(
+        user.userId,
+        savingId,
+      );
+
+    return SavingsMapper.toSavingTransactionResponseList(transactions);
+  }
+
+  @Post(SAVINGS_ROUTES.deposits)
+  @HttpCode(HttpStatus.CREATED)
+  @Throttle({ write: { limit: 1, ttl: 15_000, blockDuration: 15_000 } })
+  @ApiCreateCurrentUserSavingDepositEndpoint()
+  async createCurrentUserSavingDeposit(
+    @CurrentUser() user: AuthenticatedRequestUser,
+    @Param('savingId', ParseUUIDPipe) savingId: string,
+    @Body() body: CreateSavingDepositRequestDto,
+  ): Promise<SavingResponseDto> {
+    const saving = await this.savingsService.createCurrentUserSavingDeposit(
       user.userId,
       savingId,
       body,
