@@ -16,9 +16,11 @@ import {
 } from '@nestjs/swagger';
 
 import { ApiErrorResponseDto } from '../../common/dto/api-error-response.dto';
+import { CreateSavingDepositRequestDto } from './dto/create-saving-deposit.request.dto';
 import { CreateSavingRequestDto } from './dto/create-saving.request.dto';
 import { PaginatedSavingResponseDto } from './dto/paginated-saving.response.dto';
 import { SavingResponseDto } from './dto/saving-response.dto';
+import { SavingTransactionResponseDto } from './dto/saving-transaction.response.dto';
 import { UpdateSavingRequestDto } from './dto/update-saving.request.dto';
 
 export function ApiListCurrentUserSavingsEndpoint(): MethodDecorator {
@@ -168,6 +170,86 @@ export function ApiUpdateCurrentUserSavingEndpoint(): MethodDecorator {
     ApiNotFoundResponse({
       description:
         'The requested saving record does not exist for the authenticated user.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiTooManyRequestsResponse({
+      description:
+        'Too many saving write requests were sent in a short time. Wait about 15 seconds before trying again.',
+      type: ApiErrorResponseDto,
+    }),
+  );
+}
+
+export function ApiListCurrentUserSavingTransactionsEndpoint(): MethodDecorator {
+  return applyDecorators(
+    ApiBearerAuth('access-token'),
+    ApiOperation({
+      summary: 'List saving transactions',
+      description:
+        'Returns the active ledger transactions for one visible saving record, including income source details for deposits.',
+    }),
+    ApiParam({
+      name: 'savingId',
+      description: 'UUID of the saving record.',
+      format: 'uuid',
+    }),
+    ApiOkResponse({
+      description: 'Saving transactions retrieved successfully.',
+      type: SavingTransactionResponseDto,
+      isArray: true,
+    }),
+    ApiUnauthorizedResponse({
+      description: 'Access token is missing, invalid, or expired.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiForbiddenResponse({
+      description:
+        'Authenticated user account is not allowed to access saving transactions.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiNotFoundResponse({
+      description:
+        'The requested saving record does not exist for the authenticated user.',
+      type: ApiErrorResponseDto,
+    }),
+  );
+}
+
+export function ApiCreateCurrentUserSavingDepositEndpoint(): MethodDecorator {
+  return applyDecorators(
+    ApiBearerAuth('access-token'),
+    ApiOperation({
+      summary: 'Create a saving deposit',
+      description:
+        'Adds money to an existing saving record and records the income records that funded the deposit. Source amounts must equal the deposit amount after RWF conversion and cannot exceed remaining income availability.',
+    }),
+    ApiParam({
+      name: 'savingId',
+      description: 'UUID of the saving record receiving the deposit.',
+      format: 'uuid',
+    }),
+    ApiBody({ type: CreateSavingDepositRequestDto }),
+    ApiCreatedResponse({
+      description: 'Saving deposit created successfully.',
+      type: SavingResponseDto,
+    }),
+    ApiBadRequestResponse({
+      description:
+        'Request validation failed, source totals do not match, or an income source is over-allocated.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiUnauthorizedResponse({
+      description: 'Access token is missing, invalid, or expired.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiForbiddenResponse({
+      description:
+        'Authenticated user account is not allowed to create saving deposits.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiNotFoundResponse({
+      description:
+        'The requested saving or income source record does not exist for the authenticated user.',
       type: ApiErrorResponseDto,
     }),
     ApiTooManyRequestsResponse({
