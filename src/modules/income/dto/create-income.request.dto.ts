@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IncomeCategory } from '@prisma/client';
+import { Currency, IncomeCategory } from '@prisma/client';
 import { Transform } from 'class-transformer';
 import {
   IsBoolean,
@@ -60,7 +60,7 @@ export class CreateIncomeRequestDto {
 
   @ApiProperty({
     description:
-      'Gross income amount in RWF. The Flutter income form currently captures whole-number amounts.',
+      'Gross income amount in the selected currency. RWF is used when currency is omitted.',
     example: 450000,
   })
   @Transform(({ value }) => normalizeAmount(value))
@@ -70,6 +70,20 @@ export class CreateIncomeRequestDto {
   )
   @Min(1, { message: 'Amount must be greater than zero.' })
   amount!: number;
+
+  @ApiProperty({
+    description:
+      'Currency for the submitted amount. USD amounts are converted to RWF for reporting using the configured exchange rate.',
+    enum: Currency,
+    enumName: 'Currency',
+    example: Currency.RWF,
+    required: false,
+    default: Currency.RWF,
+  })
+  @IsEnum(Currency, {
+    message: 'Currency must be either RWF or USD.',
+  })
+  currency: Currency = Currency.RWF;
 
   @ApiProperty({
     description: 'Income category selected from the client application.',
