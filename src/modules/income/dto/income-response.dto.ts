@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IncomeCategory } from '@prisma/client';
+import { Currency, IncomeCategory } from '@prisma/client';
 
 import { CreatedByResponseDto } from '../../../common/dto/created-by.response.dto';
 
@@ -12,6 +12,20 @@ export class IncomeResponseDto {
 
   @ApiProperty({ example: 450000 })
   amount!: number;
+
+  @ApiProperty({
+    enum: Currency,
+    enumName: 'Currency',
+    example: Currency.RWF,
+  })
+  currency!: Currency;
+
+  @ApiProperty({
+    example: 450000,
+    description:
+      'RWF value stored at the exchange rate used when the record was saved.',
+  })
+  amountRwf!: number;
 
   @ApiProperty({
     enum: IncomeCategory,
