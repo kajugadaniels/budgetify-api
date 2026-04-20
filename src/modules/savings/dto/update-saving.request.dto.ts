@@ -95,6 +95,52 @@ export class UpdateSavingRequestDto {
   currency?: Currency;
 
   @ApiPropertyOptional({
+    description:
+      'Updated target amount for this saving bucket. Omit to keep the current value.',
+    example: 1250000,
+  })
+  @Transform(({ value }) => normalizeAmount(value))
+  @IsOptional()
+  @IsNumber(
+    { allowInfinity: false, allowNaN: false, maxDecimalPlaces: 2 },
+    { message: 'Target amount must be a valid number.' },
+  )
+  @Min(0.01, { message: 'Target amount must be greater than zero.' })
+  targetAmount?: number;
+
+  @ApiPropertyOptional({
+    description:
+      'Updated currency for the target amount. Omit to keep the current currency.',
+    enum: Currency,
+    enumName: 'Currency',
+    example: Currency.RWF,
+  })
+  @IsOptional()
+  @IsEnum(Currency, {
+    message: 'Target currency must be either RWF or USD.',
+  })
+  targetCurrency?: Currency;
+
+  @ApiPropertyOptional({
+    description: 'Updated start date for the saving timeframe.',
+    example: '2026-04-21',
+  })
+  @IsOptional()
+  @IsISO8601(
+    {},
+    { message: 'Start date must be a valid ISO 8601 date string.' },
+  )
+  startDate?: string;
+
+  @ApiPropertyOptional({
+    description: 'Updated end date for the saving timeframe.',
+    example: '2027-04-21',
+  })
+  @IsOptional()
+  @IsISO8601({}, { message: 'End date must be a valid ISO 8601 date string.' })
+  endDate?: string;
+
+  @ApiPropertyOptional({
     description: 'Updated saving date.',
     example: '2026-04-03T00:00:00.000Z',
   })
