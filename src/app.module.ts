@@ -13,6 +13,7 @@ import { validateEnv } from './config/env.validation';
 import { API_GLOBAL_PREFIX } from './common/constants/api.constants';
 import { PrismaModule } from './database/prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { CurrencyModule } from './modules/currency/currency.module';
 import { ExpensesModule } from './modules/expenses/expenses.module';
 import { IncomeModule } from './modules/income/income.module';
 import { LoansModule } from './modules/loans/loans.module';
@@ -124,6 +125,7 @@ function getRequestSignature(context: ExecutionContext): {
     }),
     PrismaModule,
     UsersModule,
+    CurrencyModule,
     IncomeModule,
     ExpensesModule,
     SavingsModule,
