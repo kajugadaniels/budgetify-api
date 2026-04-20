@@ -1,0 +1,2 @@
+export const USD_TO_RWF_RATE_SETTING_KEY = 'USD_TO_RWF_RATE';
+export const DEFAULT_USD_TO_RWF_RATE = 1460;
