@@ -3,7 +3,11 @@ import { SavingTransactionType } from '@prisma/client';
 import { PaginatedResponse } from '../../../common/interfaces/paginated-response.interface';
 import { PaginatedSavingResponseDto } from '../dto/paginated-saving.response.dto';
 import { SavingResponseDto } from '../dto/saving-response.dto';
-import { SavingWithCreator } from '../savings.repository';
+import { SavingTransactionResponseDto } from '../dto/saving-transaction.response.dto';
+import {
+  SavingTransactionWithSources,
+  SavingWithCreator,
+} from '../savings.repository';
 
 export class SavingsMapper {
   static toSavingResponse(saving: SavingWithCreator): SavingResponseDto {
@@ -71,5 +75,37 @@ export class SavingsMapper {
       items: SavingsMapper.toSavingResponseList(payload.items),
       meta: payload.meta,
     };
+  }
+
+  static toSavingTransactionResponse(
+    transaction: SavingTransactionWithSources,
+  ): SavingTransactionResponseDto {
+    return {
+      id: transaction.id,
+      type: transaction.type,
+      amount: Number(transaction.amount),
+      currency: transaction.currency,
+      amountRwf: Number(transaction.amountRwf),
+      date: transaction.date,
+      note: transaction.note,
+      incomeSources: transaction.incomeSources.map((source) => ({
+        id: source.id,
+        incomeId: source.incomeId,
+        incomeLabel: source.income.label,
+        incomeCategory: source.income.category,
+        amount: Number(source.amount),
+        currency: source.currency,
+        amountRwf: Number(source.amountRwf),
+      })),
+      createdAt: transaction.createdAt,
+    };
+  }
+
+  static toSavingTransactionResponseList(
+    transactions: SavingTransactionWithSources[],
+  ): SavingTransactionResponseDto[] {
+    return transactions.map((transaction) =>
+      SavingsMapper.toSavingTransactionResponse(transaction),
+    );
   }
 }
