@@ -105,7 +105,7 @@ export function ApiCreateCurrentUserSavingEndpoint(): MethodDecorator {
     ApiOperation({
       summary: 'Create a saving record',
       description:
-        'Creates a new saving record for the authenticated user. Captures the saving label, amount in USD, date, optional note, and whether the money is still currently available.',
+        'Creates a new saving record for the authenticated user. Captures the saving label, amount, currency, date, optional note, and whether the money is still currently available.',
     }),
     ApiBody({ type: CreateSavingRequestDto }),
     ApiCreatedResponse({
