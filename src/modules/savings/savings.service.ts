@@ -15,6 +15,7 @@ import {
 } from '../../common/utils/list-query.utils';
 import { PartnershipsService } from '../partnerships/partnerships.service';
 import { UsersService } from '../users/users.service';
+import { CurrencyService } from '../currency/currency.service';
 import { CreateSavingRequestDto } from './dto/create-saving.request.dto';
 import { ListSavingsQueryDto } from './dto/list-savings.query.dto';
 import { UpdateSavingRequestDto } from './dto/update-saving.request.dto';
@@ -26,6 +27,7 @@ export class SavingsService {
     private readonly savingsRepository: SavingsRepository,
     private readonly usersService: UsersService,
     private readonly partnershipsService: PartnershipsService,
+    private readonly currencyService: CurrencyService,
   ) {}
 
   async listCurrentUserSavings(
@@ -54,11 +56,17 @@ export class SavingsService {
     payload: CreateSavingRequestDto,
   ): Promise<SavingWithCreator> {
     await this.usersService.findActiveByIdOrThrow(userId);
+    const amountRwf = await this.currencyService.convertToRwf(
+      payload.amount,
+      payload.currency,
+    );
 
     return this.savingsRepository.create({
       userId,
       label: payload.label,
       amount: new Prisma.Decimal(payload.amount),
+      currency: payload.currency,
+      amountRwf,
       date: new Date(payload.date),
       note: payload.note ?? null,
       stillHave: payload.stillHave,
@@ -73,6 +81,7 @@ export class SavingsService {
     if (
       payload.label === undefined &&
       payload.amount === undefined &&
+      payload.currency === undefined &&
       payload.date === undefined &&
       payload.note === undefined &&
       payload.stillHave === undefined
@@ -85,6 +94,16 @@ export class SavingsService {
     await this.usersService.findActiveByIdOrThrow(userId);
 
     const saving = await this.findVisibleSavingOrThrow(userId, savingId);
+    const resolvedAmount = payload.amount ?? Number(saving.amount);
+    const resolvedCurrency = payload.currency ?? saving.currency;
+    const shouldUpdateAmountRwf =
+      payload.amount !== undefined || payload.currency !== undefined;
+    const amountRwf = shouldUpdateAmountRwf
+      ? await this.currencyService.convertToRwf(
+          resolvedAmount,
+          resolvedCurrency,
+        )
+      : undefined;
 
     return this.savingsRepository.update(saving.id, {
       label: payload.label,
@@ -92,6 +111,8 @@ export class SavingsService {
         payload.amount === undefined
           ? undefined
           : new Prisma.Decimal(payload.amount),
+      currency: payload.currency,
+      amountRwf,
       date: payload.date === undefined ? undefined : new Date(payload.date),
       note: payload.note,
       stillHave: payload.stillHave,
