@@ -74,6 +74,35 @@ export class SavingTransactionResponseDto {
   note!: string | null;
 
   @ApiProperty({
+    example: false,
+    description: 'Whether this transaction is itself a reversal entry.',
+  })
+  isReversal!: boolean;
+
+  @ApiProperty({
+    example: true,
+    description:
+      'Whether this transaction has been reversed by a later transaction.',
+  })
+  isReversed!: boolean;
+
+  @ApiPropertyOptional({
+    example: '97bcc638-92b6-4209-a90f-7c10ec6a3a85',
+    nullable: true,
+    description:
+      'The original transaction this entry reverses, when this is a reversal.',
+  })
+  reversalOfTransactionId!: string | null;
+
+  @ApiPropertyOptional({
+    example: '11111111-92b6-4209-a90f-7c10ec6a3a85',
+    nullable: true,
+    description:
+      'The reversal transaction that unwound this entry, when one exists.',
+  })
+  reversedByTransactionId!: string | null;
+
+  @ApiProperty({
     type: SavingTransactionIncomeSourceResponseDto,
     isArray: true,
   })
