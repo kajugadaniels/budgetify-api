@@ -81,6 +81,29 @@ enum ExpenseCategory {
   OTHER
 }
 
+enum ExpensePaymentMethod {
+  CASH
+  BANK
+  MOBILE_MONEY
+  CARD
+  OTHER
+}
+
+enum ExpenseMobileMoneyChannel {
+  MERCHANT_CODE
+  P2P_TRANSFER
+}
+
+enum ExpenseMobileMoneyProvider {
+  MTN_RWANDA
+  OTHER
+}
+
+enum ExpenseMobileMoneyNetwork {
+  ON_NET
+  OFF_NET
+}
+
 // ─────────────────────────────────────────────────────────────
 // Core user models
 // ─────────────────────────────────────────────────────────────
@@ -214,6 +237,15 @@ model Expense {
   userId    String          @db.Uuid
   label     String
   amount    Decimal         @db.Decimal(15, 2)
+  currency  Currency        @default(RWF)
+  amountRwf Decimal         @default(0) @db.Decimal(15, 2)
+  feeAmount Decimal         @default(0) @db.Decimal(15, 2)
+  feeAmountRwf Decimal      @default(0) @db.Decimal(15, 2)
+  totalAmountRwf Decimal    @default(0) @db.Decimal(15, 2)
+  paymentMethod ExpensePaymentMethod @default(CASH)
+  mobileMoneyChannel ExpenseMobileMoneyChannel?
+  mobileMoneyProvider ExpenseMobileMoneyProvider?
+  mobileMoneyNetwork ExpenseMobileMoneyNetwork?
   category  ExpenseCategory
   date      DateTime
   note      String?
@@ -226,6 +258,24 @@ model Expense {
   @@index([deletedAt])
   @@index([date])
   @@index([userId, category])
+  @@index([userId, paymentMethod])
+  @@index([userId, currency])
+}
+
+model MobileMoneyTariff {
+  id         String                    @id @default(uuid()) @db.Uuid
+  provider   ExpenseMobileMoneyProvider
+  channel    ExpenseMobileMoneyChannel
+  network    ExpenseMobileMoneyNetwork?
+  minAmount  Decimal                   @db.Decimal(15, 2)
+  maxAmount  Decimal                   @db.Decimal(15, 2)
+  feeAmount  Decimal                   @db.Decimal(15, 2)
+  active     Boolean                   @default(true)
+  createdAt  DateTime                  @default(now())
+  updatedAt  DateTime                  @updatedAt
+
+  @@index([provider, channel, network, active])
+  @@index([active, minAmount, maxAmount])
 }
 
 model Loan {
