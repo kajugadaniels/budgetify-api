@@ -98,6 +98,42 @@ describe('ExpensesService', () => {
     );
   });
 
+  it('quotes a mobile money expense before creation', async () => {
+    usersService.findActiveByIdOrThrow.mockResolvedValue(undefined);
+    mobileMoneyTariffService.resolveExpenseCharges.mockResolvedValue({
+      amount: new Prisma.Decimal(5000),
+      currency: Currency.RWF,
+      amountRwf: new Prisma.Decimal(5000),
+      feeAmount: new Prisma.Decimal(100),
+      feeAmountRwf: new Prisma.Decimal(100),
+      totalAmountRwf: new Prisma.Decimal(5100),
+      paymentMethod: 'MOBILE_MONEY',
+      mobileMoneyChannel: 'P2P_TRANSFER',
+      mobileMoneyProvider: 'MTN_RWANDA',
+      mobileMoneyNetwork: 'ON_NET',
+    });
+
+    const result = await service.quoteCurrentUserMobileMoneyExpense('user-1', {
+      amount: 5000,
+      currency: Currency.RWF,
+      mobileMoneyChannel: 'P2P_TRANSFER',
+      mobileMoneyProvider: 'MTN_RWANDA',
+      mobileMoneyNetwork: 'ON_NET',
+    });
+
+    expect(result).toEqual({
+      amount: 5000,
+      currency: Currency.RWF,
+      amountRwf: 5000,
+      feeAmount: 100,
+      feeAmountRwf: 100,
+      totalAmountRwf: 5100,
+      mobileMoneyChannel: 'P2P_TRANSFER',
+      mobileMoneyProvider: 'MTN_RWANDA',
+      mobileMoneyNetwork: 'ON_NET',
+    });
+  });
+
   it('creates a mobile money expense with a calculated fee', async () => {
     usersService.findActiveByIdOrThrow.mockResolvedValue(undefined);
     mobileMoneyTariffService.resolveExpenseCharges.mockResolvedValue({
