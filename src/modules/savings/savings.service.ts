@@ -74,13 +74,7 @@ export class SavingsService {
       resolvedAmount,
       payload.currency,
     );
-    const targetAmountRwf = await this.currencyService.convertToRwf(
-      payload.targetAmount,
-      payload.targetCurrency,
-    );
-    const startDate = this.parseDateOnly(payload.startDate);
-    const endDate = this.parseDateOnly(payload.endDate);
-    this.assertValidTimeframe(startDate, endDate);
+    const targetConfig = await this.resolveCreateTargetConfig(payload);
 
     return this.savingsRepository.runInTransaction(async (db) => {
       const saving = await this.savingsRepository.create(
@@ -90,11 +84,11 @@ export class SavingsService {
           amount: new Prisma.Decimal(resolvedAmount),
           currency: payload.currency,
           amountRwf,
-          targetAmount: new Prisma.Decimal(payload.targetAmount),
-          targetCurrency: payload.targetCurrency,
-          targetAmountRwf,
-          startDate,
-          endDate,
+          targetAmount: targetConfig.targetAmount,
+          targetCurrency: targetConfig.targetCurrency,
+          targetAmountRwf: targetConfig.targetAmountRwf,
+          startDate: targetConfig.startDate,
+          endDate: targetConfig.endDate,
           date: new Date(payload.date),
           note: payload.note ?? null,
           stillHave: payload.stillHave,
@@ -139,10 +133,15 @@ export class SavingsService {
     const shouldUpdateAmountRwf =
       payload.amount !== undefined || payload.currency !== undefined;
     const resolvedTargetAmount =
-      payload.targetAmount ??
-      (saving.targetAmount === null ? null : Number(saving.targetAmount));
+      payload.targetAmount === undefined
+        ? saving.targetAmount === null
+          ? null
+          : Number(saving.targetAmount)
+        : payload.targetAmount;
     const resolvedTargetCurrency =
-      payload.targetCurrency ?? saving.targetCurrency;
+      payload.targetCurrency === undefined
+        ? saving.targetCurrency
+        : payload.targetCurrency;
     const shouldUpdateTargetAmountRwf =
       payload.targetAmount !== undefined ||
       payload.targetCurrency !== undefined;
@@ -164,11 +163,15 @@ export class SavingsService {
     const resolvedStartDate =
       payload.startDate === undefined
         ? saving.startDate
-        : this.parseDateOnly(payload.startDate);
+        : payload.startDate === null
+          ? null
+          : this.parseDateOnly(payload.startDate);
     const resolvedEndDate =
       payload.endDate === undefined
         ? saving.endDate
-        : this.parseDateOnly(payload.endDate);
+        : payload.endDate === null
+          ? null
+          : this.parseDateOnly(payload.endDate);
 
     if (
       payload.startDate !== undefined ||
@@ -199,7 +202,9 @@ export class SavingsService {
           targetAmount:
             payload.targetAmount === undefined
               ? undefined
-              : new Prisma.Decimal(payload.targetAmount),
+              : payload.targetAmount === null
+                ? null
+                : new Prisma.Decimal(payload.targetAmount),
           targetCurrency: payload.targetCurrency,
           targetAmountRwf,
           startDate:
@@ -419,6 +424,107 @@ export class SavingsService {
     });
   }
 
+  async reverseCurrentUserSavingDeposit(
+    userId: string,
+    savingId: string,
+    transactionId: string,
+  ): Promise<SavingWithCreator> {
+    await this.usersService.findActiveByIdOrThrow(userId);
+
+    const saving = await this.findVisibleSavingOrThrow(userId, savingId);
+    const transaction =
+      await this.savingsRepository.findTransactionByIdAndSavingId(
+        transactionId,
+        saving.id,
+      );
+
+    if (!transaction) {
+      throw new NotFoundException('Saving transaction was not found.');
+    }
+
+    if (transaction.type !== SavingTransactionType.DEPOSIT) {
+      throw new BadRequestException(
+        'Only deposit transactions can be reversed.',
+      );
+    }
+
+    if (transaction.incomeSources.length === 0) {
+      throw new BadRequestException(
+        'Only traced saving deposits can be reversed.',
+      );
+    }
+
+    const currentBalanceRwf = this.calculateCurrentBalanceRwf(saving);
+    const reversalAmountRwf = new Prisma.Decimal(transaction.amountRwf);
+
+    if (reversalAmountRwf.greaterThan(currentBalanceRwf)) {
+      throw new BadRequestException(
+        `This deposit cannot be reversed because the saving balance is only RWF ${currentBalanceRwf.toFixed(0)}.`,
+      );
+    }
+
+    const reversalDate = new Date();
+    const reversalNote = `Reversal of deposit from ${transaction.date.toISOString().slice(0, 10)}`;
+    const originalNote = transaction.note
+      ? `${transaction.note} [Reversal recorded ${reversalDate.toISOString().slice(0, 10)}]`
+      : `Deposit reversed on ${reversalDate.toISOString().slice(0, 10)}`;
+    const remainingBalanceRwf = currentBalanceRwf.minus(reversalAmountRwf);
+
+    return this.savingsRepository.runInTransaction(async (db) => {
+      await this.savingsRepository.deleteTransactionIncomeSources(
+        transaction.id,
+        db,
+      );
+
+      await this.savingsRepository.updateTransaction(
+        transaction.id,
+        {
+          note: originalNote,
+        },
+        db,
+      );
+
+      const reversalTransaction =
+        await this.savingsRepository.createTransaction(
+          {
+            savingId: saving.id,
+            userId: saving.userId,
+            type: SavingTransactionType.WITHDRAWAL,
+            amount: transaction.amount,
+            currency: transaction.currency,
+            amountRwf: transaction.amountRwf,
+            date: reversalDate,
+            note: reversalNote,
+          },
+          db,
+        );
+
+      await this.savingsRepository.createMoneyMovement(
+        {
+          userId: saving.userId,
+          type: MoneyMovementType.SAVING_WITHDRAWAL,
+          amount: transaction.amount,
+          currency: transaction.currency,
+          amountRwf: transaction.amountRwf,
+          date: reversalDate,
+          note: reversalNote,
+          savingTransactionId: reversalTransaction.id,
+        },
+        db,
+      );
+
+      if (saving.stillHave !== remainingBalanceRwf.greaterThan(0)) {
+        await this.savingsRepository.update(
+          saving.id,
+          { stillHave: remainingBalanceRwf.greaterThan(0) },
+          db,
+        );
+      }
+
+      return this.findSavingByIdOrThrow(saving.id, saving.userId, db);
+    });
+  }
+
   async deleteCurrentUserSaving(
     userId: string,
     savingId: string,
@@ -513,6 +619,52 @@ export class SavingsService {
         'End date must be the same as or later than the start date.',
       );
     }
+  }
+
+  private async resolveCreateTargetConfig(
+    payload: CreateSavingRequestDto,
+  ): Promise<{
+    targetAmount: Prisma.Decimal | null;
+    targetCurrency: Currency | null;
+    targetAmountRwf: Prisma.Decimal | null;
+    startDate: Date | null;
+    endDate: Date | null;
+  }> {
+    const hasAnyTargetField =
+      payload.targetAmount !== undefined ||
+      payload.startDate !== undefined ||
+      payload.endDate !== undefined;
+
+    if (!hasAnyTargetField) {
+      return {
+        targetAmount: null,
+        targetCurrency: null,
+        targetAmountRwf: null,
+        startDate: null,
+        endDate: null,
+      };
+    }
+
+    if (payload.targetAmount === undefined || payload.endDate === undefined) {
+      throw new BadRequestException(
+        'Target amount and end date are required when the saving has a target.',
+      );
+    }
+
+    const startDate = this.parseDateOnly(payload.startDate ?? payload.date);
+    const endDate = this.parseDateOnly(payload.endDate);
+    this.assertValidTimeframe(startDate, endDate);
+
+    return {
+      targetAmount: new Prisma.Decimal(payload.targetAmount),
+      targetCurrency: payload.targetCurrency,
+      targetAmountRwf: await this.currencyService.convertToRwf(
+        payload.targetAmount,
+        payload.targetCurrency,
+      ),
+      startDate,
+      endDate,
+    };
   }
 
   private findDuplicateIncomeId(incomeIds: string[]): string | null {
