@@ -20,6 +20,13 @@ export type IncomeWithCreator = Prisma.IncomeGetPayload<{
   include: { user: { select: typeof USER_SELECT } };
 }>;
 
+export interface IncomeSummaryAggregate {
+  totalAmountRwf: number;
+  receivedAmountRwf: number;
+  totalCount: number;
+  receivedCount: number;
+}
+
 @Injectable()
 export class IncomeRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -141,5 +148,56 @@ export class IncomeRepository {
       data,
       include: { user: { select: USER_SELECT } },
     });
+  }
+
+  async summarizeByUserIds(
+    userIds: string[],
+    options?: {
+      dateFrom?: Date;
+      dateTo?: Date;
+    },
+    db: PrismaExecutor = this.prisma,
+  ): Promise<IncomeSummaryAggregate> {
+    const where: Prisma.IncomeWhereInput = {
+      userId: { in: userIds },
+      deletedAt: null,
+      date:
+        options?.dateFrom && options?.dateTo
+          ? {
+              gte: options.dateFrom,
+              lt: options.dateTo,
+            }
+          : undefined,
+    };
+
+    const groups = await db.income.groupBy({
+      by: ['received'],
+      where,
+      _sum: { amountRwf: true },
+      _count: { _all: true },
+    });
+
+    return groups.reduce<IncomeSummaryAggregate>(
+      (summary, group) => {
+        const amount = Number(group._sum.amountRwf ?? 0);
+        const count = group._count._all;
+
+        summary.totalAmountRwf += amount;
+        summary.totalCount += count;
+
+        if (group.received) {
+          summary.receivedAmountRwf += amount;
+          summary.receivedCount += count;
+        }
+
+        return summary;
+      },
+      {
+        totalAmountRwf: 0,
+        receivedAmountRwf: 0,
+        totalCount: 0,
+        receivedCount: 0,
+      },
+    );
   }
 }
