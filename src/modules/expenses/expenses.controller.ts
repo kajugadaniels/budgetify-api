@@ -19,6 +19,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthenticatedRequestUser } from '../../common/interfaces/authenticated-request.interface';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CreateExpenseRequestDto } from './dto/create-expense.request.dto';
+import { ExpenseAuditResponseDto } from './dto/expense-audit.response.dto';
 import { ExpenseCategoryOptionResponseDto } from './dto/expense-category-option.response.dto';
 import { ExpenseResponseDto } from './dto/expense-response.dto';
 import { ExpenseSummaryQueryDto } from './dto/expense-summary.query.dto';
@@ -33,6 +34,7 @@ import { ExpensesMapper } from './mappers/expenses.mapper';
 import { ExpensesService } from './expenses.service';
 import {
   ApiCreateCurrentUserExpenseEndpoint,
+  ApiAuditCurrentUserExpensesEndpoint,
   ApiDeleteCurrentUserExpenseEndpoint,
   ApiListExpenseCategoriesEndpoint,
   ApiListCurrentUserExpensesEndpoint,
@@ -77,6 +79,15 @@ export class ExpensesController {
       user.userId,
       query,
     );
+  }
+
+  @Get(EXPENSES_ROUTES.audit)
+  @ApiAuditCurrentUserExpensesEndpoint()
+  async auditCurrentUserExpenses(
+    @CurrentUser() user: AuthenticatedRequestUser,
+    @Query() query: ExpenseSummaryQueryDto,
+  ): Promise<ExpenseAuditResponseDto> {
+    return this.expensesService.auditCurrentUserExpenses(user.userId, query);
   }
 
   @Post(EXPENSES_ROUTES.mobileMoneyQuote)
