@@ -15,7 +15,7 @@ import { IncomeService } from './income.service';
   imports: [
     PassportModule.register({ defaultStrategy: 'jwt' }),
     CurrencyModule,
-    ExpensesModule,
+    forwardRef(() => ExpensesModule),
     UsersModule,
     PartnershipsModule,
     forwardRef(() => SavingsModule),
