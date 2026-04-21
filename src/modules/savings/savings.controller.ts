@@ -32,6 +32,7 @@ import { SavingsService } from './savings.service';
 import {
   ApiCreateCurrentUserSavingEndpoint,
   ApiCreateCurrentUserSavingDepositEndpoint,
+  ApiReverseCurrentUserSavingDepositEndpoint,
   ApiCreateCurrentUserSavingWithdrawalEndpoint,
   ApiDeleteCurrentUserSavingEndpoint,
   ApiListCurrentUserSavingsEndpoint,
@@ -138,6 +139,24 @@ export class SavingsController {
       user.userId,
       savingId,
       body,
+    );
+
+    return SavingsMapper.toSavingResponse(saving);
+  }
+
+  @Post(SAVINGS_ROUTES.reverseDeposit)
+  @HttpCode(HttpStatus.CREATED)
+  @Throttle({ write: { limit: 1, ttl: 15_000, blockDuration: 15_000 } })
+  @ApiReverseCurrentUserSavingDepositEndpoint()
+  async reverseCurrentUserSavingDeposit(
+    @CurrentUser() user: AuthenticatedRequestUser,
+    @Param('savingId', ParseUUIDPipe) savingId: string,
+    @Param('transactionId', ParseUUIDPipe) transactionId: string,
+  ): Promise<SavingResponseDto> {
+    const saving = await this.savingsService.reverseCurrentUserSavingDeposit(
+      user.userId,
+      savingId,
+      transactionId,
     );
 
     return SavingsMapper.toSavingResponse(saving);
