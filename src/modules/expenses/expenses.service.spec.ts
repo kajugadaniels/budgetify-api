@@ -6,6 +6,8 @@ describe('ExpensesService', () => {
   const expensesRepository = {
     summarizeByUserIds: jest.fn(),
     create: jest.fn(),
+    update: jest.fn(),
+    findActiveByIdAndUserIds: jest.fn(),
   };
   const usersService = {
     findActiveByIdOrThrow: jest.fn(),
@@ -101,6 +103,14 @@ describe('ExpensesService', () => {
 
   it('creates a cash expense without fees', async () => {
     usersService.findActiveByIdOrThrow.mockResolvedValue(undefined);
+    partnershipsService.getVisibleUserIds.mockResolvedValue(['user-1']);
+    incomeService.summarizeCurrentUserIncome.mockResolvedValue({
+      availableMoneyNowRwf: 12000,
+      totalExpensesRwf: 0,
+    });
+    expensesRepository.summarizeByUserIds.mockResolvedValue({
+      totalChargedAmountRwf: 0,
+    });
     mobileMoneyTariffService.resolveExpenseCharges.mockResolvedValue({
       amount: new Prisma.Decimal(12000),
       currency: Currency.RWF,
@@ -172,6 +182,14 @@ describe('ExpensesService', () => {
 
   it('creates a mobile money expense with a calculated fee', async () => {
     usersService.findActiveByIdOrThrow.mockResolvedValue(undefined);
+    partnershipsService.getVisibleUserIds.mockResolvedValue(['user-1']);
+    incomeService.summarizeCurrentUserIncome.mockResolvedValue({
+      availableMoneyNowRwf: 5100,
+      totalExpensesRwf: 0,
+    });
+    expensesRepository.summarizeByUserIds.mockResolvedValue({
+      totalChargedAmountRwf: 0,
+    });
     mobileMoneyTariffService.resolveExpenseCharges.mockResolvedValue({
       amount: new Prisma.Decimal(5000),
       currency: Currency.RWF,
@@ -209,5 +227,43 @@ describe('ExpensesService', () => {
         mobileMoneyNetwork: 'ON_NET',
       }),
     );
+  });
+
+  it('rejects creating an expense that exceeds charged available money', async () => {
+    usersService.findActiveByIdOrThrow.mockResolvedValue(undefined);
+    partnershipsService.getVisibleUserIds.mockResolvedValue(['user-1']);
+    incomeService.summarizeCurrentUserIncome.mockResolvedValue({
+      availableMoneyNowRwf: 4000,
+      totalExpensesRwf: 0,
+    });
+    expensesRepository.summarizeByUserIds.mockResolvedValue({
+      totalChargedAmountRwf: 0,
+    });
+    mobileMoneyTariffService.resolveExpenseCharges.mockResolvedValue({
+      amount: new Prisma.Decimal(5000),
+      currency: Currency.RWF,
+      amountRwf: new Prisma.Decimal(5000),
+      feeAmount: new Prisma.Decimal(100),
+      feeAmountRwf: new Prisma.Decimal(100),
+      totalAmountRwf: new Prisma.Decimal(5100),
+      paymentMethod: 'MOBILE_MONEY',
+      mobileMoneyChannel: 'P2P_TRANSFER',
+      mobileMoneyProvider: 'MTN_RWANDA',
+      mobileMoneyNetwork: 'ON_NET',
+    });
+
+    await expect(
+      service.createCurrentUserExpense('user-1', {
+        label: 'Paid technician',
+        amount: 5000,
+        currency: Currency.RWF,
+        category: 'UTILITIES',
+        paymentMethod: 'MOBILE_MONEY',
+        mobileMoneyChannel: 'P2P_TRANSFER',
+        mobileMoneyProvider: 'MTN_RWANDA',
+        mobileMoneyNetwork: 'ON_NET',
+        date: '2026-04-21T00:00:00.000Z',
+      } as never),
+    ).rejects.toThrow('This expense exceeds available money by 1100.00 RWF.');
   });
 });
