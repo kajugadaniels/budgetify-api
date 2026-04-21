@@ -20,6 +20,11 @@ export type IncomeWithCreator = Prisma.IncomeGetPayload<{
   include: { user: { select: typeof USER_SELECT } };
 }>;
 
+export interface IncomeAllocationCandidate {
+  id: string;
+  amountRwf: Prisma.Decimal;
+}
+
 export interface IncomeSummaryAggregate {
   totalAmountRwf: number;
   receivedAmountRwf: number;
@@ -38,6 +43,7 @@ export class IncomeRepository {
       dateTo?: Date;
       search?: string;
       searchCategories?: IncomeCategory[];
+      incomeIds?: string[];
       category?: Prisma.IncomeWhereInput['category'];
       received?: boolean;
       skip?: number;
@@ -69,6 +75,12 @@ export class IncomeRepository {
     const where: Prisma.IncomeWhereInput = {
       userId: { in: userIds },
       deletedAt: null,
+      id:
+        options?.incomeIds === undefined
+          ? undefined
+          : {
+              in: options.incomeIds,
+            },
       category: options?.category,
       received: options?.received,
       AND:
@@ -147,6 +159,67 @@ export class IncomeRepository {
       where: { id },
       data,
       include: { user: { select: USER_SELECT } },
+    });
+  }
+
+  async findAllocationCandidatesByUserIds(
+    userIds: string[],
+    options?: {
+      dateFrom?: Date;
+      dateTo?: Date;
+      search?: string;
+      searchCategories?: IncomeCategory[];
+      category?: Prisma.IncomeWhereInput['category'];
+      received?: boolean;
+    },
+    db: PrismaExecutor = this.prisma,
+  ): Promise<IncomeAllocationCandidate[]> {
+    const searchFilters: Prisma.IncomeWhereInput[] = [];
+
+    if (options?.search) {
+      searchFilters.push({
+        label: {
+          contains: options.search,
+          mode: 'insensitive',
+        },
+      });
+
+      if (options.searchCategories && options.searchCategories.length > 0) {
+        searchFilters.push({
+          category: {
+            in: options.searchCategories,
+          },
+        });
+      }
+    }
+
+    return db.income.findMany({
+      where: {
+        userId: { in: userIds },
+        deletedAt: null,
+        category: options?.category,
+        received: options?.received,
+        AND:
+          searchFilters.length > 0
+            ? [
+                {
+                  OR: searchFilters,
+                },
+              ]
+            : undefined,
+        date:
+          options?.dateFrom && options?.dateTo
+            ? {
+                gte: options.dateFrom,
+                lt: options.dateTo,
+              }
+            : undefined,
+      },
+      select: {
+        id: true,
+        amountRwf: true,
+      },
+      orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
     });
   }
 
