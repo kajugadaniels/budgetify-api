@@ -278,28 +278,32 @@ model Saving {
 }
 
 model SavingTransaction {
-  id        String                @id @default(uuid()) @db.Uuid
-  savingId  String                @db.Uuid
-  userId    String                @db.Uuid
-  type      SavingTransactionType
-  amount    Decimal               @db.Decimal(15, 2)
-  currency  Currency              @default(RWF)
-  amountRwf Decimal               @db.Decimal(15, 2)
-  date      DateTime
-  note      String?
-  createdAt DateTime              @default(now())
-  updatedAt DateTime              @updatedAt
-  deletedAt DateTime?
-  saving    Saving                @relation(fields: [savingId], references: [id], onDelete: Cascade)
-  user      User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  incomeSources SavingTransactionIncomeSource[]
-  moneyMovement MoneyMovement?
+  id                    String                @id @default(uuid()) @db.Uuid
+  savingId              String                @db.Uuid
+  userId                String                @db.Uuid
+  type                  SavingTransactionType
+  amount                Decimal               @db.Decimal(15, 2)
+  currency              Currency              @default(RWF)
+  amountRwf             Decimal               @db.Decimal(15, 2)
+  date                  DateTime
+  note                  String?
+  reversalOfTransactionId String?             @unique @db.Uuid
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  deletedAt             DateTime?
+  saving                Saving                @relation(fields: [savingId], references: [id], onDelete: Cascade)
+  user                  User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  incomeSources         SavingTransactionIncomeSource[]
+  moneyMovement         MoneyMovement?
+  reversalOfTransaction SavingTransaction?    @relation("SavingTransactionReversal", fields: [reversalOfTransactionId], references: [id], onDelete: SetNull)
+  reversedByTransaction SavingTransaction?    @relation("SavingTransactionReversal")
 
   @@index([savingId])
   @@index([userId])
   @@index([type])
   @@index([date])
   @@index([deletedAt])
+  @@index([reversalOfTransactionId])
 }
 
 model SavingTransactionIncomeSource {
