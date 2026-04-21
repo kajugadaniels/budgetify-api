@@ -1,5 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { ExpenseCategory } from '@prisma/client';
+import {
+  Currency,
+  ExpenseCategory,
+  ExpenseMobileMoneyChannel,
+  ExpenseMobileMoneyNetwork,
+  ExpenseMobileMoneyProvider,
+  ExpensePaymentMethod,
+} from '@prisma/client';
 
 import { CreatedByResponseDto } from '../../../common/dto/created-by.response.dto';
 
@@ -12,6 +19,48 @@ export class ExpenseResponseDto {
 
   @ApiProperty({ example: 12500 })
   amount!: number;
+
+  @ApiProperty({ enum: Currency, example: Currency.RWF })
+  currency!: Currency;
+
+  @ApiProperty({ example: 12500 })
+  amountRwf!: number;
+
+  @ApiProperty({ example: 100 })
+  feeAmount!: number;
+
+  @ApiProperty({ example: 100 })
+  feeAmountRwf!: number;
+
+  @ApiProperty({ example: 12600 })
+  totalAmountRwf!: number;
+
+  @ApiProperty({
+    enum: ExpensePaymentMethod,
+    example: ExpensePaymentMethod.MOBILE_MONEY,
+  })
+  paymentMethod!: ExpensePaymentMethod;
+
+  @ApiPropertyOptional({
+    enum: ExpenseMobileMoneyChannel,
+    nullable: true,
+    example: ExpenseMobileMoneyChannel.P2P_TRANSFER,
+  })
+  mobileMoneyChannel!: ExpenseMobileMoneyChannel | null;
+
+  @ApiPropertyOptional({
+    enum: ExpenseMobileMoneyProvider,
+    nullable: true,
+    example: ExpenseMobileMoneyProvider.MTN_RWANDA,
+  })
+  mobileMoneyProvider!: ExpenseMobileMoneyProvider | null;
+
+  @ApiPropertyOptional({
+    enum: ExpenseMobileMoneyNetwork,
+    nullable: true,
+    example: ExpenseMobileMoneyNetwork.ON_NET,
+  })
+  mobileMoneyNetwork!: ExpenseMobileMoneyNetwork | null;
 
   @ApiProperty({
     enum: ExpenseCategory,
