@@ -146,4 +146,32 @@ export class ExpensesRepository {
       include: { user: { select: USER_SELECT } },
     });
   }
+
+  async sumAmountByUserIds(
+    userIds: string[],
+    options?: {
+      dateFrom?: Date;
+      dateTo?: Date;
+    },
+    db: PrismaExecutor = this.prisma,
+  ): Promise<number> {
+    const aggregate = await db.expense.aggregate({
+      where: {
+        userId: { in: userIds },
+        deletedAt: null,
+        date:
+          options?.dateFrom && options?.dateTo
+            ? {
+                gte: options.dateFrom,
+                lt: options.dateTo,
+              }
+            : undefined,
+      },
+      _sum: {
+        amount: true,
+      },
+    });
+
+    return Number(aggregate._sum.amount ?? 0);
+  }
 }
