@@ -123,6 +123,10 @@ export class SavingsMapper {
       amountRwf: Number(transaction.amountRwf),
       date: transaction.date,
       note: transaction.note,
+      isReversal: transaction.reversalOfTransactionId !== null,
+      isReversed: transaction.reversedByTransaction !== null,
+      reversalOfTransactionId: transaction.reversalOfTransactionId,
+      reversedByTransactionId: transaction.reversedByTransaction?.id ?? null,
       incomeSources: transaction.incomeSources.map((source) => ({
         id: source.id,
         incomeId: source.incomeId,
