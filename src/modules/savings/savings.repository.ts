@@ -30,6 +30,8 @@ const SAVING_WITH_LEDGER_ARGS = Prisma.validator<Prisma.SavingDefaultArgs>()({
 const SAVING_TRANSACTION_WITH_SOURCES_ARGS =
   Prisma.validator<Prisma.SavingTransactionDefaultArgs>()({
     include: {
+      reversedByTransaction: true,
+      reversalOfTransaction: true,
       incomeSources: {
         include: {
           income: true,
@@ -53,6 +55,8 @@ const INCOME_SOURCE_WITH_SAVING_ARGS =
       savingTransaction: {
         include: {
           saving: true,
+          reversedByTransaction: true,
+          reversalOfTransaction: true,
         },
       },
     },
