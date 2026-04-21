@@ -18,6 +18,7 @@ import {
 import { ApiErrorResponseDto } from '../../common/dto/api-error-response.dto';
 import { IncomeCategoryOptionResponseDto } from './dto/income-category-option.response.dto';
 import { CreateIncomeRequestDto } from './dto/create-income.request.dto';
+import { IncomeDetailResponseDto } from './dto/income-detail.response.dto';
 import { IncomeResponseDto } from './dto/income-response.dto';
 import { IncomeSummaryResponseDto } from './dto/income-summary.response.dto';
 import { PaginatedIncomeResponseDto } from './dto/paginated-income.response.dto';
@@ -191,6 +192,40 @@ export function ApiSummarizeCurrentUserIncomeEndpoint(): MethodDecorator {
     ApiForbiddenResponse({
       description:
         'Authenticated user account is not allowed to access income summary data.',
+      type: ApiErrorResponseDto,
+    }),
+  );
+}
+
+export function ApiGetCurrentUserIncomeDetailEndpoint(): MethodDecorator {
+  return applyDecorators(
+    ApiBearerAuth('access-token'),
+    ApiOperation({
+      summary: 'Get one income record with allocation details',
+      description:
+        'Returns one visible income record together with how much of it has already been allocated into savings, how much is still free, and the list of saving buckets that used it.',
+    }),
+    ApiParam({
+      name: 'incomeId',
+      description: 'UUID of the income record to inspect.',
+      format: 'uuid',
+    }),
+    ApiOkResponse({
+      description: 'Income detail retrieved successfully.',
+      type: IncomeDetailResponseDto,
+    }),
+    ApiUnauthorizedResponse({
+      description: 'Access token is missing, invalid, or expired.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiForbiddenResponse({
+      description:
+        'Authenticated user account is not allowed to access this income record.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiNotFoundResponse({
+      description:
+        'The requested income record does not exist for the authenticated user.',
       type: ApiErrorResponseDto,
     }),
   );
