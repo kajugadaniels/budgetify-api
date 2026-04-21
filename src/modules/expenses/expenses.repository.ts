@@ -32,6 +32,7 @@ export interface ExpenseSummaryAggregate {
   totalChargedAmountRwf: number;
   totalCount: number;
   largestChargedAmountRwf: number;
+  feeBearingExpenseCount: number;
 }
 
 @Injectable()
@@ -190,6 +191,22 @@ export class ExpensesRepository {
         _all: true,
       },
     });
+    const feeBearingExpenseCount = await db.expense.count({
+      where: {
+        userId: { in: userIds },
+        deletedAt: null,
+        feeAmountRwf: {
+          gt: 0,
+        },
+        date:
+          options?.dateFrom && options?.dateTo
+            ? {
+                gte: options.dateFrom,
+                lt: options.dateTo,
+              }
+            : undefined,
+      },
+    });
 
     return {
       totalBaseAmountRwf: Number(aggregate._sum.amountRwf ?? 0),
@@ -201,6 +218,7 @@ export class ExpensesRepository {
         options,
         db,
       ),
+      feeBearingExpenseCount,
     };
   }
 
@@ -258,6 +276,34 @@ export class ExpensesRepository {
         },
       },
       orderBy: [{ minAmount: 'asc' }],
+    });
+  }
+
+  async findAllTariffs(db: PrismaExecutor = this.prisma) {
+    return db.mobileMoneyTariff.findMany({
+      orderBy: [
+        { provider: 'asc' },
+        { channel: 'asc' },
+        { network: 'asc' },
+        { minAmount: 'asc' },
+      ],
+    });
+  }
+
+  async findTariffById(id: string, db: PrismaExecutor = this.prisma) {
+    return db.mobileMoneyTariff.findUnique({
+      where: { id },
+    });
+  }
+
+  async updateTariff(
+    id: string,
+    data: Prisma.MobileMoneyTariffUpdateInput,
+    db: PrismaExecutor = this.prisma,
+  ) {
+    return db.mobileMoneyTariff.update({
+      where: { id },
+      data,
     });
   }
 
