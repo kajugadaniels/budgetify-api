@@ -19,6 +19,7 @@ import { ApiErrorResponseDto } from '../../common/dto/api-error-response.dto';
 import { CreateExpenseRequestDto } from './dto/create-expense.request.dto';
 import { ExpenseCategoryOptionResponseDto } from './dto/expense-category-option.response.dto';
 import { ExpenseResponseDto } from './dto/expense-response.dto';
+import { ExpenseSummaryResponseDto } from './dto/expense-summary.response.dto';
 import { PaginatedExpenseResponseDto } from './dto/paginated-expense.response.dto';
 import { UpdateExpenseRequestDto } from './dto/update-expense.request.dto';
 
@@ -138,7 +139,7 @@ export function ApiCreateCurrentUserExpenseEndpoint(): MethodDecorator {
     ApiOperation({
       summary: 'Create an expense record',
       description:
-        'Creates a new expense record for the authenticated user. Captures the expense label, amount in RWF, category, date, and an optional note.',
+        'Creates a new expense record for the authenticated user. Captures the base amount, payment method, optional mobile money metadata, calculated fee totals, category, date, and an optional note.',
     }),
     ApiBody({ type: CreateExpenseRequestDto }),
     ApiCreatedResponse({
@@ -161,6 +162,62 @@ export function ApiCreateCurrentUserExpenseEndpoint(): MethodDecorator {
     ApiTooManyRequestsResponse({
       description:
         'Too many expense write requests were sent in a short time. Wait about 15 seconds before trying again.',
+      type: ApiErrorResponseDto,
+    }),
+  );
+}
+
+export function ApiSummarizeCurrentUserExpensesEndpoint(): MethodDecorator {
+  return applyDecorators(
+    ApiBearerAuth('access-token'),
+    ApiOperation({
+      summary: 'Summarize current user expenses',
+      description:
+        'Returns period expense totals, payment fee totals, charged totals, largest expense, average expense, and the current available money figure for the authenticated user scope.',
+    }),
+    ApiQuery({
+      name: 'month',
+      required: false,
+      type: Number,
+      example: 4,
+      description:
+        'Optional 1-based month filter applied against the recorded expense date.',
+    }),
+    ApiQuery({
+      name: 'year',
+      required: false,
+      type: Number,
+      example: 2026,
+      description:
+        'Optional year filter paired with month. Defaults to the current year.',
+    }),
+    ApiQuery({
+      name: 'dateFrom',
+      required: false,
+      type: String,
+      example: '2026-04-01',
+      description:
+        'Optional inclusive start date filter applied against the recorded expense date. Overrides month/year filtering when provided.',
+    }),
+    ApiQuery({
+      name: 'dateTo',
+      required: false,
+      type: String,
+      example: '2026-04-30',
+      description:
+        'Optional inclusive end date filter applied against the recorded expense date. Overrides month/year filtering when provided.',
+    }),
+    ApiOkResponse({
+      description: 'Expense summary retrieved successfully.',
+      type: ExpenseSummaryResponseDto,
+    }),
+    ApiUnauthorizedResponse({
+      description: 'Access token is missing, invalid, or expired.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiForbiddenResponse({
+      description:
+        'Authenticated user account is not allowed to access expense summaries.',
       type: ApiErrorResponseDto,
     }),
   );
