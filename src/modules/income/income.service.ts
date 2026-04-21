@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { MoneyMovementType, Prisma } from '@prisma/client';
 
 import {
   PaginatedResponse,
@@ -26,6 +26,7 @@ import { IncomeAllocationStatus } from './dto/income-allocation-status.enum';
 import { ListIncomeQueryDto } from './dto/list-income.query.dto';
 import { IncomeSummaryQueryDto } from './dto/income-summary.query.dto';
 import { IncomeSummaryResponseDto } from './dto/income-summary.response.dto';
+import { IncomeAuditResponseDto } from './dto/income-audit.response.dto';
 import { UpdateIncomeRequestDto } from './dto/update-income.request.dto';
 import { INCOME_CATEGORY_OPTIONS } from './income-category-options';
 import { IncomeMapper } from './mappers/income.mapper';
@@ -127,28 +128,92 @@ export class IncomeService {
         }),
       ]);
 
-    const pendingIncomeRwf = Math.max(
-      incomeSummary.totalAmountRwf - incomeSummary.receivedAmountRwf,
-      0,
-    );
     const pendingIncomeCount = Math.max(
       incomeSummary.totalCount - incomeSummary.receivedCount,
       0,
     );
 
     return {
-      totalIncomeRwf: incomeSummary.totalAmountRwf,
-      receivedIncomeRwf: incomeSummary.receivedAmountRwf,
-      pendingIncomeRwf,
-      totalExpensesRwf,
-      totalSavingsBalanceRwf,
-      availableMoneyNowRwf:
-        incomeSummary.receivedAmountRwf -
-        totalExpensesRwf -
+      ...this.buildIncomeSummaryResponse(
+        incomeSummary,
+        totalExpensesRwf,
         totalSavingsBalanceRwf,
+      ),
       totalIncomeCount: incomeSummary.totalCount,
       receivedIncomeCount: incomeSummary.receivedCount,
       pendingIncomeCount,
+    };
+  }
+
+  async auditCurrentUserIncome(
+    userId: string,
+    query: IncomeSummaryQueryDto,
+  ): Promise<IncomeAuditResponseDto> {
+    await this.usersService.findActiveByIdOrThrow(userId);
+    const visibleUserIds =
+      await this.partnershipsService.getVisibleUserIds(userId);
+    const dateRange = resolveListDateRange(query);
+
+    const [
+      incomeSummary,
+      totalExpensesRwf,
+      totalSavingsBalanceRwf,
+      allocatedToSavingsRwf,
+      savingWithdrawalsReturnedRwf,
+    ] = await Promise.all([
+      this.incomeRepository.summarizeByUserIds(visibleUserIds, {
+        dateFrom: dateRange?.dateFrom,
+        dateTo: dateRange?.dateTo,
+      }),
+      this.expensesRepository.sumAmountByUserIds(visibleUserIds, {
+        dateFrom: dateRange?.dateFrom,
+        dateTo: dateRange?.dateTo,
+      }),
+      this.savingsRepository.sumCurrentBalanceRwfByUserIds(visibleUserIds, {
+        dateFrom: dateRange?.dateFrom,
+        dateTo: dateRange?.dateTo,
+      }),
+      this.savingsRepository.sumActiveDepositSourceAmountRwfByUserIds(
+        visibleUserIds,
+        {
+          dateFrom: dateRange?.dateFrom,
+          dateTo: dateRange?.dateTo,
+        },
+      ),
+      this.savingsRepository.sumMoneyMovementAmountRwfByUserIds(
+        visibleUserIds,
+        {
+          type: MoneyMovementType.SAVING_WITHDRAWAL,
+          dateFrom: dateRange?.dateFrom,
+          dateTo: dateRange?.dateTo,
+        },
+      ),
+    ]);
+
+    const summary = this.buildIncomeSummaryResponse(
+      incomeSummary,
+      totalExpensesRwf,
+      totalSavingsBalanceRwf,
+    );
+    const recomputedAvailableMoneyNowRwf =
+      summary.receivedIncomeRwf -
+      summary.totalExpensesRwf -
+      summary.totalSavingsBalanceRwf;
+    const reconciliationDifferenceRwf =
+      summary.availableMoneyNowRwf - recomputedAvailableMoneyNowRwf;
+
+    return {
+      periodStartDate: dateRange?.dateFrom?.toISOString().slice(0, 10) ?? null,
+      periodEndDate:
+        dateRange?.dateTo === undefined
+          ? null
+          : new Date(dateRange.dateTo.getTime() - 1).toISOString().slice(0, 10),
+      ...summary,
+      allocatedToSavingsRwf,
+      savingWithdrawalsReturnedRwf,
+      recomputedAvailableMoneyNowRwf,
+      reconciliationDifferenceRwf,
+      isBalanced: reconciliationDifferenceRwf === 0,
     };
   }
 
@@ -350,6 +415,37 @@ export class IncomeService {
       );
       return map;
     }, new Map<string, ReturnType<IncomeService['buildIncomeAllocationSummary']>>());
+  }
+
+  private buildIncomeSummaryResponse(
+    incomeSummary: {
+      totalAmountRwf: number;
+      receivedAmountRwf: number;
+      totalCount: number;
+      receivedCount: number;
+    },
+    totalExpensesRwf: number,
+    totalSavingsBalanceRwf: number,
+  ): Omit<
+    IncomeSummaryResponseDto,
+    'totalIncomeCount' | 'receivedIncomeCount' | 'pendingIncomeCount'
+  > {
+    const pendingIncomeRwf = Math.max(
+      incomeSummary.totalAmountRwf - incomeSummary.receivedAmountRwf,
+      0,
+    );
+
+    return {
+      totalIncomeRwf: incomeSummary.totalAmountRwf,
+      receivedIncomeRwf: incomeSummary.receivedAmountRwf,
+      pendingIncomeRwf,
+      totalExpensesRwf,
+      totalSavingsBalanceRwf,
+      availableMoneyNowRwf:
+        incomeSummary.receivedAmountRwf -
+        totalExpensesRwf -
+        totalSavingsBalanceRwf,
+    };
   }
 
   private async filterIncomeIdsByAllocationStatus(
