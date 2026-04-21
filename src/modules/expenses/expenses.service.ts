@@ -161,8 +161,9 @@ export class ExpensesService {
     return {
       periodStartDate: dateRange?.dateFrom?.toISOString().split('T')[0] ?? null,
       periodEndDate:
-        dateRange?.dateTo?.toISOString().split('T')[0]?.replace(/Z?$/, '') ??
-        null,
+        dateRange?.dateTo === undefined
+          ? null
+          : new Date(dateRange.dateTo.getTime() - 1).toISOString().slice(0, 10),
       totalBaseExpensesRwf: expenseSummary.totalBaseAmountRwf,
       totalPaymentFeesRwf: expenseSummary.totalFeeAmountRwf,
       totalChargedExpensesRwf: expenseSummary.totalChargedAmountRwf,
@@ -181,6 +182,8 @@ export class ExpensesService {
     payload: CreateExpenseRequestDto,
   ): Promise<ExpenseWithCreator> {
     await this.usersService.findActiveByIdOrThrow(userId);
+    const visibleUserIds =
+      await this.partnershipsService.getVisibleUserIds(userId);
     const charges = await this.mobileMoneyTariffService.resolveExpenseCharges({
       amount: payload.amount,
       currency: payload.currency ?? Currency.RWF,
@@ -189,6 +192,11 @@ export class ExpensesService {
       mobileMoneyProvider: payload.mobileMoneyProvider,
       mobileMoneyNetwork: payload.mobileMoneyNetwork,
     });
+    await this.assertCanAffordChargedExpense(
+      userId,
+      visibleUserIds,
+      Number(charges.totalAmountRwf),
+    );
 
     return this.expensesRepository.create({
       userId,
@@ -234,6 +242,8 @@ export class ExpensesService {
     await this.usersService.findActiveByIdOrThrow(userId);
 
     const expense = await this.findVisibleExpenseOrThrow(userId, expenseId);
+    const visibleUserIds =
+      await this.partnershipsService.getVisibleUserIds(userId);
     const charges =
       payload.amount !== undefined ||
       payload.currency !== undefined ||
@@ -259,6 +269,15 @@ export class ExpensesService {
                 : payload.mobileMoneyNetwork,
           })
         : null;
+
+    if (charges !== null) {
+      await this.assertCanAffordChargedExpense(
+        userId,
+        visibleUserIds,
+        Number(charges.totalAmountRwf),
+        Number(expense.totalAmountRwf),
+      );
+    }
 
     return this.expensesRepository.update(expense.id, {
       label: payload.label,
@@ -314,5 +333,38 @@ export class ExpensesService {
     }
 
     return expense;
+  }
+
+  private async assertCanAffordChargedExpense(
+    userId: string,
+    visibleUserIds: string[],
+    nextChargedAmountRwf: number,
+    existingChargedAmountRwf = 0,
+  ): Promise<void> {
+    const [incomeSummary, expenseSummary] = await Promise.all([
+      this.incomeService.summarizeCurrentUserIncome(userId, {}),
+      this.expensesRepository.summarizeByUserIds(visibleUserIds),
+    ]);
+    const availableMoneyAfterChargedExpensesRwf =
+      incomeSummary.availableMoneyNowRwf +
+      incomeSummary.totalExpensesRwf -
+      expenseSummary.totalChargedAmountRwf;
+    const maxAllowedChargedAmountRwf =
+      availableMoneyAfterChargedExpensesRwf + existingChargedAmountRwf;
+
+    if (nextChargedAmountRwf <= maxAllowedChargedAmountRwf) {
+      return;
+    }
+
+    const shortageRwf = nextChargedAmountRwf - maxAllowedChargedAmountRwf;
+
+    throw new BadRequestException(
+      `This expense exceeds available money by ${shortageRwf.toFixed(
+        2,
+      )} RWF. Available charged capacity is ${Math.max(
+        maxAllowedChargedAmountRwf,
+        0,
+      ).toFixed(2)} RWF.`,
+    );
   }
 }
