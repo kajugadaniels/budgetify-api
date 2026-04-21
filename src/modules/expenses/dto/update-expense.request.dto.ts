@@ -1,5 +1,12 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { ExpenseCategory } from '@prisma/client';
+import {
+  Currency,
+  ExpenseCategory,
+  ExpenseMobileMoneyChannel,
+  ExpenseMobileMoneyNetwork,
+  ExpenseMobileMoneyProvider,
+  ExpensePaymentMethod,
+} from '@prisma/client';
 import { Transform } from 'class-transformer';
 import {
   IsEnum,
@@ -69,6 +76,17 @@ export class UpdateExpenseRequestDto {
   amount?: number;
 
   @ApiPropertyOptional({
+    description: 'Updated base expense currency.',
+    enum: Currency,
+    example: Currency.RWF,
+  })
+  @IsOptional()
+  @IsEnum(Currency, {
+    message: 'Currency must be a supported currency.',
+  })
+  currency?: Currency;
+
+  @ApiPropertyOptional({
     description: 'Updated expense category. Omit to keep the current value.',
     enum: ExpenseCategory,
     enumName: 'ExpenseCategory',
@@ -79,6 +97,50 @@ export class UpdateExpenseRequestDto {
     message: 'Category must be a valid expense category.',
   })
   category?: ExpenseCategory;
+
+  @ApiPropertyOptional({
+    description: 'Updated payment method.',
+    enum: ExpensePaymentMethod,
+    example: ExpensePaymentMethod.MOBILE_MONEY,
+  })
+  @IsOptional()
+  @IsEnum(ExpensePaymentMethod, {
+    message: 'Payment method must be valid.',
+  })
+  paymentMethod?: ExpensePaymentMethod;
+
+  @ApiPropertyOptional({
+    description: 'Updated mobile money channel.',
+    enum: ExpenseMobileMoneyChannel,
+    example: ExpenseMobileMoneyChannel.MERCHANT_CODE,
+  })
+  @IsOptional()
+  @IsEnum(ExpenseMobileMoneyChannel, {
+    message: 'Mobile money channel must be valid.',
+  })
+  mobileMoneyChannel?: ExpenseMobileMoneyChannel;
+
+  @ApiPropertyOptional({
+    description: 'Updated mobile money provider.',
+    enum: ExpenseMobileMoneyProvider,
+    example: ExpenseMobileMoneyProvider.MTN_RWANDA,
+  })
+  @IsOptional()
+  @IsEnum(ExpenseMobileMoneyProvider, {
+    message: 'Mobile money provider must be valid.',
+  })
+  mobileMoneyProvider?: ExpenseMobileMoneyProvider;
+
+  @ApiPropertyOptional({
+    description: 'Updated mobile money network classification.',
+    enum: ExpenseMobileMoneyNetwork,
+    example: ExpenseMobileMoneyNetwork.OFF_NET,
+  })
+  @IsOptional()
+  @IsEnum(ExpenseMobileMoneyNetwork, {
+    message: 'Mobile money network must be valid.',
+  })
+  mobileMoneyNetwork?: ExpenseMobileMoneyNetwork;
 
   @ApiPropertyOptional({
     description:
