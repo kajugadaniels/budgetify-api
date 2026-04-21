@@ -306,6 +306,55 @@ export function ApiCreateCurrentUserSavingWithdrawalEndpoint(): MethodDecorator 
   );
 }
 
+export function ApiReverseCurrentUserSavingDepositEndpoint(): MethodDecorator {
+  return applyDecorators(
+    ApiBearerAuth('access-token'),
+    ApiOperation({
+      summary: 'Reverse a traced saving deposit',
+      description:
+        'Unwinds one traced saving deposit by removing its income-source allocations, then recording a matching withdrawal and money movement. This is the controlled way to free an income record that already funds savings.',
+    }),
+    ApiParam({
+      name: 'savingId',
+      description: 'UUID of the saving record containing the deposit.',
+      format: 'uuid',
+    }),
+    ApiParam({
+      name: 'transactionId',
+      description: 'UUID of the deposit transaction to reverse.',
+      format: 'uuid',
+    }),
+    ApiCreatedResponse({
+      description: 'Saving deposit reversed successfully.',
+      type: SavingResponseDto,
+    }),
+    ApiBadRequestResponse({
+      description:
+        'The transaction is not a traced deposit or the saving balance is too low to reverse it.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiUnauthorizedResponse({
+      description: 'Access token is missing, invalid, or expired.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiForbiddenResponse({
+      description:
+        'Authenticated user account is not allowed to reverse saving deposits.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiNotFoundResponse({
+      description:
+        'The requested saving record or transaction does not exist for the authenticated user.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiTooManyRequestsResponse({
+      description:
+        'Too many saving write requests were sent in a short time. Wait about 15 seconds before trying again.',
+      type: ApiErrorResponseDto,
+    }),
+  );
+}
+
 export function ApiDeleteCurrentUserSavingEndpoint(): MethodDecorator {
   return applyDecorators(
     ApiBearerAuth('access-token'),
