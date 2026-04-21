@@ -21,6 +21,8 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CreateExpenseRequestDto } from './dto/create-expense.request.dto';
 import { ExpenseCategoryOptionResponseDto } from './dto/expense-category-option.response.dto';
 import { ExpenseResponseDto } from './dto/expense-response.dto';
+import { ExpenseSummaryQueryDto } from './dto/expense-summary.query.dto';
+import { ExpenseSummaryResponseDto } from './dto/expense-summary.response.dto';
 import { ListExpensesQueryDto } from './dto/list-expenses.query.dto';
 import { PaginatedExpenseResponseDto } from './dto/paginated-expense.response.dto';
 import { UpdateExpenseRequestDto } from './dto/update-expense.request.dto';
@@ -32,6 +34,7 @@ import {
   ApiDeleteCurrentUserExpenseEndpoint,
   ApiListExpenseCategoriesEndpoint,
   ApiListCurrentUserExpensesEndpoint,
+  ApiSummarizeCurrentUserExpensesEndpoint,
   ApiUpdateCurrentUserExpenseEndpoint,
 } from './expenses.swagger';
 
@@ -59,6 +62,18 @@ export class ExpensesController {
     );
 
     return ExpensesMapper.toPaginatedExpenseResponse(expenses);
+  }
+
+  @Get(EXPENSES_ROUTES.summary)
+  @ApiSummarizeCurrentUserExpensesEndpoint()
+  async summarizeCurrentUserExpenses(
+    @CurrentUser() user: AuthenticatedRequestUser,
+    @Query() query: ExpenseSummaryQueryDto,
+  ): Promise<ExpenseSummaryResponseDto> {
+    return this.expensesService.summarizeCurrentUserExpenses(
+      user.userId,
+      query,
+    );
   }
 
   @Post()
