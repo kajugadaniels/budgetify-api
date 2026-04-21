@@ -1,5 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import { ExpenseCategory, Prisma } from '@prisma/client';
+import {
+  ExpenseCategory,
+  ExpenseMobileMoneyChannel,
+  ExpenseMobileMoneyNetwork,
+  ExpenseMobileMoneyProvider,
+  Prisma,
+} from '@prisma/client';
 
 import {
   PaginatedResponse,
@@ -19,6 +25,14 @@ const USER_SELECT = {
 export type ExpenseWithCreator = Prisma.ExpenseGetPayload<{
   include: { user: { select: typeof USER_SELECT } };
 }>;
+
+export interface ExpenseSummaryAggregate {
+  totalBaseAmountRwf: number;
+  totalFeeAmountRwf: number;
+  totalChargedAmountRwf: number;
+  totalCount: number;
+  largestChargedAmountRwf: number;
+}
 
 @Injectable()
 export class ExpensesRepository {
@@ -144,6 +158,106 @@ export class ExpensesRepository {
       where: { id },
       data,
       include: { user: { select: USER_SELECT } },
+    });
+  }
+
+  async summarizeByUserIds(
+    userIds: string[],
+    options?: {
+      dateFrom?: Date;
+      dateTo?: Date;
+    },
+    db: PrismaExecutor = this.prisma,
+  ): Promise<ExpenseSummaryAggregate> {
+    const aggregate = await db.expense.aggregate({
+      where: {
+        userId: { in: userIds },
+        deletedAt: null,
+        date:
+          options?.dateFrom && options?.dateTo
+            ? {
+                gte: options.dateFrom,
+                lt: options.dateTo,
+              }
+            : undefined,
+      },
+      _sum: {
+        amountRwf: true,
+        feeAmountRwf: true,
+        totalAmountRwf: true,
+      },
+      _count: {
+        _all: true,
+      },
+    });
+
+    return {
+      totalBaseAmountRwf: Number(aggregate._sum.amountRwf ?? 0),
+      totalFeeAmountRwf: Number(aggregate._sum.feeAmountRwf ?? 0),
+      totalChargedAmountRwf: Number(aggregate._sum.totalAmountRwf ?? 0),
+      totalCount: aggregate._count._all,
+      largestChargedAmountRwf: await this.findLargestTotalAmountRwfByUserIds(
+        userIds,
+        options,
+        db,
+      ),
+    };
+  }
+
+  async findLargestTotalAmountRwfByUserIds(
+    userIds: string[],
+    options?: {
+      dateFrom?: Date;
+      dateTo?: Date;
+    },
+    db: PrismaExecutor = this.prisma,
+  ): Promise<number> {
+    const expense = await db.expense.findFirst({
+      where: {
+        userId: { in: userIds },
+        deletedAt: null,
+        date:
+          options?.dateFrom && options?.dateTo
+            ? {
+                gte: options.dateFrom,
+                lt: options.dateTo,
+              }
+            : undefined,
+      },
+      select: {
+        totalAmountRwf: true,
+      },
+      orderBy: [
+        { totalAmountRwf: 'desc' },
+        { date: 'desc' },
+        { createdAt: 'desc' },
+      ],
+    });
+
+    return Number(expense?.totalAmountRwf ?? 0);
+  }
+
+  async findActiveTariffForAmount(
+    provider: ExpenseMobileMoneyProvider,
+    channel: ExpenseMobileMoneyChannel,
+    network: ExpenseMobileMoneyNetwork | null,
+    amountRwf: Prisma.Decimal,
+    db: PrismaExecutor = this.prisma,
+  ) {
+    return db.mobileMoneyTariff.findFirst({
+      where: {
+        provider,
+        channel,
+        network,
+        active: true,
+        minAmount: {
+          lte: amountRwf,
+        },
+        maxAmount: {
+          gte: amountRwf,
+        },
+      },
+      orderBy: [{ minAmount: 'asc' }],
     });
   }
 
