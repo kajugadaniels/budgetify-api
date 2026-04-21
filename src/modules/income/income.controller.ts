@@ -24,6 +24,7 @@ import { IncomeDetailResponseDto } from './dto/income-detail.response.dto';
 import { IncomeResponseDto } from './dto/income-response.dto';
 import { IncomeSummaryQueryDto } from './dto/income-summary.query.dto';
 import { IncomeSummaryResponseDto } from './dto/income-summary.response.dto';
+import { IncomeAuditResponseDto } from './dto/income-audit.response.dto';
 import { ListIncomeQueryDto } from './dto/list-income.query.dto';
 import { PaginatedIncomeResponseDto } from './dto/paginated-income.response.dto';
 import { UpdateIncomeRequestDto } from './dto/update-income.request.dto';
@@ -36,6 +37,7 @@ import {
   ApiGetCurrentUserIncomeDetailEndpoint,
   ApiListIncomeCategoriesEndpoint,
   ApiListCurrentUserIncomeEndpoint,
+  ApiAuditCurrentUserIncomeEndpoint,
   ApiSummarizeCurrentUserIncomeEndpoint,
   ApiUpdateCurrentUserIncomeEndpoint,
 } from './income.swagger';
@@ -77,6 +79,15 @@ export class IncomeController {
     @Query() query: IncomeSummaryQueryDto,
   ): Promise<IncomeSummaryResponseDto> {
     return this.incomeService.summarizeCurrentUserIncome(user.userId, query);
+  }
+
+  @Get(INCOME_ROUTES.audit)
+  @ApiAuditCurrentUserIncomeEndpoint()
+  async auditCurrentUserIncome(
+    @CurrentUser() user: AuthenticatedRequestUser,
+    @Query() query: IncomeSummaryQueryDto,
+  ): Promise<IncomeAuditResponseDto> {
+    return this.incomeService.auditCurrentUserIncome(user.userId, query);
   }
 
   @Get(INCOME_ROUTES.byId)
