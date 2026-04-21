@@ -495,6 +495,7 @@ export class SavingsService {
             amountRwf: transaction.amountRwf,
             date: reversalDate,
             note: reversalNote,
+            reversalOfTransactionId: transaction.id,
           },
           db,
         );
