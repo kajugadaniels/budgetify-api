@@ -16,6 +16,6 @@ import { ExpensesService } from './expenses.service';
   ],
   controllers: [ExpensesController],
   providers: [ExpensesRepository, ExpensesService, JwtAuthGuard],
-  exports: [ExpensesService],
+  exports: [ExpensesService, ExpensesRepository],
 })
 export class ExpensesModule {}
