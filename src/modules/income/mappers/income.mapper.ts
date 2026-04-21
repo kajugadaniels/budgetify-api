@@ -1,7 +1,9 @@
+import { IncomeDetailResponseDto } from '../dto/income-detail.response.dto';
 import { PaginatedResponse } from '../../../common/interfaces/paginated-response.interface';
 import { PaginatedIncomeResponseDto } from '../dto/paginated-income.response.dto';
 import { IncomeResponseDto } from '../dto/income-response.dto';
 import { IncomeWithCreator } from '../income.repository';
+import { IncomeSavingAllocationSource } from '../../savings/savings.repository';
 
 export class IncomeMapper {
   static toIncomeResponse(income: IncomeWithCreator): IncomeResponseDto {
@@ -37,6 +39,37 @@ export class IncomeMapper {
     return {
       items: IncomeMapper.toIncomeResponseList(payload.items),
       meta: payload.meta,
+    };
+  }
+
+  static toIncomeDetailResponse(
+    income: IncomeWithCreator,
+    allocations: IncomeSavingAllocationSource[],
+  ): IncomeDetailResponseDto {
+    const allocatedToSavingsRwf = allocations.reduce(
+      (sum, allocation) => sum + Number(allocation.amountRwf),
+      0,
+    );
+
+    return {
+      ...IncomeMapper.toIncomeResponse(income),
+      allocatedToSavingsRwf,
+      remainingAvailableRwf: Math.max(
+        Number(income.amountRwf) - allocatedToSavingsRwf,
+        0,
+      ),
+      allocationCount: allocations.length,
+      savingAllocations: allocations.map((allocation) => ({
+        id: allocation.id,
+        savingId: allocation.savingTransaction.saving.id,
+        savingLabel: allocation.savingTransaction.saving.label,
+        transactionId: allocation.savingTransaction.id,
+        transactionDate: allocation.savingTransaction.date,
+        amount: Number(allocation.amount),
+        currency: allocation.currency,
+        amountRwf: Number(allocation.amountRwf),
+        note: allocation.savingTransaction.note,
+      })),
     };
   }
 }
