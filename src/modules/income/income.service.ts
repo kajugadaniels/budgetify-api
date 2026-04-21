@@ -20,12 +20,14 @@ import { SavingsRepository } from '../savings/savings.repository';
 import { UsersService } from '../users/users.service';
 import { CurrencyService } from '../currency/currency.service';
 import { CreateIncomeRequestDto } from './dto/create-income.request.dto';
+import { IncomeDetailResponseDto } from './dto/income-detail.response.dto';
 import { IncomeCategoryOptionResponseDto } from './dto/income-category-option.response.dto';
 import { ListIncomeQueryDto } from './dto/list-income.query.dto';
 import { IncomeSummaryQueryDto } from './dto/income-summary.query.dto';
 import { IncomeSummaryResponseDto } from './dto/income-summary.response.dto';
 import { UpdateIncomeRequestDto } from './dto/update-income.request.dto';
 import { INCOME_CATEGORY_OPTIONS } from './income-category-options';
+import { IncomeMapper } from './mappers/income.mapper';
 import { IncomeRepository, IncomeWithCreator } from './income.repository';
 
 @Injectable()
@@ -129,6 +131,24 @@ export class IncomeService {
     await this.usersService.findActiveByIdOrThrow(userId);
 
     return this.findVisibleIncomeOrThrow(userId, incomeId);
+  }
+
+  async getCurrentUserIncomeDetail(
+    userId: string,
+    incomeId: string,
+  ): Promise<IncomeDetailResponseDto> {
+    await this.usersService.findActiveByIdOrThrow(userId);
+
+    const visibleUserIds =
+      await this.partnershipsService.getVisibleUserIds(userId);
+    const income = await this.findVisibleIncomeOrThrow(userId, incomeId);
+    const allocations =
+      await this.savingsRepository.findActiveDepositSourcesByIncomeId(
+        income.id,
+        visibleUserIds,
+      );
+
+    return IncomeMapper.toIncomeDetailResponse(income, allocations);
   }
 
   async createCurrentUserIncome(
