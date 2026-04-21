@@ -8,6 +8,7 @@ import {
   normalizeOptionalInteger,
   PaginationQueryDto,
 } from '../../../common/dto/pagination-query.dto';
+import { IncomeAllocationStatus } from './income-allocation-status.enum';
 
 export class ListIncomeQueryDto extends PaginationQueryDto {
   @ApiPropertyOptional({
@@ -54,4 +55,16 @@ export class ListIncomeQueryDto extends PaginationQueryDto {
   @Transform(({ value }) => normalizeOptionalBoolean(value))
   @IsOptional()
   received?: boolean;
+
+  @ApiPropertyOptional({
+    enum: IncomeAllocationStatus,
+    example: IncomeAllocationStatus.PARTIALLY_ALLOCATED,
+    description:
+      'Optional filter for how much of an income record has already been allocated into savings.',
+  })
+  @IsOptional()
+  @IsEnum(IncomeAllocationStatus, {
+    message: 'allocationStatus must be a valid income allocation status.',
+  })
+  allocationStatus?: IncomeAllocationStatus;
 }
