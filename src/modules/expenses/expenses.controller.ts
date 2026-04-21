@@ -27,7 +27,9 @@ import { ExpenseSummaryResponseDto } from './dto/expense-summary.response.dto';
 import { ListExpensesQueryDto } from './dto/list-expenses.query.dto';
 import { MobileMoneyQuoteRequestDto } from './dto/mobile-money-quote.request.dto';
 import { MobileMoneyQuoteResponseDto } from './dto/mobile-money-quote.response.dto';
+import { MobileMoneyTariffResponseDto } from './dto/mobile-money-tariff.response.dto';
 import { PaginatedExpenseResponseDto } from './dto/paginated-expense.response.dto';
+import { UpdateMobileMoneyTariffRequestDto } from './dto/update-mobile-money-tariff.request.dto';
 import { UpdateExpenseRequestDto } from './dto/update-expense.request.dto';
 import { EXPENSES_ROUTES } from './expenses.routes';
 import { ExpensesMapper } from './mappers/expenses.mapper';
@@ -53,6 +55,13 @@ export class ExpensesController {
   @ApiListExpenseCategoriesEndpoint()
   listExpenseCategories(): ExpenseCategoryOptionResponseDto[] {
     return this.expensesService.listExpenseCategories();
+  }
+
+  @Get(EXPENSES_ROUTES.mobileMoneyTariffs)
+  async listCurrentUserMobileMoneyTariffs(
+    @CurrentUser() user: AuthenticatedRequestUser,
+  ): Promise<MobileMoneyTariffResponseDto[]> {
+    return this.expensesService.listCurrentUserMobileMoneyTariffs(user.userId);
   }
 
   @Get()
@@ -99,6 +108,20 @@ export class ExpensesController {
   ): Promise<MobileMoneyQuoteResponseDto> {
     return this.expensesService.quoteCurrentUserMobileMoneyExpense(
       user.userId,
+      body,
+    );
+  }
+
+  @Patch(EXPENSES_ROUTES.mobileMoneyTariffById)
+  @Throttle({ write: { limit: 1, ttl: 15_000, blockDuration: 15_000 } })
+  async updateCurrentUserMobileMoneyTariff(
+    @CurrentUser() user: AuthenticatedRequestUser,
+    @Param('tariffId', ParseUUIDPipe) tariffId: string,
+    @Body() body: UpdateMobileMoneyTariffRequestDto,
+  ): Promise<MobileMoneyTariffResponseDto> {
+    return this.expensesService.updateCurrentUserMobileMoneyTariff(
+      user.userId,
+      tariffId,
       body,
     );
   }
