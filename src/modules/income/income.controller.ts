@@ -21,6 +21,8 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CreateIncomeRequestDto } from './dto/create-income.request.dto';
 import { IncomeCategoryOptionResponseDto } from './dto/income-category-option.response.dto';
 import { IncomeResponseDto } from './dto/income-response.dto';
+import { IncomeSummaryQueryDto } from './dto/income-summary.query.dto';
+import { IncomeSummaryResponseDto } from './dto/income-summary.response.dto';
 import { ListIncomeQueryDto } from './dto/list-income.query.dto';
 import { PaginatedIncomeResponseDto } from './dto/paginated-income.response.dto';
 import { UpdateIncomeRequestDto } from './dto/update-income.request.dto';
@@ -32,6 +34,7 @@ import {
   ApiDeleteCurrentUserIncomeEndpoint,
   ApiListIncomeCategoriesEndpoint,
   ApiListCurrentUserIncomeEndpoint,
+  ApiSummarizeCurrentUserIncomeEndpoint,
   ApiUpdateCurrentUserIncomeEndpoint,
 } from './income.swagger';
 
@@ -59,6 +62,15 @@ export class IncomeController {
     );
 
     return IncomeMapper.toPaginatedIncomeResponse(incomes);
+  }
+
+  @Get(INCOME_ROUTES.summary)
+  @ApiSummarizeCurrentUserIncomeEndpoint()
+  async summarizeCurrentUserIncome(
+    @CurrentUser() user: AuthenticatedRequestUser,
+    @Query() query: IncomeSummaryQueryDto,
+  ): Promise<IncomeSummaryResponseDto> {
+    return this.incomeService.summarizeCurrentUserIncome(user.userId, query);
   }
 
   @Post()
