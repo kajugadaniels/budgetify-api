@@ -4,9 +4,19 @@ import { PaginatedIncomeResponseDto } from '../dto/paginated-income.response.dto
 import { IncomeResponseDto } from '../dto/income-response.dto';
 import { IncomeWithCreator } from '../income.repository';
 import { IncomeSavingAllocationSource } from '../../savings/savings.repository';
+import { IncomeAllocationStatus } from '../dto/income-allocation-status.enum';
+
+interface IncomeAllocationSummary {
+  allocatedToSavingsRwf: number;
+  remainingAvailableRwf: number;
+  allocationStatus: IncomeAllocationStatus;
+}
 
 export class IncomeMapper {
-  static toIncomeResponse(income: IncomeWithCreator): IncomeResponseDto {
+  static toIncomeResponse(
+    income: IncomeWithCreator,
+    allocationSummary?: IncomeAllocationSummary,
+  ): IncomeResponseDto {
     return {
       id: income.id,
       label: income.label,
@@ -16,6 +26,12 @@ export class IncomeMapper {
       category: income.category,
       date: income.date,
       received: income.received,
+      allocatedToSavingsRwf: allocationSummary?.allocatedToSavingsRwf ?? 0,
+      remainingAvailableRwf:
+        allocationSummary?.remainingAvailableRwf ?? Number(income.amountRwf),
+      allocationStatus:
+        allocationSummary?.allocationStatus ??
+        IncomeAllocationStatus.UNALLOCATED,
       createdAt: income.createdAt,
       updatedAt: income.updatedAt,
       createdBy: {
@@ -29,15 +45,25 @@ export class IncomeMapper {
 
   static toIncomeResponseList(
     incomes: IncomeWithCreator[],
+    allocationSummaries?: Map<string, IncomeAllocationSummary>,
   ): IncomeResponseDto[] {
-    return incomes.map((income) => IncomeMapper.toIncomeResponse(income));
+    return incomes.map((income) =>
+      IncomeMapper.toIncomeResponse(
+        income,
+        allocationSummaries?.get(income.id),
+      ),
+    );
   }
 
   static toPaginatedIncomeResponse(
     payload: PaginatedResponse<IncomeWithCreator>,
+    allocationSummaries?: Map<string, IncomeAllocationSummary>,
   ): PaginatedIncomeResponseDto {
     return {
-      items: IncomeMapper.toIncomeResponseList(payload.items),
+      items: IncomeMapper.toIncomeResponseList(
+        payload.items,
+        allocationSummaries,
+      ),
       meta: payload.meta,
     };
   }
@@ -45,19 +71,12 @@ export class IncomeMapper {
   static toIncomeDetailResponse(
     income: IncomeWithCreator,
     allocations: IncomeSavingAllocationSource[],
+    allocationSummary: IncomeAllocationSummary,
   ): IncomeDetailResponseDto {
-    const allocatedToSavingsRwf = allocations.reduce(
-      (sum, allocation) => sum + Number(allocation.amountRwf),
-      0,
-    );
-
     return {
-      ...IncomeMapper.toIncomeResponse(income),
-      allocatedToSavingsRwf,
-      remainingAvailableRwf: Math.max(
-        Number(income.amountRwf) - allocatedToSavingsRwf,
-        0,
-      ),
+      ...IncomeMapper.toIncomeResponse(income, allocationSummary),
+      allocatedToSavingsRwf: allocationSummary.allocatedToSavingsRwf,
+      remainingAvailableRwf: allocationSummary.remainingAvailableRwf,
       allocationCount: allocations.length,
       savingAllocations: allocations.map((allocation) => ({
         id: allocation.id,
