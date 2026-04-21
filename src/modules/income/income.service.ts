@@ -233,6 +233,9 @@ export class IncomeService {
     await this.usersService.findActiveByIdOrThrow(userId);
 
     const income = await this.findVisibleIncomeOrThrow(userId, incomeId);
+    const allocatedToSavingsRwf = await this.getAllocatedToSavingsRwf(
+      income.id,
+    );
     const resolvedAmount = payload.amount ?? Number(income.amount);
     const resolvedCurrency = payload.currency ?? income.currency;
     const shouldUpdateAmountRwf =
@@ -243,6 +246,24 @@ export class IncomeService {
           resolvedCurrency,
         )
       : undefined;
+
+    if (allocatedToSavingsRwf > 0) {
+      if (payload.received === false) {
+        throw new BadRequestException(
+          'Income already funds savings and cannot be marked as pending.',
+        );
+      }
+
+      if (
+        shouldUpdateAmountRwf &&
+        amountRwf !== undefined &&
+        Number(amountRwf) < allocatedToSavingsRwf
+      ) {
+        throw new BadRequestException(
+          'Income amount cannot be reduced below the amount already allocated to savings.',
+        );
+      }
+    }
 
     return this.incomeRepository.update(income.id, {
       label: payload.label,
@@ -265,6 +286,15 @@ export class IncomeService {
     await this.usersService.findActiveByIdOrThrow(userId);
 
     const income = await this.findOwnedIncomeOrThrow(userId, incomeId);
+    const allocatedToSavingsRwf = await this.getAllocatedToSavingsRwf(
+      income.id,
+    );
+
+    if (allocatedToSavingsRwf > 0) {
+      throw new BadRequestException(
+        'Income already funds savings and cannot be deleted.',
+      );
+    }
 
     await this.incomeRepository.update(income.id, {
       deletedAt: new Date(),
@@ -369,5 +399,14 @@ export class IncomeService {
       remainingAvailableRwf,
       allocationStatus,
     };
+  }
+
+  private async getAllocatedToSavingsRwf(incomeId: string): Promise<number> {
+    const allocated =
+      await this.savingsRepository.sumDepositSourceAmountRwfByIncomeId(
+        incomeId,
+      );
+
+    return Number(allocated);
   }
 }
