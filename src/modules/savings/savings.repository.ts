@@ -235,6 +235,46 @@ export class SavingsRepository {
     return aggregate._sum.amountRwf ?? new Prisma.Decimal(0);
   }
 
+  async sumCurrentBalanceRwfByUserIds(
+    userIds: string[],
+    options?: {
+      dateFrom?: Date;
+      dateTo?: Date;
+    },
+    db: PrismaExecutor = this.prisma,
+  ): Promise<number> {
+    const transactions = await db.savingTransaction.findMany({
+      where: {
+        deletedAt: null,
+        saving: {
+          userId: { in: userIds },
+          deletedAt: null,
+          date:
+            options?.dateFrom && options?.dateTo
+              ? {
+                  gte: options.dateFrom,
+                  lt: options.dateTo,
+                }
+              : undefined,
+        },
+      },
+      select: {
+        type: true,
+        amountRwf: true,
+      },
+    });
+
+    return transactions.reduce((sum, transaction) => {
+      const amount = Number(transaction.amountRwf);
+
+      if (transaction.type === SavingTransactionType.WITHDRAWAL) {
+        return sum - amount;
+      }
+
+      return sum + amount;
+    }, 0);
+  }
+
   async syncPrimaryDeposit(
     saving: SavingWithCreator,
     db: PrismaExecutor = this.prisma,
