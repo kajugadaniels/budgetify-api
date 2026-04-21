@@ -24,6 +24,8 @@ import { ExpenseResponseDto } from './dto/expense-response.dto';
 import { ExpenseSummaryQueryDto } from './dto/expense-summary.query.dto';
 import { ExpenseSummaryResponseDto } from './dto/expense-summary.response.dto';
 import { ListExpensesQueryDto } from './dto/list-expenses.query.dto';
+import { MobileMoneyQuoteRequestDto } from './dto/mobile-money-quote.request.dto';
+import { MobileMoneyQuoteResponseDto } from './dto/mobile-money-quote.response.dto';
 import { PaginatedExpenseResponseDto } from './dto/paginated-expense.response.dto';
 import { UpdateExpenseRequestDto } from './dto/update-expense.request.dto';
 import { EXPENSES_ROUTES } from './expenses.routes';
@@ -34,6 +36,7 @@ import {
   ApiDeleteCurrentUserExpenseEndpoint,
   ApiListExpenseCategoriesEndpoint,
   ApiListCurrentUserExpensesEndpoint,
+  ApiQuoteCurrentUserMobileMoneyExpenseEndpoint,
   ApiSummarizeCurrentUserExpensesEndpoint,
   ApiUpdateCurrentUserExpenseEndpoint,
 } from './expenses.swagger';
@@ -73,6 +76,19 @@ export class ExpensesController {
     return this.expensesService.summarizeCurrentUserExpenses(
       user.userId,
       query,
+    );
+  }
+
+  @Post(EXPENSES_ROUTES.mobileMoneyQuote)
+  @HttpCode(HttpStatus.OK)
+  @ApiQuoteCurrentUserMobileMoneyExpenseEndpoint()
+  async quoteCurrentUserMobileMoneyExpense(
+    @CurrentUser() user: AuthenticatedRequestUser,
+    @Body() body: MobileMoneyQuoteRequestDto,
+  ): Promise<MobileMoneyQuoteResponseDto> {
+    return this.expensesService.quoteCurrentUserMobileMoneyExpense(
+      user.userId,
+      body,
     );
   }
 
