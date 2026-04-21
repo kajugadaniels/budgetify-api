@@ -294,7 +294,7 @@ export function ApiUpdateCurrentUserIncomeEndpoint(): MethodDecorator {
     }),
     ApiBadRequestResponse({
       description:
-        'Request validation failed or no updatable fields were provided.',
+        'Request validation failed, no updatable fields were provided, or the requested change would break existing savings allocations.',
       type: ApiErrorResponseDto,
     }),
     ApiUnauthorizedResponse({
@@ -334,6 +334,11 @@ export function ApiDeleteCurrentUserIncomeEndpoint(): MethodDecorator {
     }),
     ApiNoContentResponse({
       description: 'Income record deleted successfully.',
+    }),
+    ApiBadRequestResponse({
+      description:
+        'The income cannot be deleted because it already funds one or more saving deposits.',
+      type: ApiErrorResponseDto,
     }),
     ApiUnauthorizedResponse({
       description: 'Access token is missing, invalid, or expired.',
