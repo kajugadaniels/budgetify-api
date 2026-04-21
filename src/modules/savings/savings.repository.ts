@@ -196,6 +196,33 @@ export class SavingsRepository {
     });
   }
 
+  async findTransactionByIdAndSavingId(
+    transactionId: string,
+    savingId: string,
+    db: PrismaExecutor = this.prisma,
+  ): Promise<SavingTransactionWithSources | null> {
+    return db.savingTransaction.findFirst({
+      where: {
+        id: transactionId,
+        savingId,
+        deletedAt: null,
+      },
+      ...SAVING_TRANSACTION_WITH_SOURCES_ARGS,
+    });
+  }
+
+  async updateTransaction(
+    id: string,
+    data: Prisma.SavingTransactionUpdateInput,
+    db: PrismaExecutor = this.prisma,
+  ): Promise<SavingTransactionWithSources> {
+    return db.savingTransaction.update({
+      where: { id },
+      data,
+      ...SAVING_TRANSACTION_WITH_SOURCES_ARGS,
+    });
+  }
+
   async createTransactionIncomeSources(
     data: Prisma.SavingTransactionIncomeSourceCreateManyInput[],
     db: PrismaExecutor = this.prisma,
@@ -205,6 +232,15 @@ export class SavingsRepository {
     }
 
     await db.savingTransactionIncomeSource.createMany({ data });
+  }
+
+  async deleteTransactionIncomeSources(
+    savingTransactionId: string,
+    db: PrismaExecutor = this.prisma,
+  ): Promise<void> {
+    await db.savingTransactionIncomeSource.deleteMany({
+      where: { savingTransactionId },
+    });
   }
 
   async createMoneyMovement(
