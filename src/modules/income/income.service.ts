@@ -15,11 +15,15 @@ import {
   resolveListDateRange,
 } from '../../common/utils/list-query.utils';
 import { PartnershipsService } from '../partnerships/partnerships.service';
+import { ExpensesRepository } from '../expenses/expenses.repository';
+import { SavingsRepository } from '../savings/savings.repository';
 import { UsersService } from '../users/users.service';
 import { CurrencyService } from '../currency/currency.service';
 import { CreateIncomeRequestDto } from './dto/create-income.request.dto';
 import { IncomeCategoryOptionResponseDto } from './dto/income-category-option.response.dto';
 import { ListIncomeQueryDto } from './dto/list-income.query.dto';
+import { IncomeSummaryQueryDto } from './dto/income-summary.query.dto';
+import { IncomeSummaryResponseDto } from './dto/income-summary.response.dto';
 import { UpdateIncomeRequestDto } from './dto/update-income.request.dto';
 import { INCOME_CATEGORY_OPTIONS } from './income-category-options';
 import { IncomeRepository, IncomeWithCreator } from './income.repository';
@@ -31,6 +35,8 @@ export class IncomeService {
     private readonly usersService: UsersService,
     private readonly partnershipsService: PartnershipsService,
     private readonly currencyService: CurrencyService,
+    private readonly expensesRepository: ExpensesRepository,
+    private readonly savingsRepository: SavingsRepository,
   ) {}
 
   async listCurrentUserIncome(
@@ -64,6 +70,56 @@ export class IncomeService {
 
   listIncomeCategories(): IncomeCategoryOptionResponseDto[] {
     return INCOME_CATEGORY_OPTIONS.map((option) => ({ ...option }));
+  }
+
+  async summarizeCurrentUserIncome(
+    userId: string,
+    query: IncomeSummaryQueryDto,
+  ): Promise<IncomeSummaryResponseDto> {
+    await this.usersService.findActiveByIdOrThrow(userId);
+    const visibleUserIds =
+      await this.partnershipsService.getVisibleUserIds(userId);
+    const dateRange = resolveListDateRange(query);
+
+    const [incomeSummary, totalExpensesRwf, totalSavingsBalanceRwf] =
+      await Promise.all([
+        this.incomeRepository.summarizeByUserIds(visibleUserIds, {
+          dateFrom: dateRange?.dateFrom,
+          dateTo: dateRange?.dateTo,
+        }),
+        this.expensesRepository.sumAmountByUserIds(visibleUserIds, {
+          dateFrom: dateRange?.dateFrom,
+          dateTo: dateRange?.dateTo,
+        }),
+        this.savingsRepository.sumCurrentBalanceRwfByUserIds(visibleUserIds, {
+          dateFrom: dateRange?.dateFrom,
+          dateTo: dateRange?.dateTo,
+        }),
+      ]);
+
+    const pendingIncomeRwf = Math.max(
+      incomeSummary.totalAmountRwf - incomeSummary.receivedAmountRwf,
+      0,
+    );
+    const pendingIncomeCount = Math.max(
+      incomeSummary.totalCount - incomeSummary.receivedCount,
+      0,
+    );
+
+    return {
+      totalIncomeRwf: incomeSummary.totalAmountRwf,
+      receivedIncomeRwf: incomeSummary.receivedAmountRwf,
+      pendingIncomeRwf,
+      totalExpensesRwf,
+      totalSavingsBalanceRwf,
+      availableMoneyNowRwf:
+        incomeSummary.receivedAmountRwf -
+        totalExpensesRwf -
+        totalSavingsBalanceRwf,
+      totalIncomeCount: incomeSummary.totalCount,
+      receivedIncomeCount: incomeSummary.receivedCount,
+      pendingIncomeCount,
+    };
   }
 
   async findVisibleIncomeForCurrentUser(
