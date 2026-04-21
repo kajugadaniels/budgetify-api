@@ -1,5 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { ExpenseCategory } from '@prisma/client';
+import {
+  Currency,
+  ExpenseCategory,
+  ExpenseMobileMoneyChannel,
+  ExpenseMobileMoneyNetwork,
+  ExpenseMobileMoneyProvider,
+  ExpensePaymentMethod,
+} from '@prisma/client';
 import { Transform } from 'class-transformer';
 import {
   IsEnum,
@@ -64,6 +71,18 @@ export class CreateExpenseRequestDto {
   @Min(1, { message: 'Amount must be greater than zero.' })
   amount!: number;
 
+  @ApiPropertyOptional({
+    description: 'Currency used for the recipient/base expense amount.',
+    enum: Currency,
+    example: Currency.RWF,
+    default: Currency.RWF,
+  })
+  @IsOptional()
+  @IsEnum(Currency, {
+    message: 'Currency must be a supported currency.',
+  })
+  currency?: Currency;
+
   @ApiProperty({
     description: 'Expense category selected from the client application.',
     enum: ExpenseCategory,
@@ -74,6 +93,53 @@ export class CreateExpenseRequestDto {
     message: 'Category must be a valid expense category.',
   })
   category!: ExpenseCategory;
+
+  @ApiPropertyOptional({
+    description: 'How the expense was paid.',
+    enum: ExpensePaymentMethod,
+    example: ExpensePaymentMethod.CASH,
+    default: ExpensePaymentMethod.CASH,
+  })
+  @IsOptional()
+  @IsEnum(ExpensePaymentMethod, {
+    message: 'Payment method must be valid.',
+  })
+  paymentMethod?: ExpensePaymentMethod;
+
+  @ApiPropertyOptional({
+    description:
+      'Mobile money payment channel when paymentMethod is MOBILE_MONEY.',
+    enum: ExpenseMobileMoneyChannel,
+    example: ExpenseMobileMoneyChannel.P2P_TRANSFER,
+  })
+  @IsOptional()
+  @IsEnum(ExpenseMobileMoneyChannel, {
+    message: 'Mobile money channel must be valid.',
+  })
+  mobileMoneyChannel?: ExpenseMobileMoneyChannel;
+
+  @ApiPropertyOptional({
+    description: 'Mobile money provider when paymentMethod is MOBILE_MONEY.',
+    enum: ExpenseMobileMoneyProvider,
+    example: ExpenseMobileMoneyProvider.MTN_RWANDA,
+  })
+  @IsOptional()
+  @IsEnum(ExpenseMobileMoneyProvider, {
+    message: 'Mobile money provider must be valid.',
+  })
+  mobileMoneyProvider?: ExpenseMobileMoneyProvider;
+
+  @ApiPropertyOptional({
+    description:
+      'Mobile money network classification when paymentMethod is MOBILE_MONEY and channel is P2P_TRANSFER.',
+    enum: ExpenseMobileMoneyNetwork,
+    example: ExpenseMobileMoneyNetwork.ON_NET,
+  })
+  @IsOptional()
+  @IsEnum(ExpenseMobileMoneyNetwork, {
+    message: 'Mobile money network must be valid.',
+  })
+  mobileMoneyNetwork?: ExpenseMobileMoneyNetwork;
 
   @ApiProperty({
     description: 'Date the expense was incurred or recorded.',
