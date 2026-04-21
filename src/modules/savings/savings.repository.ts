@@ -47,6 +47,22 @@ export type SavingTransactionWithSources = Prisma.SavingTransactionGetPayload<
   typeof SAVING_TRANSACTION_WITH_SOURCES_ARGS
 >;
 
+const INCOME_SOURCE_WITH_SAVING_ARGS =
+  Prisma.validator<Prisma.SavingTransactionIncomeSourceDefaultArgs>()({
+    include: {
+      savingTransaction: {
+        include: {
+          saving: true,
+        },
+      },
+    },
+  });
+
+export type IncomeSavingAllocationSource =
+  Prisma.SavingTransactionIncomeSourceGetPayload<
+    typeof INCOME_SOURCE_WITH_SAVING_ARGS
+  >;
+
 @Injectable()
 export class SavingsRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -273,6 +289,31 @@ export class SavingsRepository {
 
       return sum + amount;
     }, 0);
+  }
+
+  async findActiveDepositSourcesByIncomeId(
+    incomeId: string,
+    userIds: string[],
+    db: PrismaExecutor = this.prisma,
+  ): Promise<IncomeSavingAllocationSource[]> {
+    return db.savingTransactionIncomeSource.findMany({
+      where: {
+        incomeId,
+        savingTransaction: {
+          type: SavingTransactionType.DEPOSIT,
+          deletedAt: null,
+          saving: {
+            userId: { in: userIds },
+            deletedAt: null,
+          },
+        },
+      },
+      ...INCOME_SOURCE_WITH_SAVING_ARGS,
+      orderBy: [
+        { savingTransaction: { date: 'desc' } },
+        { savingTransaction: { createdAt: 'desc' } },
+      ],
+    });
   }
 
   async syncPrimaryDeposit(
