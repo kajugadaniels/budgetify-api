@@ -5,7 +5,11 @@ import {
   NotFoundException,
   forwardRef,
 } from '@nestjs/common';
-import { Currency } from '@prisma/client';
+import {
+  Currency,
+  ExpenseMobileMoneyChannel,
+  ExpenseMobileMoneyNetwork,
+} from '@prisma/client';
 
 import {
   PaginatedResponse,
@@ -27,6 +31,8 @@ import { ExpenseSummaryResponseDto } from './dto/expense-summary.response.dto';
 import { ListExpensesQueryDto } from './dto/list-expenses.query.dto';
 import { MobileMoneyQuoteRequestDto } from './dto/mobile-money-quote.request.dto';
 import { MobileMoneyQuoteResponseDto } from './dto/mobile-money-quote.response.dto';
+import { MobileMoneyTariffResponseDto } from './dto/mobile-money-tariff.response.dto';
+import { UpdateMobileMoneyTariffRequestDto } from './dto/update-mobile-money-tariff.request.dto';
 import { UpdateExpenseRequestDto } from './dto/update-expense.request.dto';
 import { EXPENSE_CATEGORY_OPTIONS } from './expense-category-options';
 import { ExpenseWithCreator, ExpensesRepository } from './expenses.repository';
@@ -73,6 +79,83 @@ export class ExpensesService {
 
   listExpenseCategories(): ExpenseCategoryOptionResponseDto[] {
     return EXPENSE_CATEGORY_OPTIONS.map((option) => ({ ...option }));
+  }
+
+  async listCurrentUserMobileMoneyTariffs(
+    userId: string,
+  ): Promise<MobileMoneyTariffResponseDto[]> {
+    await this.usersService.findActiveByIdOrThrow(userId);
+    const tariffs = await this.expensesRepository.findAllTariffs();
+    return tariffs.map((tariff) => this.toMobileMoneyTariffResponse(tariff));
+  }
+
+  async updateCurrentUserMobileMoneyTariff(
+    userId: string,
+    tariffId: string,
+    payload: UpdateMobileMoneyTariffRequestDto,
+  ): Promise<MobileMoneyTariffResponseDto> {
+    if (
+      payload.provider === undefined &&
+      payload.channel === undefined &&
+      payload.network === undefined &&
+      payload.minAmount === undefined &&
+      payload.maxAmount === undefined &&
+      payload.feeAmount === undefined &&
+      payload.active === undefined
+    ) {
+      throw new BadRequestException(
+        'Provide at least one mobile money tariff field to update.',
+      );
+    }
+
+    await this.usersService.findActiveByIdOrThrow(userId);
+    const tariff = await this.expensesRepository.findTariffById(tariffId);
+
+    if (!tariff) {
+      throw new NotFoundException('Mobile money tariff was not found.');
+    }
+
+    const channel = payload.channel ?? tariff.channel;
+    const network =
+      payload.network === undefined ? tariff.network : payload.network;
+    const minAmount = payload.minAmount ?? Number(tariff.minAmount);
+    const maxAmount = payload.maxAmount ?? Number(tariff.maxAmount);
+
+    if (minAmount > maxAmount) {
+      throw new BadRequestException(
+        'Mobile money tariff minimum amount must be less than or equal to the maximum amount.',
+      );
+    }
+
+    if (
+      channel === ExpenseMobileMoneyChannel.MERCHANT_CODE &&
+      network !== null
+    ) {
+      throw new BadRequestException(
+        'Merchant code tariffs must not include a network classification.',
+      );
+    }
+
+    if (
+      channel === ExpenseMobileMoneyChannel.P2P_TRANSFER &&
+      network === null
+    ) {
+      throw new BadRequestException(
+        'P2P mobile money tariffs require a network classification.',
+      );
+    }
+
+    const updatedTariff = await this.expensesRepository.updateTariff(tariffId, {
+      provider: payload.provider,
+      channel: payload.channel,
+      network: payload.network === undefined ? undefined : payload.network,
+      minAmount: payload.minAmount,
+      maxAmount: payload.maxAmount,
+      feeAmount: payload.feeAmount,
+      active: payload.active,
+    });
+
+    return this.toMobileMoneyTariffResponse(updatedTariff);
   }
 
   async quoteCurrentUserMobileMoneyExpense(
@@ -366,5 +449,31 @@ export class ExpensesService {
         0,
       ).toFixed(2)} RWF.`,
     );
+  }
+
+  private toMobileMoneyTariffResponse(tariff: {
+    id: string;
+    provider: string;
+    channel: string;
+    network: string | null;
+    minAmount: { toString(): string };
+    maxAmount: { toString(): string };
+    feeAmount: { toString(): string };
+    active: boolean;
+    createdAt: Date;
+    updatedAt: Date;
+  }): MobileMoneyTariffResponseDto {
+    return {
+      id: tariff.id,
+      provider: tariff.provider as MobileMoneyTariffResponseDto['provider'],
+      channel: tariff.channel as MobileMoneyTariffResponseDto['channel'],
+      network: tariff.network as ExpenseMobileMoneyNetwork | null,
+      minAmount: Number(tariff.minAmount),
+      maxAmount: Number(tariff.maxAmount),
+      feeAmount: Number(tariff.feeAmount),
+      active: tariff.active,
+      createdAt: tariff.createdAt,
+      updatedAt: tariff.updatedAt,
+    };
   }
 }
