@@ -22,13 +22,18 @@ import { CurrencyService } from '../currency/currency.service';
 import { CreateIncomeRequestDto } from './dto/create-income.request.dto';
 import { IncomeDetailResponseDto } from './dto/income-detail.response.dto';
 import { IncomeCategoryOptionResponseDto } from './dto/income-category-option.response.dto';
+import { IncomeAllocationStatus } from './dto/income-allocation-status.enum';
 import { ListIncomeQueryDto } from './dto/list-income.query.dto';
 import { IncomeSummaryQueryDto } from './dto/income-summary.query.dto';
 import { IncomeSummaryResponseDto } from './dto/income-summary.response.dto';
 import { UpdateIncomeRequestDto } from './dto/update-income.request.dto';
 import { INCOME_CATEGORY_OPTIONS } from './income-category-options';
 import { IncomeMapper } from './mappers/income.mapper';
-import { IncomeRepository, IncomeWithCreator } from './income.repository';
+import {
+  IncomeAllocationCandidate,
+  IncomeRepository,
+  IncomeWithCreator,
+} from './income.repository';
 
 @Injectable()
 export class IncomeService {
@@ -56,11 +61,34 @@ export class IncomeService {
       search,
     );
 
+    let filteredIncomeIds: string[] | undefined;
+
+    if (query.allocationStatus !== undefined) {
+      const candidates =
+        await this.incomeRepository.findAllocationCandidatesByUserIds(
+          visibleUserIds,
+          {
+            dateFrom: dateRange?.dateFrom,
+            dateTo: dateRange?.dateTo,
+            search,
+            searchCategories,
+            category: query.category,
+            received: query.received,
+          },
+        );
+      filteredIncomeIds = await this.filterIncomeIdsByAllocationStatus(
+        visibleUserIds,
+        candidates,
+        query.allocationStatus,
+      );
+    }
+
     return this.incomeRepository.findManyByUserIds(visibleUserIds, {
       dateFrom: dateRange?.dateFrom,
       dateTo: dateRange?.dateTo,
       search,
       searchCategories,
+      incomeIds: filteredIncomeIds,
       category: query.category,
       received: query.received,
       page: pagination.page,
@@ -147,8 +175,19 @@ export class IncomeService {
         income.id,
         visibleUserIds,
       );
+    const allocationSummary = this.buildIncomeAllocationSummary(
+      Number(income.amountRwf),
+      allocations.reduce(
+        (sum, allocation) => sum + Number(allocation.amountRwf),
+        0,
+      ),
+    );
 
-    return IncomeMapper.toIncomeDetailResponse(income, allocations);
+    return IncomeMapper.toIncomeDetailResponse(
+      income,
+      allocations,
+      allocationSummary,
+    );
   }
 
   async createCurrentUserIncome(
@@ -255,5 +294,80 @@ export class IncomeService {
     }
 
     return income;
+  }
+
+  async enrichIncomePageItems(
+    userId: string,
+    incomes: IncomeWithCreator[],
+  ): Promise<
+    Map<string, ReturnType<IncomeService['buildIncomeAllocationSummary']>>
+  > {
+    const visibleUserIds =
+      await this.partnershipsService.getVisibleUserIds(userId);
+    const allocationMap =
+      await this.savingsRepository.sumDepositSourceAmountsRwfByIncomeIds(
+        incomes.map((income) => income.id),
+        visibleUserIds,
+      );
+
+    return incomes.reduce((map, income) => {
+      map.set(
+        income.id,
+        this.buildIncomeAllocationSummary(
+          Number(income.amountRwf),
+          allocationMap.get(income.id) ?? 0,
+        ),
+      );
+      return map;
+    }, new Map<string, ReturnType<IncomeService['buildIncomeAllocationSummary']>>());
+  }
+
+  private async filterIncomeIdsByAllocationStatus(
+    userIds: string[],
+    candidates: IncomeAllocationCandidate[],
+    allocationStatus: IncomeAllocationStatus,
+  ): Promise<string[]> {
+    const allocationMap =
+      await this.savingsRepository.sumDepositSourceAmountsRwfByIncomeIds(
+        candidates.map((candidate) => candidate.id),
+        userIds,
+      );
+
+    return candidates
+      .filter((candidate) => {
+        const summary = this.buildIncomeAllocationSummary(
+          Number(candidate.amountRwf),
+          allocationMap.get(candidate.id) ?? 0,
+        );
+
+        return summary.allocationStatus === allocationStatus;
+      })
+      .map((candidate) => candidate.id);
+  }
+
+  private buildIncomeAllocationSummary(
+    amountRwf: number,
+    allocatedToSavingsRwf: number,
+  ) {
+    const normalizedAllocated = Math.max(
+      Math.min(allocatedToSavingsRwf, amountRwf),
+      0,
+    );
+    const remainingAvailableRwf = Math.max(amountRwf - normalizedAllocated, 0);
+    let allocationStatus = IncomeAllocationStatus.UNALLOCATED;
+
+    if (normalizedAllocated <= 0) {
+      allocationStatus = IncomeAllocationStatus.UNALLOCATED;
+    } else if (remainingAvailableRwf <= 0) {
+      allocationStatus = IncomeAllocationStatus.FULLY_ALLOCATED;
+    } else {
+      allocationStatus = IncomeAllocationStatus.PARTIALLY_ALLOCATED;
+    }
+
+    return {
+      allocatedToSavingsRwf: normalizedAllocated,
+      remainingAvailableRwf,
+      allocationStatus,
+    };
   }
 }
