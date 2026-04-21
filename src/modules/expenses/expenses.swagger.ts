@@ -20,6 +20,8 @@ import { CreateExpenseRequestDto } from './dto/create-expense.request.dto';
 import { ExpenseCategoryOptionResponseDto } from './dto/expense-category-option.response.dto';
 import { ExpenseResponseDto } from './dto/expense-response.dto';
 import { ExpenseSummaryResponseDto } from './dto/expense-summary.response.dto';
+import { MobileMoneyQuoteRequestDto } from './dto/mobile-money-quote.request.dto';
+import { MobileMoneyQuoteResponseDto } from './dto/mobile-money-quote.response.dto';
 import { PaginatedExpenseResponseDto } from './dto/paginated-expense.response.dto';
 import { UpdateExpenseRequestDto } from './dto/update-expense.request.dto';
 
@@ -218,6 +220,35 @@ export function ApiSummarizeCurrentUserExpensesEndpoint(): MethodDecorator {
     ApiForbiddenResponse({
       description:
         'Authenticated user account is not allowed to access expense summaries.',
+      type: ApiErrorResponseDto,
+    }),
+  );
+}
+
+export function ApiQuoteCurrentUserMobileMoneyExpenseEndpoint(): MethodDecorator {
+  return applyDecorators(
+    ApiBearerAuth('access-token'),
+    ApiOperation({
+      summary: 'Quote mobile money charges for an expense',
+      description:
+        'Calculates the mobile money fee and total charged amount for the supplied recipient amount and transfer type before saving an expense.',
+    }),
+    ApiBody({ type: MobileMoneyQuoteRequestDto }),
+    ApiOkResponse({
+      description: 'Mobile money quote calculated successfully.',
+      type: MobileMoneyQuoteResponseDto,
+    }),
+    ApiBadRequestResponse({
+      description: 'Request validation failed or no matching tariff exists.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiUnauthorizedResponse({
+      description: 'Access token is missing, invalid, or expired.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiForbiddenResponse({
+      description:
+        'Authenticated user account is not allowed to quote expense charges.',
       type: ApiErrorResponseDto,
     }),
   );
