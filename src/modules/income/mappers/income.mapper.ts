@@ -88,6 +88,11 @@ export class IncomeMapper {
         currency: allocation.currency,
         amountRwf: Number(allocation.amountRwf),
         note: allocation.savingTransaction.note,
+        isReversed: allocation.savingTransaction.reversedByTransaction !== null,
+        isReversal:
+          allocation.savingTransaction.reversalOfTransactionId !== null,
+        reversedByTransactionId:
+          allocation.savingTransaction.reversedByTransaction?.id ?? null,
       })),
     };
   }
