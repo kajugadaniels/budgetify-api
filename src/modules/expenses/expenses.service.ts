@@ -24,6 +24,8 @@ import { ExpenseCategoryOptionResponseDto } from './dto/expense-category-option.
 import { ExpenseSummaryQueryDto } from './dto/expense-summary.query.dto';
 import { ExpenseSummaryResponseDto } from './dto/expense-summary.response.dto';
 import { ListExpensesQueryDto } from './dto/list-expenses.query.dto';
+import { MobileMoneyQuoteRequestDto } from './dto/mobile-money-quote.request.dto';
+import { MobileMoneyQuoteResponseDto } from './dto/mobile-money-quote.response.dto';
 import { UpdateExpenseRequestDto } from './dto/update-expense.request.dto';
 import { EXPENSE_CATEGORY_OPTIONS } from './expense-category-options';
 import { ExpenseWithCreator, ExpensesRepository } from './expenses.repository';
@@ -70,6 +72,33 @@ export class ExpensesService {
 
   listExpenseCategories(): ExpenseCategoryOptionResponseDto[] {
     return EXPENSE_CATEGORY_OPTIONS.map((option) => ({ ...option }));
+  }
+
+  async quoteCurrentUserMobileMoneyExpense(
+    userId: string,
+    payload: MobileMoneyQuoteRequestDto,
+  ): Promise<MobileMoneyQuoteResponseDto> {
+    await this.usersService.findActiveByIdOrThrow(userId);
+    const charges = await this.mobileMoneyTariffService.resolveExpenseCharges({
+      amount: payload.amount,
+      currency: payload.currency ?? Currency.RWF,
+      paymentMethod: 'MOBILE_MONEY',
+      mobileMoneyChannel: payload.mobileMoneyChannel,
+      mobileMoneyProvider: payload.mobileMoneyProvider,
+      mobileMoneyNetwork: payload.mobileMoneyNetwork,
+    });
+
+    return {
+      amount: Number(charges.amount),
+      currency: charges.currency,
+      amountRwf: Number(charges.amountRwf),
+      feeAmount: Number(charges.feeAmount),
+      feeAmountRwf: Number(charges.feeAmountRwf),
+      totalAmountRwf: Number(charges.totalAmountRwf),
+      mobileMoneyProvider: charges.mobileMoneyProvider!,
+      mobileMoneyChannel: charges.mobileMoneyChannel!,
+      mobileMoneyNetwork: charges.mobileMoneyNetwork,
+    };
   }
 
   async summarizeCurrentUserExpenses(
