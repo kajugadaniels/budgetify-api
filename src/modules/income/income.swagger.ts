@@ -18,6 +18,7 @@ import {
 import { ApiErrorResponseDto } from '../../common/dto/api-error-response.dto';
 import { IncomeCategoryOptionResponseDto } from './dto/income-category-option.response.dto';
 import { CreateIncomeRequestDto } from './dto/create-income.request.dto';
+import { IncomeAllocationStatus } from './dto/income-allocation-status.enum';
 import { IncomeDetailResponseDto } from './dto/income-detail.response.dto';
 import { IncomeResponseDto } from './dto/income-response.dto';
 import { IncomeSummaryResponseDto } from './dto/income-summary.response.dto';
@@ -110,6 +111,14 @@ export function ApiListCurrentUserIncomeEndpoint(): MethodDecorator {
       type: Boolean,
       example: true,
       description: 'Optional received-state filter.',
+    }),
+    ApiQuery({
+      name: 'allocationStatus',
+      required: false,
+      enum: IncomeAllocationStatus,
+      example: IncomeAllocationStatus.PARTIALLY_ALLOCATED,
+      description:
+        'Optional allocation filter based on how much of the income has already been moved into savings.',
     }),
     ApiQuery({
       name: 'page',
