@@ -21,6 +21,7 @@ import { IncomeService } from '../income/income.service';
 import { UsersService } from '../users/users.service';
 import { CreateExpenseRequestDto } from './dto/create-expense.request.dto';
 import { ExpenseCategoryOptionResponseDto } from './dto/expense-category-option.response.dto';
+import { ExpenseAuditResponseDto } from './dto/expense-audit.response.dto';
 import { ExpenseSummaryQueryDto } from './dto/expense-summary.query.dto';
 import { ExpenseSummaryResponseDto } from './dto/expense-summary.response.dto';
 import { ListExpensesQueryDto } from './dto/list-expenses.query.dto';
@@ -129,6 +130,49 @@ export class ExpensesService {
       largestExpenseRwf: expenseSummary.largestChargedAmountRwf,
       availableMoneyNowRwf: incomeSummary.availableMoneyNowRwf,
       expenseCount: expenseSummary.totalCount,
+    };
+  }
+
+  async auditCurrentUserExpenses(
+    userId: string,
+    query: ExpenseSummaryQueryDto,
+  ): Promise<ExpenseAuditResponseDto> {
+    await this.usersService.findActiveByIdOrThrow(userId);
+    const visibleUserIds =
+      await this.partnershipsService.getVisibleUserIds(userId);
+    const dateRange = resolveListDateRange(query);
+
+    const [expenseSummary, incomeSummary] = await Promise.all([
+      this.expensesRepository.summarizeByUserIds(visibleUserIds, {
+        dateFrom: dateRange?.dateFrom,
+        dateTo: dateRange?.dateTo,
+      }),
+      this.incomeService.summarizeCurrentUserIncome(userId, query),
+    ]);
+
+    const availableMoneyBeforeExpensesRwf =
+      incomeSummary.availableMoneyNowRwf + expenseSummary.totalBaseAmountRwf;
+    const recomputedAvailableMoneyAfterExpensesRwf =
+      availableMoneyBeforeExpensesRwf - expenseSummary.totalChargedAmountRwf;
+    const reconciliationDifferenceRwf =
+      incomeSummary.availableMoneyNowRwf -
+      recomputedAvailableMoneyAfterExpensesRwf;
+
+    return {
+      periodStartDate: dateRange?.dateFrom?.toISOString().split('T')[0] ?? null,
+      periodEndDate:
+        dateRange?.dateTo?.toISOString().split('T')[0]?.replace(/Z?$/, '') ??
+        null,
+      totalBaseExpensesRwf: expenseSummary.totalBaseAmountRwf,
+      totalPaymentFeesRwf: expenseSummary.totalFeeAmountRwf,
+      totalChargedExpensesRwf: expenseSummary.totalChargedAmountRwf,
+      expenseCount: expenseSummary.totalCount,
+      feeBearingExpenseCount: expenseSummary.feeBearingExpenseCount,
+      availableMoneyBeforeExpensesRwf,
+      availableMoneyAfterExpensesRwf: incomeSummary.availableMoneyNowRwf,
+      recomputedAvailableMoneyAfterExpensesRwf,
+      reconciliationDifferenceRwf,
+      isBalanced: reconciliationDifferenceRwf === 0,
     };
   }
 
