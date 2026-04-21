@@ -1,5 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma, SavingTransactionType } from '@prisma/client';
+import {
+  MoneyMovementType,
+  Prisma,
+  SavingTransactionType,
+} from '@prisma/client';
 
 import {
   PaginatedResponse,
@@ -329,6 +333,70 @@ export class SavingsRepository {
 
       return sum + amount;
     }, 0);
+  }
+
+  async sumActiveDepositSourceAmountRwfByUserIds(
+    userIds: string[],
+    options?: {
+      dateFrom?: Date;
+      dateTo?: Date;
+    },
+    db: PrismaExecutor = this.prisma,
+  ): Promise<number> {
+    const aggregate = await db.savingTransactionIncomeSource.aggregate({
+      where: {
+        savingTransaction: {
+          type: SavingTransactionType.DEPOSIT,
+          deletedAt: null,
+          date:
+            options?.dateFrom && options?.dateTo
+              ? {
+                  gte: options.dateFrom,
+                  lt: options.dateTo,
+                }
+              : undefined,
+          saving: {
+            userId: { in: userIds },
+            deletedAt: null,
+          },
+        },
+      },
+      _sum: {
+        amountRwf: true,
+      },
+    });
+
+    return Number(aggregate._sum.amountRwf ?? 0);
+  }
+
+  async sumMoneyMovementAmountRwfByUserIds(
+    userIds: string[],
+    options?: {
+      type?: MoneyMovementType;
+      dateFrom?: Date;
+      dateTo?: Date;
+    },
+    db: PrismaExecutor = this.prisma,
+  ): Promise<number> {
+    const aggregate = await db.moneyMovement.aggregate({
+      where: {
+        userId: { in: userIds },
+        deletedAt: null,
+        type: options?.type,
+        date:
+          options?.dateFrom && options?.dateTo
+            ? {
+                gte: options.dateFrom,
+                lt: options.dateTo,
+              }
+            : undefined,
+      },
+      _sum: {
+        amountRwf: true,
+      },
+    });
+
+    return Number(aggregate._sum.amountRwf ?? 0);
   }
 
   async findActiveDepositSourcesByIncomeId(
