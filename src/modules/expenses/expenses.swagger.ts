@@ -17,6 +17,7 @@ import {
 
 import { ApiErrorResponseDto } from '../../common/dto/api-error-response.dto';
 import { CreateExpenseRequestDto } from './dto/create-expense.request.dto';
+import { ExpenseAuditResponseDto } from './dto/expense-audit.response.dto';
 import { ExpenseCategoryOptionResponseDto } from './dto/expense-category-option.response.dto';
 import { ExpenseResponseDto } from './dto/expense-response.dto';
 import { ExpenseSummaryResponseDto } from './dto/expense-summary.response.dto';
@@ -220,6 +221,62 @@ export function ApiSummarizeCurrentUserExpensesEndpoint(): MethodDecorator {
     ApiForbiddenResponse({
       description:
         'Authenticated user account is not allowed to access expense summaries.',
+      type: ApiErrorResponseDto,
+    }),
+  );
+}
+
+export function ApiAuditCurrentUserExpensesEndpoint(): MethodDecorator {
+  return applyDecorators(
+    ApiBearerAuth('access-token'),
+    ApiOperation({
+      summary: 'Audit current user expenses',
+      description:
+        'Returns an expense reconciliation view that separates base spend from payment fees and compares the currently reported available money against the charged-expense recomputation.',
+    }),
+    ApiQuery({
+      name: 'month',
+      required: false,
+      type: Number,
+      example: 4,
+      description:
+        'Optional 1-based month filter applied against the recorded expense date.',
+    }),
+    ApiQuery({
+      name: 'year',
+      required: false,
+      type: Number,
+      example: 2026,
+      description:
+        'Optional year filter paired with month. Defaults to the current year.',
+    }),
+    ApiQuery({
+      name: 'dateFrom',
+      required: false,
+      type: String,
+      example: '2026-04-01',
+      description:
+        'Optional inclusive start date filter applied against the recorded expense date. Overrides month/year filtering when provided.',
+    }),
+    ApiQuery({
+      name: 'dateTo',
+      required: false,
+      type: String,
+      example: '2026-04-30',
+      description:
+        'Optional inclusive end date filter applied against the recorded expense date. Overrides month/year filtering when provided.',
+    }),
+    ApiOkResponse({
+      description: 'Expense audit retrieved successfully.',
+      type: ExpenseAuditResponseDto,
+    }),
+    ApiUnauthorizedResponse({
+      description: 'Access token is missing, invalid, or expired.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiForbiddenResponse({
+      description:
+        'Authenticated user account is not allowed to access expense audits.',
       type: ApiErrorResponseDto,
     }),
   );
