@@ -37,6 +37,26 @@ export class IncomeSavingAllocationResponseDto {
     nullable: true,
   })
   note!: string | null;
+
+  @ApiProperty({
+    example: true,
+    description:
+      'Whether this saving allocation has already been structurally reversed.',
+  })
+  isReversed!: boolean;
+
+  @ApiProperty({
+    example: false,
+    description:
+      'Whether this allocation row comes from a reversal transaction.',
+  })
+  isReversal!: boolean;
+
+  @ApiProperty({
+    example: '11111111-92b6-4209-a90f-7c10ec6a3a85',
+    nullable: true,
+  })
+  reversedByTransactionId!: string | null;
 }
 
 export class IncomeDetailResponseDto {
