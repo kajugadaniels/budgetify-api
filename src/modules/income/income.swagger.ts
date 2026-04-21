@@ -20,6 +20,7 @@ import { IncomeCategoryOptionResponseDto } from './dto/income-category-option.re
 import { CreateIncomeRequestDto } from './dto/create-income.request.dto';
 import { IncomeAllocationStatus } from './dto/income-allocation-status.enum';
 import { IncomeDetailResponseDto } from './dto/income-detail.response.dto';
+import { IncomeAuditResponseDto } from './dto/income-audit.response.dto';
 import { IncomeResponseDto } from './dto/income-response.dto';
 import { IncomeSummaryResponseDto } from './dto/income-summary.response.dto';
 import { PaginatedIncomeResponseDto } from './dto/paginated-income.response.dto';
@@ -201,6 +202,62 @@ export function ApiSummarizeCurrentUserIncomeEndpoint(): MethodDecorator {
     ApiForbiddenResponse({
       description:
         'Authenticated user account is not allowed to access income summary data.',
+      type: ApiErrorResponseDto,
+    }),
+  );
+}
+
+export function ApiAuditCurrentUserIncomeEndpoint(): MethodDecorator {
+  return applyDecorators(
+    ApiBearerAuth('access-token'),
+    ApiOperation({
+      summary: 'Audit current user income reconciliation',
+      description:
+        'Returns reconciliation-focused totals for the authenticated user and visible partner context: scheduled income, received income, savings allocations, saving withdrawals returned to available money, expenses, current savings balance, and the recomputed available-money check. Explicit dateFrom/dateTo filters override month and year.',
+    }),
+    ApiQuery({
+      name: 'month',
+      required: false,
+      type: Number,
+      example: 4,
+      description:
+        'Optional 1-based month filter applied against recorded dates used in the audit.',
+    }),
+    ApiQuery({
+      name: 'year',
+      required: false,
+      type: Number,
+      example: 2026,
+      description:
+        'Optional year filter paired with month. Defaults to the current year.',
+    }),
+    ApiQuery({
+      name: 'dateFrom',
+      required: false,
+      type: String,
+      example: '2026-04-01',
+      description:
+        'Optional inclusive start date filter. Overrides month/year filtering when provided.',
+    }),
+    ApiQuery({
+      name: 'dateTo',
+      required: false,
+      type: String,
+      example: '2026-04-30',
+      description:
+        'Optional inclusive end date filter. Overrides month/year filtering when provided.',
+    }),
+    ApiOkResponse({
+      description: 'Income audit totals retrieved successfully.',
+      type: IncomeAuditResponseDto,
+    }),
+    ApiUnauthorizedResponse({
+      description: 'Access token is missing, invalid, or expired.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiForbiddenResponse({
+      description:
+        'Authenticated user account is not allowed to access income audit data.',
       type: ApiErrorResponseDto,
     }),
   );
