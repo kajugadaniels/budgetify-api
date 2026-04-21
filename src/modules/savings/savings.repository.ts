@@ -316,6 +316,39 @@ export class SavingsRepository {
     });
   }
 
+  async sumDepositSourceAmountsRwfByIncomeIds(
+    incomeIds: string[],
+    userIds: string[],
+    db: PrismaExecutor = this.prisma,
+  ): Promise<Map<string, number>> {
+    if (incomeIds.length === 0) {
+      return new Map<string, number>();
+    }
+
+    const groups = await db.savingTransactionIncomeSource.groupBy({
+      by: ['incomeId'],
+      where: {
+        incomeId: { in: incomeIds },
+        savingTransaction: {
+          type: SavingTransactionType.DEPOSIT,
+          deletedAt: null,
+          saving: {
+            userId: { in: userIds },
+            deletedAt: null,
+          },
+        },
+      },
+      _sum: {
+        amountRwf: true,
+      },
+    });
+
+    return groups.reduce((map, group) => {
+      map.set(group.incomeId, Number(group._sum.amountRwf ?? 0));
+      return map;
+    }, new Map<string, number>());
+  }
+
   async syncPrimaryDeposit(
     saving: SavingWithCreator,
     db: PrismaExecutor = this.prisma,
