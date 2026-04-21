@@ -63,6 +63,42 @@ describe('ExpensesService', () => {
     });
   });
 
+  it('audits the gap between base expenses and charged expenses', async () => {
+    usersService.findActiveByIdOrThrow.mockResolvedValue(undefined);
+    partnershipsService.getVisibleUserIds.mockResolvedValue(['user-1']);
+    expensesRepository.summarizeByUserIds.mockResolvedValue({
+      totalBaseAmountRwf: 20000,
+      totalFeeAmountRwf: 300,
+      totalChargedAmountRwf: 20300,
+      totalCount: 2,
+      largestChargedAmountRwf: 10200,
+      feeBearingExpenseCount: 1,
+    });
+    incomeService.summarizeCurrentUserIncome.mockResolvedValue({
+      availableMoneyNowRwf: 480000,
+    });
+
+    const result = await service.auditCurrentUserExpenses('user-1', {
+      month: 4,
+      year: 2026,
+    });
+
+    expect(result).toEqual({
+      periodStartDate: '2026-04-01',
+      periodEndDate: '2026-04-30',
+      totalBaseExpensesRwf: 20000,
+      totalPaymentFeesRwf: 300,
+      totalChargedExpensesRwf: 20300,
+      expenseCount: 2,
+      feeBearingExpenseCount: 1,
+      availableMoneyBeforeExpensesRwf: 500000,
+      availableMoneyAfterExpensesRwf: 480000,
+      recomputedAvailableMoneyAfterExpensesRwf: 479700,
+      reconciliationDifferenceRwf: 300,
+      isBalanced: false,
+    });
+  });
+
   it('creates a cash expense without fees', async () => {
     usersService.findActiveByIdOrThrow.mockResolvedValue(undefined);
     mobileMoneyTariffService.resolveExpenseCharges.mockResolvedValue({
