@@ -62,8 +62,12 @@ export class IncomeController {
       user.userId,
       query,
     );
+    const allocationSummaries = await this.incomeService.enrichIncomePageItems(
+      user.userId,
+      incomes.items,
+    );
 
-    return IncomeMapper.toPaginatedIncomeResponse(incomes);
+    return IncomeMapper.toPaginatedIncomeResponse(incomes, allocationSummaries);
   }
 
   @Get(INCOME_ROUTES.summary)

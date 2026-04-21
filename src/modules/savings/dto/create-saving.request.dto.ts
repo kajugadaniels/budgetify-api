@@ -96,17 +96,18 @@ export class CreateSavingRequestDto {
   })
   currency: Currency = Currency.RWF;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     description: 'Target amount the user wants this saving bucket to reach.',
     example: 1000000,
   })
   @Transform(({ value }) => normalizeAmount(value))
+  @IsOptional()
   @IsNumber(
     { allowInfinity: false, allowNaN: false, maxDecimalPlaces: 2 },
     { message: 'Target amount must be a valid number.' },
   )
   @Min(0.01, { message: 'Target amount must be greater than zero.' })
-  targetAmount!: number;
+  targetAmount?: number;
 
   @ApiPropertyOptional({
     description:
@@ -121,24 +122,26 @@ export class CreateSavingRequestDto {
   })
   targetCurrency: Currency = Currency.RWF;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     description:
       'Date when the saving plan starts. Use ISO date format YYYY-MM-DD.',
     example: '2026-04-21',
   })
+  @IsOptional()
   @IsISO8601(
     {},
     { message: 'Start date must be a valid ISO 8601 date string.' },
   )
-  startDate!: string;
+  startDate?: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     description:
       'Date when the saving plan should end. Use ISO date format YYYY-MM-DD.',
     example: '2027-04-21',
   })
+  @IsOptional()
   @IsISO8601({}, { message: 'End date must be a valid ISO 8601 date string.' })
-  endDate!: string;
+  endDate?: string;
 
   @ApiProperty({
     description: 'Date the saving was recorded.',

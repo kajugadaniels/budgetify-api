@@ -106,7 +106,7 @@ export class UpdateSavingRequestDto {
     { message: 'Target amount must be a valid number.' },
   )
   @Min(0.01, { message: 'Target amount must be greater than zero.' })
-  targetAmount?: number;
+  targetAmount?: number | null;
 
   @ApiPropertyOptional({
     description:
@@ -119,7 +119,7 @@ export class UpdateSavingRequestDto {
   @IsEnum(Currency, {
     message: 'Target currency must be either RWF or USD.',
   })
-  targetCurrency?: Currency;
+  targetCurrency?: Currency | null;
 
   @ApiPropertyOptional({
     description: 'Updated start date for the saving timeframe.',
@@ -130,7 +130,7 @@ export class UpdateSavingRequestDto {
     {},
     { message: 'Start date must be a valid ISO 8601 date string.' },
   )
-  startDate?: string;
+  startDate?: string | null;
 
   @ApiPropertyOptional({
     description: 'Updated end date for the saving timeframe.',
@@ -138,7 +138,7 @@ export class UpdateSavingRequestDto {
   })
   @IsOptional()
   @IsISO8601({}, { message: 'End date must be a valid ISO 8601 date string.' })
-  endDate?: string;
+  endDate?: string | null;
 
   @ApiPropertyOptional({
     description: 'Updated saving date.',
