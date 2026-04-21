@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { PassportModule } from '@nestjs/passport';
 
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -14,12 +14,12 @@ import { SavingsService } from './savings.service';
   imports: [
     PassportModule.register({ defaultStrategy: 'jwt' }),
     CurrencyModule,
-    IncomeModule,
+    forwardRef(() => IncomeModule),
     UsersModule,
     PartnershipsModule,
   ],
   controllers: [SavingsController],
   providers: [SavingsRepository, SavingsService, JwtAuthGuard],
-  exports: [SavingsService],
+  exports: [SavingsService, SavingsRepository],
 })
 export class SavingsModule {}
