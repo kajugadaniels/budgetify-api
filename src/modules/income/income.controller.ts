@@ -20,6 +20,7 @@ import type { AuthenticatedRequestUser } from '../../common/interfaces/authentic
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CreateIncomeRequestDto } from './dto/create-income.request.dto';
 import { IncomeCategoryOptionResponseDto } from './dto/income-category-option.response.dto';
+import { IncomeDetailResponseDto } from './dto/income-detail.response.dto';
 import { IncomeResponseDto } from './dto/income-response.dto';
 import { IncomeSummaryQueryDto } from './dto/income-summary.query.dto';
 import { IncomeSummaryResponseDto } from './dto/income-summary.response.dto';
@@ -32,6 +33,7 @@ import { IncomeService } from './income.service';
 import {
   ApiCreateCurrentUserIncomeEndpoint,
   ApiDeleteCurrentUserIncomeEndpoint,
+  ApiGetCurrentUserIncomeDetailEndpoint,
   ApiListIncomeCategoriesEndpoint,
   ApiListCurrentUserIncomeEndpoint,
   ApiSummarizeCurrentUserIncomeEndpoint,
@@ -71,6 +73,15 @@ export class IncomeController {
     @Query() query: IncomeSummaryQueryDto,
   ): Promise<IncomeSummaryResponseDto> {
     return this.incomeService.summarizeCurrentUserIncome(user.userId, query);
+  }
+
+  @Get(INCOME_ROUTES.byId)
+  @ApiGetCurrentUserIncomeDetailEndpoint()
+  async getCurrentUserIncomeDetail(
+    @CurrentUser() user: AuthenticatedRequestUser,
+    @Param('incomeId', ParseUUIDPipe) incomeId: string,
+  ): Promise<IncomeDetailResponseDto> {
+    return this.incomeService.getCurrentUserIncomeDetail(user.userId, incomeId);
   }
 
   @Post()
