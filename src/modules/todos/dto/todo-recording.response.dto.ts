@@ -1,11 +1,35 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  ExpenseCategory,
   ExpenseMobileMoneyChannel,
   ExpenseMobileMoneyNetwork,
   ExpensePaymentMethod,
 } from '@prisma/client';
 
 import { CreatedByResponseDto } from '../../../common/dto/created-by.response.dto';
+
+export class TodoRecordingExpenseSummaryDto {
+  @ApiProperty({ example: '4e2522ae-ec1c-4a30-84bb-cba3e7fe29f2' })
+  id!: string;
+
+  @ApiProperty({ example: 'School transport top up' })
+  label!: string;
+
+  @ApiProperty({
+    enum: ExpenseCategory,
+    example: ExpenseCategory.TRANSPORT,
+  })
+  category!: ExpenseCategory;
+
+  @ApiProperty({ example: '2026-04-22T00:00:00.000Z' })
+  date!: Date;
+
+  @ApiProperty({ example: 14210 })
+  totalAmountRwf!: number;
+
+  @ApiProperty({ example: 210 })
+  feeAmountRwf!: number;
+}
 
 export class TodoRecordingResponseDto {
   @ApiProperty({ example: '8d65c09f-e7fa-4ee1-9428-3b1ebc80a918' })
@@ -71,4 +95,10 @@ export class TodoRecordingResponseDto {
 
   @ApiProperty({ type: CreatedByResponseDto })
   recordedBy!: CreatedByResponseDto;
+
+  @ApiPropertyOptional({
+    type: TodoRecordingExpenseSummaryDto,
+    nullable: true,
+  })
+  expense!: TodoRecordingExpenseSummaryDto | null;
 }
