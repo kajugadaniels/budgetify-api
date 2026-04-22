@@ -229,7 +229,7 @@ describe('ExpensesService', () => {
     );
   });
 
-  it('rejects creating an expense that exceeds charged available money', async () => {
+  it('allows creating an expense that exceeds charged available money', async () => {
     usersService.findActiveByIdOrThrow.mockResolvedValue(undefined);
     partnershipsService.getVisibleUserIds.mockResolvedValue(['user-1']);
     incomeService.summarizeCurrentUserIncome.mockResolvedValue({
@@ -252,6 +252,8 @@ describe('ExpensesService', () => {
       mobileMoneyNetwork: 'ON_NET',
     });
 
+    expensesRepository.create.mockResolvedValue({ id: 'expense-3' });
+
     await expect(
       service.createCurrentUserExpense('user-1', {
         label: 'Paid technician',
@@ -264,6 +266,6 @@ describe('ExpensesService', () => {
         mobileMoneyNetwork: 'ON_NET',
         date: '2026-04-21T00:00:00.000Z',
       } as never),
-    ).rejects.toThrow('This expense exceeds available money by 1100.00 RWF.');
+    ).resolves.toEqual({ id: 'expense-3' });
   });
 });
