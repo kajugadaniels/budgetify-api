@@ -13,7 +13,6 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { Throttle } from '@nestjs/throttler';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthenticatedRequestUser } from '../../common/interfaces/authenticated-request.interface';
@@ -58,7 +57,6 @@ export class LoansController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @Throttle({ write: { limit: 1, ttl: 15_000, blockDuration: 15_000 } })
   @ApiCreateCurrentUserLoanEndpoint()
   async createCurrentUserLoan(
     @CurrentUser() user: AuthenticatedRequestUser,
@@ -74,7 +72,6 @@ export class LoansController {
 
   @Post(LOANS_ROUTES.sendToExpense)
   @HttpCode(HttpStatus.CREATED)
-  @Throttle({ write: { limit: 1, ttl: 15_000, blockDuration: 15_000 } })
   @ApiSendCurrentUserLoanToExpenseEndpoint()
   async sendCurrentUserLoanToExpense(
     @CurrentUser() user: AuthenticatedRequestUser,
@@ -91,7 +88,6 @@ export class LoansController {
   }
 
   @Patch(LOANS_ROUTES.byId)
-  @Throttle({ write: { limit: 1, ttl: 15_000, blockDuration: 15_000 } })
   @ApiUpdateCurrentUserLoanEndpoint()
   async updateCurrentUserLoan(
     @CurrentUser() user: AuthenticatedRequestUser,
@@ -109,7 +105,6 @@ export class LoansController {
 
   @Delete(LOANS_ROUTES.byId)
   @HttpCode(HttpStatus.NO_CONTENT)
-  @Throttle({ write: { limit: 1, ttl: 15_000, blockDuration: 15_000 } })
   @ApiDeleteCurrentUserLoanEndpoint()
   async deleteCurrentUserLoan(
     @CurrentUser() user: AuthenticatedRequestUser,
