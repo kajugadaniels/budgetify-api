@@ -3,6 +3,7 @@ import { TodoFrequency, TodoPriority } from '@prisma/client';
 
 import { CreatedByResponseDto } from '../../../common/dto/created-by.response.dto';
 import { TodoImageResponseDto } from './todo-image-response.dto';
+import { TodoRecordingResponseDto } from './todo-recording.response.dto';
 
 export class TodoResponseDto {
   @ApiProperty({ example: '8d65c09f-e7fa-4ee1-9428-3b1ebc80a918' })
@@ -78,6 +79,19 @@ export class TodoResponseDto {
       'Remaining budget after expense deductions. Null for ONCE todos. Starts at price for recurring todos.',
   })
   remainingAmount!: number | null;
+
+  @ApiProperty({
+    example: 2,
+    description: 'Total number of expense recordings linked to this todo.',
+  })
+  recordingCount!: number;
+
+  @ApiProperty({
+    type: TodoRecordingResponseDto,
+    isArray: true,
+    description: 'Most recent expense recordings for this todo, newest first.',
+  })
+  recordings!: TodoRecordingResponseDto[];
 
   @ApiProperty({
     example:
