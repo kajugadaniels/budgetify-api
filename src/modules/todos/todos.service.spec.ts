@@ -9,8 +9,16 @@ describe('TodosService', () => {
   const todosRepository = {
     findSummaryRowsByUserIds: jest.fn(),
     aggregateRecordingsByTodoIds: jest.fn(),
+    findActiveByIdAndUserIds: jest.fn(),
+    update: jest.fn(),
+    createRecording: jest.fn(),
   };
-  const expensesRepository = {};
+  const expensesRepository = {
+    create: jest.fn(),
+  };
+  const mobileMoneyTariffService = {
+    resolveExpenseCharges: jest.fn(),
+  };
   const usersService = {
     findActiveByIdOrThrow: jest.fn(),
   };
@@ -29,6 +37,7 @@ describe('TodosService', () => {
       prisma as never,
       todosRepository as never,
       expensesRepository as never,
+      mobileMoneyTariffService as never,
       usersService as never,
       partnershipsService as never,
       todoImageStorageService as never,
@@ -198,5 +207,91 @@ describe('TodosService', () => {
         { date: '2026-04-28', itemCount: 0, totalAmount: 0, items: [] },
       ],
     });
+  });
+
+  it('creates the expense and todo recording in one transaction', async () => {
+    const tx = { transaction: true };
+    const todo = {
+      id: 'todo-2',
+      name: 'School fees reserve',
+      price: new Prisma.Decimal(300),
+      priority: 'PRIORITY',
+      status: 'ACTIVE',
+      frequency: 'MONTHLY',
+      occurrenceDates: ['2026-04-15', '2026-04-24'],
+      recordedOccurrenceDates: ['2026-04-15'],
+      remainingAmount: new Prisma.Decimal(150),
+      _count: { recordings: 1 },
+    };
+    const runTransaction = async <T>(
+      callback: (client: typeof tx) => Promise<T> | T,
+    ): Promise<T> => callback(tx);
+
+    usersService.findActiveByIdOrThrow.mockResolvedValue(undefined);
+    partnershipsService.getVisibleUserIds.mockResolvedValue(['user-1']);
+    prisma.$transaction.mockImplementation(runTransaction);
+    mobileMoneyTariffService.resolveExpenseCharges.mockResolvedValue({
+      amount: new Prisma.Decimal(140),
+      currency: 'RWF',
+      amountRwf: new Prisma.Decimal(140),
+      feeAmount: new Prisma.Decimal(10),
+      feeAmountRwf: new Prisma.Decimal(10),
+      totalAmountRwf: new Prisma.Decimal(150),
+      paymentMethod: 'MOBILE_MONEY',
+      mobileMoneyChannel: 'P2P_TRANSFER',
+      mobileMoneyProvider: 'MTN_RWANDA',
+      mobileMoneyNetwork: 'ON_NET',
+    });
+    todosRepository.findActiveByIdAndUserIds.mockResolvedValue(todo);
+    expensesRepository.create.mockResolvedValue({ id: 'expense-1' });
+    todosRepository.update.mockResolvedValue(todo);
+    todosRepository.createRecording.mockResolvedValue({ id: 'recording-1' });
+
+    await expect(
+      service.recordCurrentUserTodoExpenseFromPayload('user-1', 'todo-2', {
+        label: 'School fees reserve',
+        amount: 140,
+        currency: 'RWF',
+        category: 'SCHOOL_FEES',
+        paymentMethod: 'MOBILE_MONEY',
+        mobileMoneyProvider: 'MTN_RWANDA',
+        mobileMoneyChannel: 'P2P_TRANSFER',
+        mobileMoneyNetwork: 'ON_NET',
+        date: '2026-04-24',
+        occurrenceDate: '2026-04-24',
+      } as never),
+    ).resolves.toEqual({ id: 'recording-1' });
+
+    expect(expensesRepository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'user-1',
+        label: 'School fees reserve',
+        amountRwf: new Prisma.Decimal(140),
+        feeAmountRwf: new Prisma.Decimal(10),
+        totalAmountRwf: new Prisma.Decimal(150),
+      }),
+      tx,
+    );
+    expect(todosRepository.update).toHaveBeenCalledWith(
+      'todo-2',
+      expect.objectContaining({
+        status: 'COMPLETED',
+        recordedOccurrenceDates: { set: ['2026-04-15', '2026-04-24'] },
+        remainingAmount: new Prisma.Decimal(0),
+      }),
+      tx,
+    );
+    expect(todosRepository.createRecording).toHaveBeenCalledWith(
+      expect.objectContaining({
+        todoId: 'todo-2',
+        expenseId: 'expense-1',
+        plannedAmount: new Prisma.Decimal(150),
+        baseAmount: new Prisma.Decimal(140),
+        feeAmount: new Prisma.Decimal(10),
+        totalChargedAmount: new Prisma.Decimal(150),
+        varianceAmount: new Prisma.Decimal(0),
+      }),
+      tx,
+    );
   });
 });
