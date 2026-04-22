@@ -275,7 +275,7 @@ export class ExpensesService {
       mobileMoneyProvider: payload.mobileMoneyProvider,
       mobileMoneyNetwork: payload.mobileMoneyNetwork,
     });
-    await this.assertCanAffordChargedExpense(
+    this.assertCanAffordChargedExpense(
       userId,
       visibleUserIds,
       Number(charges.totalAmountRwf),
@@ -354,7 +354,7 @@ export class ExpensesService {
         : null;
 
     if (charges !== null) {
-      await this.assertCanAffordChargedExpense(
+      this.assertCanAffordChargedExpense(
         userId,
         visibleUserIds,
         Number(charges.totalAmountRwf),
@@ -418,12 +418,12 @@ export class ExpensesService {
     return expense;
   }
 
-  private async assertCanAffordChargedExpense(
+  private assertCanAffordChargedExpense(
     userId: string,
     visibleUserIds: string[],
     nextChargedAmountRwf: number,
     existingChargedAmountRwf = 0,
-  ): Promise<void> {
+  ): void {
     void userId;
     void visibleUserIds;
     void nextChargedAmountRwf;
