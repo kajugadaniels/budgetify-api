@@ -1,0 +1,3 @@
+ALTER TYPE "public"."ExpenseCategory" ADD VALUE IF NOT EXISTS 'AIRTIME';
+ALTER TYPE "public"."ExpenseCategory" ADD VALUE IF NOT EXISTS 'SCHOOL_FEES';
+ALTER TYPE "public"."ExpenseCategory" ADD VALUE IF NOT EXISTS 'PARENT_SIBLING';
