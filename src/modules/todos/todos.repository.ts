@@ -16,8 +16,18 @@ const USER_SELECT = {
   avatarUrl: true,
 } as const;
 
+const TODO_RECORDING_EXPENSE_SELECT = {
+  id: true,
+  label: true,
+  category: true,
+  date: true,
+  totalAmountRwf: true,
+  feeAmountRwf: true,
+} as const;
+
 const TODO_RECORDING_INCLUDE = {
   recordedBy: { select: USER_SELECT },
+  expense: { select: TODO_RECORDING_EXPENSE_SELECT },
 } satisfies Prisma.TodoRecordingInclude;
 
 export const activeTodoInclude = {
