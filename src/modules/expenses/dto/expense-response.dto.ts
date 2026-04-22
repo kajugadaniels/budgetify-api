@@ -9,6 +9,7 @@ import {
 } from '@prisma/client';
 
 import { CreatedByResponseDto } from '../../../common/dto/created-by.response.dto';
+import { ExpenseLinkedTodoResponseDto } from './expense-linked-todo.response.dto';
 
 export class ExpenseResponseDto {
   @ApiProperty({ example: '3e8063c6-714f-482e-8d2c-6b6771ce9e14' })
@@ -85,4 +86,10 @@ export class ExpenseResponseDto {
 
   @ApiProperty({ type: CreatedByResponseDto })
   createdBy!: CreatedByResponseDto;
+
+  @ApiPropertyOptional({
+    type: ExpenseLinkedTodoResponseDto,
+    nullable: true,
+  })
+  linkedTodo!: ExpenseLinkedTodoResponseDto | null;
 }
