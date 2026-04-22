@@ -52,6 +52,13 @@ export class TodoRecordingResponseDto {
 
   @ApiProperty({
     example: 14000,
+    description:
+      'Planned amount for this todo occurrence before the actual expense was recorded.',
+  })
+  plannedAmount!: number;
+
+  @ApiProperty({
+    example: 14000,
     description: 'Base amount normalized to RWF for todo budget tracking.',
   })
   baseAmount!: number;
@@ -67,6 +74,13 @@ export class TodoRecordingResponseDto {
     description: 'Total charged amount normalized to RWF.',
   })
   totalChargedAmount!: number;
+
+  @ApiProperty({
+    example: 210,
+    description:
+      'Difference between totalChargedAmount and plannedAmount. Positive means over plan, negative means under plan.',
+  })
+  varianceAmount!: number;
 
   @ApiProperty({
     enum: ExpensePaymentMethod,
