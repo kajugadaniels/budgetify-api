@@ -1,11 +1,10 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { TodoFrequency, TodoPriority } from '@prisma/client';
+import { TodoFrequency, TodoPriority, TodoStatus } from '@prisma/client';
 import { Transform } from 'class-transformer';
 import {
   ArrayMaxSize,
   ArrayMinSize,
   IsArray,
-  IsBoolean,
   IsDateString,
   IsEnum,
   IsInt,
@@ -47,22 +46,13 @@ function normalizeOptionalUuid(value: unknown): unknown {
   return normalized.length === 0 ? undefined : normalized;
 }
 
-function normalizeOptionalDone(value: unknown): unknown {
-  if (typeof value === 'string') {
-    const normalized = value.trim().toLowerCase();
-
-    if (normalized === 'true') {
-      return true;
-    }
-
-    if (normalized === 'false') {
-      return false;
-    }
-
+function normalizeOptionalStatus(value: unknown): unknown {
+  if (typeof value !== 'string') {
     return value;
   }
 
-  return value;
+  const normalized = value.trim().toUpperCase();
+  return normalized.length === 0 ? undefined : normalized;
 }
 
 function normalizeOptionalNumber(value: unknown): unknown {
@@ -152,13 +142,17 @@ export class UpdateTodoRequestDto {
   priority?: TodoPriority;
 
   @ApiPropertyOptional({
-    description: 'Updated completion state for the todo item.',
-    example: true,
+    description: 'Updated lifecycle status for the todo item.',
+    enum: TodoStatus,
+    enumName: 'TodoStatus',
+    example: TodoStatus.COMPLETED,
   })
-  @Transform(({ value }) => normalizeOptionalDone(value))
+  @Transform(({ value }) => normalizeOptionalStatus(value))
   @IsOptional()
-  @IsBoolean({ message: 'Done must be a valid boolean value.' })
-  done?: boolean;
+  @IsEnum(TodoStatus, {
+    message: 'Status must be a valid todo status.',
+  })
+  status?: TodoStatus;
 
   @ApiPropertyOptional({
     description: 'Updated recurrence frequency.',
