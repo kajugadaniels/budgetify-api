@@ -131,6 +131,7 @@ model User {
   incomes           Income[]
   todos             Todo[]
   expenses          Expense[]
+  todoRecordings    TodoRecording[]
   loans             Loan[]
   savings           Saving[]
   savingTransactions SavingTransaction[]
@@ -256,6 +257,7 @@ model Expense {
   updatedAt DateTime        @updatedAt
   deletedAt DateTime?
   user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  todoRecording TodoRecording?
 
   @@index([userId])
   @@index([deletedAt])
@@ -423,6 +425,7 @@ model Todo {
   deletedAt              DateTime?
   user                   User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   images                 TodoImage[]
+  recordings             TodoRecording[]
 
   @@index([userId])
   @@index([deletedAt])
@@ -430,6 +433,28 @@ model Todo {
   @@index([userId, priority])
   @@index([userId, done])
   @@index([userId, frequency])
+}
+
+model TodoRecording {
+  id                 String                    @id @default(uuid()) @db.Uuid
+  todoId             String                    @db.Uuid
+  expenseId          String?                   @unique @db.Uuid
+  occurrenceDate     DateTime                  @db.Date
+  baseAmount         Decimal                   @db.Decimal(15, 2)
+  feeAmount          Decimal                   @db.Decimal(15, 2)
+  totalChargedAmount Decimal                   @db.Decimal(15, 2)
+  paymentMethod      ExpensePaymentMethod
+  mobileMoneyChannel ExpenseMobileMoneyChannel?
+  mobileMoneyNetwork ExpenseMobileMoneyNetwork?
+  recordedAt         DateTime                  @default(now())
+  recordedByUserId   String                    @db.Uuid
+  todo               Todo                      @relation(fields: [todoId], references: [id], onDelete: Cascade)
+  expense            Expense?                  @relation(fields: [expenseId], references: [id], onDelete: SetNull)
+  recordedBy         User                      @relation(fields: [recordedByUserId], references: [id], onDelete: Cascade)
+
+  @@index([todoId, recordedAt(sort: Desc)])
+  @@index([recordedByUserId])
+  @@index([occurrenceDate])
 }
 
 model Partnership {
