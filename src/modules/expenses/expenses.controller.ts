@@ -37,6 +37,7 @@ import {
   ApiCreateCurrentUserExpenseEndpoint,
   ApiAuditCurrentUserExpensesEndpoint,
   ApiDeleteCurrentUserExpenseEndpoint,
+  ApiGetCurrentUserExpenseEndpoint,
   ApiListExpenseCategoriesEndpoint,
   ApiListCurrentUserExpensesEndpoint,
   ApiQuoteCurrentUserMobileMoneyExpenseEndpoint,
@@ -134,6 +135,20 @@ export class ExpensesController {
     const expense = await this.expensesService.createCurrentUserExpense(
       user.userId,
       body,
+    );
+
+    return ExpensesMapper.toExpenseResponse(expense);
+  }
+
+  @Get(EXPENSES_ROUTES.byId)
+  @ApiGetCurrentUserExpenseEndpoint()
+  async getCurrentUserExpense(
+    @CurrentUser() user: AuthenticatedRequestUser,
+    @Param('expenseId', ParseUUIDPipe) expenseId: string,
+  ): Promise<ExpenseResponseDto> {
+    const expense = await this.expensesService.getCurrentUserExpense(
+      user.userId,
+      expenseId,
     );
 
     return ExpensesMapper.toExpenseResponse(expense);
