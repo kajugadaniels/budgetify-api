@@ -1,11 +1,10 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { TodoFrequency, TodoPriority } from '@prisma/client';
+import { TodoFrequency, TodoPriority, TodoStatus } from '@prisma/client';
 import { Transform } from 'class-transformer';
 import {
   ArrayMaxSize,
   ArrayMinSize,
   IsArray,
-  IsBoolean,
   IsDateString,
   IsEnum,
   IsInt,
@@ -36,20 +35,13 @@ function normalizePrice(value: unknown): unknown {
   return value;
 }
 
-function normalizeDone(value: unknown): unknown {
-  if (typeof value === 'string') {
-    const normalized = value.trim().toLowerCase();
-
-    if (normalized === 'true') {
-      return true;
-    }
-
-    if (normalized === 'false') {
-      return false;
-    }
+function normalizeStatus(value: unknown): unknown {
+  if (typeof value !== 'string') {
+    return value;
   }
 
-  return value;
+  const normalized = value.trim().toUpperCase();
+  return normalized.length === 0 ? undefined : normalized;
 }
 
 function normalizeNumberArray(value: unknown): unknown {
@@ -127,14 +119,18 @@ export class CreateTodoRequestDto {
   })
   priority!: TodoPriority;
 
-  @ApiProperty({
-    description: 'Whether the todo item is already done.',
-    example: false,
-    default: false,
+  @ApiPropertyOptional({
+    description: 'Lifecycle status for the todo item.',
+    enum: TodoStatus,
+    enumName: 'TodoStatus',
+    example: TodoStatus.ACTIVE,
+    default: TodoStatus.ACTIVE,
   })
-  @Transform(({ value }) => normalizeDone(value))
-  @IsBoolean({ message: 'Done must be a valid boolean value.' })
-  done: boolean = false;
+  @Transform(({ value }) => normalizeStatus(value))
+  @IsEnum(TodoStatus, {
+    message: 'Status must be a valid todo status.',
+  })
+  status: TodoStatus = TodoStatus.ACTIVE;
 
   @ApiPropertyOptional({
     description: 'How often this todo recurs.',
