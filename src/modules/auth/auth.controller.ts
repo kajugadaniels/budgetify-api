@@ -99,7 +99,6 @@ export class AuthController {
 
   @Post(AUTH_ROUTES.refresh)
   @HttpCode(HttpStatus.OK)
-  @Throttle({ auth: { limit: 10, ttl: 60_000 } })
   @ApiRefreshEndpoint()
   async refreshTokens(
     @Body() body: RefreshTokenRequestDto,
@@ -113,7 +112,6 @@ export class AuthController {
 
   @Post(AUTH_ROUTES.logout)
   @HttpCode(HttpStatus.OK)
-  @Throttle({ auth: { limit: 10, ttl: 60_000 } })
   @ApiLogoutEndpoint()
   async logout(@Body() body: LogoutRequestDto): Promise<LogoutResponseDto> {
     return this.authService.logout(body);
