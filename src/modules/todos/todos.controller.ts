@@ -22,6 +22,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthenticatedRequestUser } from '../../common/interfaces/authenticated-request.interface';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CreateTodoRequestDto } from './dto/create-todo.request.dto';
+import { CreateTodoExpenseRequestDto } from './dto/create-todo-expense.request.dto';
 import { CreateTodoRecordingRequestDto } from './dto/create-todo-recording.request.dto';
 import { ListTodosQueryDto } from './dto/list-todos.query.dto';
 import { PaginatedTodoResponseDto } from './dto/paginated-todo.response.dto';
@@ -43,6 +44,7 @@ import { TodosService } from './todos.service';
 import { TODOS_ROUTES } from './todos.routes';
 import {
   ApiCreateCurrentUserTodoEndpoint,
+  ApiCreateCurrentUserTodoExpenseEndpoint,
   ApiDeleteCurrentUserTodoEndpoint,
   ApiDeleteCurrentUserTodoImageEndpoint,
   ApiGetCurrentUserTodoEndpoint,
@@ -177,6 +179,23 @@ export class TodosController {
       todoId,
       body,
     );
+
+    return TodosMapper.toTodoRecordingResponse(recording);
+  }
+
+  @Post(TODOS_ROUTES.recordExpense)
+  @ApiCreateCurrentUserTodoExpenseEndpoint()
+  async createCurrentUserTodoExpense(
+    @CurrentUser() user: AuthenticatedRequestUser,
+    @Param('todoId', ParseUUIDPipe) todoId: string,
+    @Body() body: CreateTodoExpenseRequestDto,
+  ): Promise<TodoRecordingResponseDto> {
+    const recording =
+      await this.todosService.recordCurrentUserTodoExpenseFromPayload(
+        user.userId,
+        todoId,
+        body,
+      );
 
     return TodosMapper.toTodoRecordingResponse(recording);
   }
