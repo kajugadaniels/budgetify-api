@@ -448,9 +448,11 @@ model TodoRecording {
   todoId             String                    @db.Uuid
   expenseId          String?                   @unique @db.Uuid
   occurrenceDate     DateTime                  @db.Date
+  plannedAmount      Decimal                   @default(0) @db.Decimal(15, 2)
   baseAmount         Decimal                   @db.Decimal(15, 2)
   feeAmount          Decimal                   @db.Decimal(15, 2)
   totalChargedAmount Decimal                   @db.Decimal(15, 2)
+  varianceAmount     Decimal                   @default(0) @db.Decimal(15, 2)
   paymentMethod      ExpensePaymentMethod
   mobileMoneyChannel ExpenseMobileMoneyChannel?
   mobileMoneyNetwork ExpenseMobileMoneyNetwork?
