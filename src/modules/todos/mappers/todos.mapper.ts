@@ -5,10 +5,13 @@ import { PaginatedTodoResponseDto } from '../dto/paginated-todo.response.dto';
 import { TodoImageResponseDto } from '../dto/todo-image-response.dto';
 import { TodoRecordingResponseDto } from '../dto/todo-recording.response.dto';
 import { TodoResponseDto } from '../dto/todo-response.dto';
+import { TodoSummaryResponseDto } from '../dto/todo-summary.response.dto';
+import { TodoUpcomingResponseDto } from '../dto/todo-upcoming.response.dto';
 import {
   TodoRecordingWithRelations,
   TodoWithImages,
 } from '../todos.repository';
+import { TodoSummarySnapshot, TodoUpcomingSnapshot } from '../todos.service';
 
 export class TodosMapper {
   static toTodoResponse(todo: TodoWithImages): TodoResponseDto {
@@ -20,7 +23,7 @@ export class TodosMapper {
       name: todo.name,
       price: Number(todo.price),
       priority: todo.priority,
-      done: todo.done,
+      status: todo.status,
       frequency: todo.frequency,
       startDate: todo.startDate
         ? todo.startDate.toISOString().slice(0, 10)
@@ -95,6 +98,67 @@ export class TodosMapper {
     return {
       items: TodosMapper.toTodoResponseList(payload.items),
       meta: payload.meta,
+    };
+  }
+
+  static toTodoSummaryResponse(
+    summary: TodoSummarySnapshot,
+  ): TodoSummaryResponseDto {
+    return {
+      totalCount: summary.totalCount,
+      openCount: summary.openCount,
+      completedCount: summary.completedCount,
+      recurringCount: summary.recurringCount,
+      topPriorityCount: summary.topPriorityCount,
+      withImagesCount: summary.withImagesCount,
+      completionPercentage: summary.completionPercentage,
+      imageCoveragePercentage: summary.imageCoveragePercentage,
+      plannedTotal: summary.plannedTotal,
+      openPlannedTotal: summary.openPlannedTotal,
+      remainingRecurringBudgetTotal: summary.remainingRecurringBudgetTotal,
+      recordedCount: summary.recordedCount,
+      recordedTotalAmount: summary.recordedTotalAmount,
+      overdueCount: summary.overdueCount,
+      next7DaysScheduledAmount: summary.next7DaysScheduledAmount,
+      next30DaysScheduledAmount: summary.next30DaysScheduledAmount,
+      latestTodo: summary.latestTodo,
+    };
+  }
+
+  static toTodoUpcomingResponse(
+    upcoming: TodoUpcomingSnapshot,
+  ): TodoUpcomingResponseDto {
+    return {
+      windowDays: upcoming.windowDays,
+      daysWithPlans: upcoming.daysWithPlans,
+      occurrenceCount: upcoming.occurrenceCount,
+      totalScheduledAmount: upcoming.totalScheduledAmount,
+      overdueCount: upcoming.overdueCount,
+      reserveSummary: {
+        targetAmount: upcoming.reserveSummary.targetAmount,
+        usedAmount: upcoming.reserveSummary.usedAmount,
+        remainingAmount: upcoming.reserveSummary.remainingAmount,
+        items: upcoming.reserveSummary.items.map((item) => ({
+          id: item.id,
+          name: item.name,
+          frequency: item.frequency,
+          targetAmount: item.targetAmount,
+          usedAmount: item.usedAmount,
+          remainingAmount: item.remainingAmount,
+          remainingOccurrenceCount: item.remainingOccurrenceCount,
+        })),
+      },
+      days: upcoming.days.map((day) => ({
+        date: day.date,
+        itemCount: day.itemCount,
+        totalAmount: day.totalAmount,
+        items: day.items.map((item) => ({
+          id: item.id,
+          name: item.name,
+          frequency: item.frequency,
+          amount: item.amount,
+        })),
+      })),
     };
   }
 
