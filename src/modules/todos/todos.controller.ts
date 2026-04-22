@@ -27,6 +27,10 @@ import { ListTodosQueryDto } from './dto/list-todos.query.dto';
 import { PaginatedTodoResponseDto } from './dto/paginated-todo.response.dto';
 import { TodoRecordingResponseDto } from './dto/todo-recording.response.dto';
 import { TodoResponseDto } from './dto/todo-response.dto';
+import { TodoSummaryQueryDto } from './dto/todo-summary.query.dto';
+import { TodoSummaryResponseDto } from './dto/todo-summary.response.dto';
+import { TodoUpcomingQueryDto } from './dto/todo-upcoming.query.dto';
+import { TodoUpcomingResponseDto } from './dto/todo-upcoming.response.dto';
 import { UpdateTodoRequestDto } from './dto/update-todo.request.dto';
 import { TodosMapper } from './mappers/todos.mapper';
 import {
@@ -43,6 +47,8 @@ import {
   ApiDeleteCurrentUserTodoImageEndpoint,
   ApiGetCurrentUserTodoEndpoint,
   ApiListCurrentUserTodosEndpoint,
+  ApiListCurrentUserTodoUpcomingEndpoint,
+  ApiSummarizeCurrentUserTodosEndpoint,
   ApiUpdateCurrentUserTodoEndpoint,
 } from './todos.swagger';
 
@@ -84,6 +90,34 @@ export class TodosController {
     );
 
     return TodosMapper.toPaginatedTodoResponse(todos);
+  }
+
+  @Get(TODOS_ROUTES.summary)
+  @ApiSummarizeCurrentUserTodosEndpoint()
+  async summarizeCurrentUserTodos(
+    @CurrentUser() user: AuthenticatedRequestUser,
+    @Query() query: TodoSummaryQueryDto,
+  ): Promise<TodoSummaryResponseDto> {
+    const summary = await this.todosService.summarizeCurrentUserTodos(
+      user.userId,
+      query,
+    );
+
+    return TodosMapper.toTodoSummaryResponse(summary);
+  }
+
+  @Get(TODOS_ROUTES.upcoming)
+  @ApiListCurrentUserTodoUpcomingEndpoint()
+  async listCurrentUserUpcomingTodos(
+    @CurrentUser() user: AuthenticatedRequestUser,
+    @Query() query: TodoUpcomingQueryDto,
+  ): Promise<TodoUpcomingResponseDto> {
+    const upcoming = await this.todosService.listCurrentUserUpcomingTodos(
+      user.userId,
+      query,
+    );
+
+    return TodosMapper.toTodoUpcomingResponse(upcoming);
   }
 
   @Get(TODOS_ROUTES.byId)
