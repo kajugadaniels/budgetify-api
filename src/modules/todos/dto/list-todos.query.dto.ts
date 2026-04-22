@@ -1,10 +1,9 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { TodoFrequency, TodoPriority } from '@prisma/client';
+import { TodoFrequency, TodoPriority, TodoStatus } from '@prisma/client';
 import { Transform } from 'class-transformer';
 import { IsEnum, IsOptional } from 'class-validator';
 
 import {
-  normalizeOptionalBoolean,
   normalizeOptionalString,
   PaginationQueryDto,
 } from '../../../common/dto/pagination-query.dto';
@@ -35,10 +34,21 @@ export class ListTodosQueryDto extends PaginationQueryDto {
   priority?: TodoPriority;
 
   @ApiPropertyOptional({
-    description: 'Optional done-state filter.',
-    example: false,
+    enum: TodoStatus,
+    example: TodoStatus.ACTIVE,
+    description: 'Optional lifecycle status filter.',
   })
-  @Transform(({ value }) => normalizeOptionalBoolean(value))
+  @Transform(({ value }: { value: unknown }) => {
+    if (typeof value !== 'string') {
+      return undefined;
+    }
+
+    const normalized = value.trim();
+    return normalized.length === 0 ? undefined : normalized.toUpperCase();
+  })
   @IsOptional()
-  done?: boolean;
+  @IsEnum(TodoStatus, {
+    message: 'Status must be a valid todo status.',
+  })
+  status?: TodoStatus;
 }
