@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, TodoFrequency } from '@prisma/client';
+import { Prisma, TodoFrequency, TodoStatus } from '@prisma/client';
 
 import {
   PaginatedResponse,
@@ -20,6 +20,8 @@ import { UsersService } from '../users/users.service';
 import { CreateTodoRequestDto } from './dto/create-todo.request.dto';
 import { CreateTodoRecordingRequestDto } from './dto/create-todo-recording.request.dto';
 import { ListTodosQueryDto } from './dto/list-todos.query.dto';
+import { TodoSummaryQueryDto } from './dto/todo-summary.query.dto';
+import { TodoUpcomingQueryDto } from './dto/todo-upcoming.query.dto';
 import { UpdateTodoRequestDto } from './dto/update-todo.request.dto';
 import {
   MAX_TODO_IMAGES,
@@ -28,6 +30,7 @@ import {
   TodoUploadFile,
 } from './services/todo-image-storage.service';
 import {
+  TodoSummaryRow,
   TodoRecordingWithRelations,
   TodoWithImages,
   TodosRepository,
@@ -41,6 +44,63 @@ type ResolvedRecurringSchedule = {
   frequencyDays: number[];
   occurrenceDates: string[];
   startDate: Date;
+};
+
+export type TodoSummarySnapshot = {
+  completedCount: number;
+  completionPercentage: number;
+  imageCoveragePercentage: number;
+  latestTodo: {
+    createdAt: Date;
+    id: string;
+    name: string;
+  } | null;
+  next30DaysScheduledAmount: number;
+  next7DaysScheduledAmount: number;
+  openCount: number;
+  openPlannedTotal: number;
+  overdueCount: number;
+  plannedTotal: number;
+  recordedCount: number;
+  recordedTotalAmount: number;
+  recurringCount: number;
+  remainingRecurringBudgetTotal: number;
+  topPriorityCount: number;
+  totalCount: number;
+  withImagesCount: number;
+};
+
+export type TodoUpcomingSnapshot = {
+  days: Array<{
+    date: string;
+    itemCount: number;
+    items: Array<{
+      amount: number;
+      frequency: TodoFrequency;
+      id: string;
+      name: string;
+    }>;
+    totalAmount: number;
+  }>;
+  daysWithPlans: number;
+  occurrenceCount: number;
+  overdueCount: number;
+  reserveSummary: {
+    items: Array<{
+      frequency: TodoFrequency;
+      id: string;
+      name: string;
+      remainingAmount: number;
+      remainingOccurrenceCount: number;
+      targetAmount: number;
+      usedAmount: number;
+    }>;
+    remainingAmount: number;
+    targetAmount: number;
+    usedAmount: number;
+  };
+  totalScheduledAmount: number;
+  windowDays: number;
 };
 
 @Injectable()
@@ -67,7 +127,7 @@ export class TodosService {
     return this.todosRepository.findManyByUserIds(visibleUserIds, {
       frequency: query.frequency,
       priority: query.priority,
-      done: query.done,
+      status: query.status,
       search: normalizeListSearch(query.search),
       occurrenceDates: dateRange?.isoDates,
       page: pagination.page,
@@ -75,6 +135,231 @@ export class TodosService {
       skip: pagination.skip,
       take: pagination.limit,
     });
+  }
+
+  async summarizeCurrentUserTodos(
+    userId: string,
+    query: TodoSummaryQueryDto,
+  ): Promise<TodoSummarySnapshot> {
+    const rows = await this.listSummaryRowsForUser(userId, query);
+    const recordingAggregate =
+      await this.todosRepository.aggregateRecordingsByTodoIds(
+        rows.map((row) => row.id),
+      );
+    const todayIsoDate = this.getTodayDateString();
+
+    let completedCount = 0;
+    let openCount = 0;
+    let recurringCount = 0;
+    let topPriorityCount = 0;
+    let withImagesCount = 0;
+    let plannedTotal = 0;
+    let openPlannedTotal = 0;
+    let remainingRecurringBudgetTotal = 0;
+    let overdueCount = 0;
+
+    for (const row of rows) {
+      const price = Number(row.price);
+
+      plannedTotal += price;
+
+      if (this.isTodoClosed(row.status)) {
+        if (row.status === 'COMPLETED') {
+          completedCount += 1;
+        }
+      } else {
+        openCount += 1;
+        openPlannedTotal += price;
+
+        if (this.hasOverdueOccurrence(row, todayIsoDate)) {
+          overdueCount += 1;
+        }
+      }
+
+      if (row.frequency !== 'ONCE') {
+        recurringCount += 1;
+        remainingRecurringBudgetTotal += Number(row.remainingAmount ?? 0);
+      }
+
+      if (row.priority === 'TOP_PRIORITY') {
+        topPriorityCount += 1;
+      }
+
+      if (row.hasActiveImage) {
+        withImagesCount += 1;
+      }
+    }
+
+    return {
+      totalCount: rows.length,
+      openCount,
+      completedCount,
+      recurringCount,
+      topPriorityCount,
+      withImagesCount,
+      completionPercentage:
+        rows.length === 0
+          ? 0
+          : Math.round((completedCount / rows.length) * 100),
+      imageCoveragePercentage:
+        rows.length === 0
+          ? 0
+          : Math.round((withImagesCount / rows.length) * 100),
+      plannedTotal: this.roundCurrency(plannedTotal),
+      openPlannedTotal: this.roundCurrency(openPlannedTotal),
+      remainingRecurringBudgetTotal: this.roundCurrency(
+        remainingRecurringBudgetTotal,
+      ),
+      recordedCount: recordingAggregate.totalCount,
+      recordedTotalAmount: this.roundCurrency(
+        Number(recordingAggregate.totalChargedAmount),
+      ),
+      overdueCount,
+      next7DaysScheduledAmount: this.computeScheduledWindowTotal(rows, 7),
+      next30DaysScheduledAmount: this.computeScheduledWindowTotal(rows, 30),
+      latestTodo:
+        rows[0] !== undefined
+          ? {
+              id: rows[0].id,
+              name: rows[0].name,
+              createdAt: rows[0].createdAt,
+            }
+          : null,
+    };
+  }
+
+  async listCurrentUserUpcomingTodos(
+    userId: string,
+    query: TodoUpcomingQueryDto,
+  ): Promise<TodoUpcomingSnapshot> {
+    const rows = await this.listSummaryRowsForUser(userId, query);
+    const windowDays = query.days ?? 7;
+    const today = this.parseDateOnly(this.getTodayDateString());
+    const windowDates = Array.from({ length: windowDays }, (_, index) =>
+      this.toIsoDate(this.addDays(today, index)),
+    );
+    const dayMap = new Map(
+      windowDates.map((date) => [
+        date,
+        {
+          date,
+          itemCount: 0,
+          totalAmount: 0,
+          items: [] as TodoUpcomingSnapshot['days'][number]['items'],
+        },
+      ]),
+    );
+
+    const reserveItems: TodoUpcomingSnapshot['reserveSummary']['items'] = [];
+    const todayIsoDate = this.toIsoDate(today);
+    let overdueCount = 0;
+
+    for (const row of rows) {
+      const remainingDates = this.getRemainingOccurrenceDates(row);
+
+      if (
+        !this.isTodoClosed(row.status) &&
+        remainingDates.some((date) => date < todayIsoDate)
+      ) {
+        overdueCount += 1;
+      }
+
+      if (
+        !this.isTodoClosed(row.status) &&
+        (row.frequency === 'WEEKLY' || row.frequency === 'MONTHLY')
+      ) {
+        const targetAmount = Number(row.price);
+        const remainingAmount = Number(row.remainingAmount ?? row.price);
+        const usedAmount = Math.max(targetAmount - remainingAmount, 0);
+        const remainingOccurrenceCount = remainingDates.length;
+
+        if (remainingAmount > 0) {
+          reserveItems.push({
+            id: row.id,
+            name: row.name,
+            frequency: row.frequency,
+            targetAmount: this.roundCurrency(targetAmount),
+            usedAmount: this.roundCurrency(usedAmount),
+            remainingAmount: this.roundCurrency(remainingAmount),
+            remainingOccurrenceCount,
+          });
+        }
+      }
+
+      if (this.isTodoClosed(row.status) || remainingDates.length === 0) {
+        continue;
+      }
+
+      const amountPerOccurrence = this.resolveUpcomingOccurrenceAmount(
+        row,
+        remainingDates,
+      );
+
+      for (const date of remainingDates) {
+        const day = dayMap.get(date);
+
+        if (!day) {
+          continue;
+        }
+
+        day.items.push({
+          id: row.id,
+          name: row.name,
+          frequency: row.frequency,
+          amount: amountPerOccurrence,
+        });
+        day.itemCount += 1;
+        day.totalAmount += amountPerOccurrence;
+      }
+    }
+
+    reserveItems.sort(
+      (left, right) =>
+        right.remainingOccurrenceCount - left.remainingOccurrenceCount ||
+        right.remainingAmount - left.remainingAmount,
+    );
+
+    const days = windowDates.map((date) => {
+      const day = dayMap.get(date)!;
+      day.items.sort(
+        (left, right) =>
+          right.amount - left.amount ||
+          left.name.localeCompare(right.name, 'en'),
+      );
+
+      return {
+        date,
+        itemCount: day.itemCount,
+        totalAmount: this.roundCurrency(day.totalAmount),
+        items: day.items.map((item) => ({
+          ...item,
+          amount: this.roundCurrency(item.amount),
+        })),
+      };
+    });
+
+    return {
+      windowDays,
+      days,
+      daysWithPlans: days.filter((day) => day.itemCount > 0).length,
+      occurrenceCount: days.reduce((sum, day) => sum + day.itemCount, 0),
+      totalScheduledAmount: this.roundCurrency(
+        days.reduce((sum, day) => sum + day.totalAmount, 0),
+      ),
+      overdueCount,
+      reserveSummary: {
+        items: reserveItems,
+        targetAmount: this.roundCurrency(
+          reserveItems.reduce((sum, item) => sum + item.targetAmount, 0),
+        ),
+        usedAmount: this.roundCurrency(
+          reserveItems.reduce((sum, item) => sum + item.usedAmount, 0),
+        ),
+        remainingAmount: this.roundCurrency(
+          reserveItems.reduce((sum, item) => sum + item.remainingAmount, 0),
+        ),
+      },
+    };
   }
 
   async getCurrentUserTodo(
@@ -113,7 +398,7 @@ export class TodosService {
       name: payload.name,
       price,
       priority: payload.priority,
-      done: payload.done,
+      status: this.resolveInitialTodoStatus(payload.status),
       frequency: schedule.frequency,
       startDate: schedule.startDate,
       endDate: schedule.endDate,
@@ -211,7 +496,6 @@ export class TodosService {
 
     let nextRecordedOccurrenceDates = [...todo.recordedOccurrenceDates];
     let nextRemainingAmount = todo.remainingAmount;
-    let nextDone = true;
 
     if (todo.frequency !== TodoFrequency.ONCE) {
       if (nextRemainingAmount === null) {
@@ -239,20 +523,20 @@ export class TodosService {
       nextRemainingAmount = this.clampDecimalToZero(
         nextRemainingAmount.minus(chargedAmount),
       );
-
-      const remainingOccurrencesCount = todo.occurrenceDates.filter(
-        (date) => !nextRecordedOccurrenceDates.includes(date),
-      ).length;
-      nextDone =
-        nextRemainingAmount.lessThanOrEqualTo(0) ||
-        remainingOccurrencesCount === 0;
     }
+
+    const nextStatus = this.resolveRecordedTodoStatus({
+      frequency: todo.frequency,
+      remainingAmount: nextRemainingAmount,
+      recordedOccurrenceDates: nextRecordedOccurrenceDates,
+      occurrenceDates: todo.occurrenceDates,
+    });
 
     return this.prisma.$transaction(async (tx) => {
       await this.todosRepository.update(
         todo.id,
         {
-          done: nextDone,
+          status: nextStatus,
           recordedOccurrenceDates:
             todo.frequency === TodoFrequency.ONCE
               ? undefined
@@ -294,7 +578,7 @@ export class TodosService {
       payload.name === undefined &&
       payload.price === undefined &&
       payload.priority === undefined &&
-      payload.done === undefined &&
+      payload.status === undefined &&
       payload.frequency === undefined &&
       payload.startDate === undefined &&
       payload.endDate === undefined &&
@@ -389,6 +673,10 @@ export class TodosService {
         ? null
         : this.clampDecimalToZero(nextPrice.minus(spentSoFar));
 
+    const hadRecordingMutation =
+      payload.deductAmount !== undefined ||
+      payload.recordedOccurrenceDate !== undefined;
+
     if (
       payload.deductAmount !== undefined ||
       payload.recordedOccurrenceDate !== undefined
@@ -437,17 +725,21 @@ export class TodosService {
       );
     }
 
-    const remainingOccurrencesCount =
-      nextSchedule.frequency === TodoFrequency.ONCE
-        ? 0
-        : nextSchedule.occurrenceDates.filter(
-            (date) => !nextRecordedOccurrenceDates.includes(date),
-          ).length;
-    const autoDone =
-      nextSchedule.frequency !== TodoFrequency.ONCE &&
-      (nextRemainingAmount?.lessThanOrEqualTo(0) === true ||
-        remainingOccurrencesCount === 0);
-    const nextDone = autoDone ? true : (payload.done ?? todo.done);
+    const nextStatus = this.resolveNextTodoStatus({
+      currentStatus: todo.status,
+      explicitStatus: payload.status,
+      frequency: nextSchedule.frequency,
+      remainingAmount: nextRemainingAmount,
+      recordedOccurrenceDates:
+        nextSchedule.frequency === TodoFrequency.ONCE
+          ? []
+          : nextRecordedOccurrenceDates,
+      occurrenceDates:
+        nextSchedule.frequency === TodoFrequency.ONCE
+          ? []
+          : nextSchedule.occurrenceDates,
+      wasRecordingMutation: hadRecordingMutation,
+    });
 
     try {
       await this.prisma.$transaction(async (tx) => {
@@ -460,7 +752,7 @@ export class TodosService {
                 ? undefined
                 : new Prisma.Decimal(payload.price),
             priority: payload.priority,
-            done: nextDone,
+            status: nextStatus,
             frequency: nextSchedule.frequency,
             startDate: nextSchedule.startDate,
             endDate: nextSchedule.endDate,
@@ -760,6 +1052,92 @@ export class TodosService {
     return value.lessThanOrEqualTo(0) ? new Prisma.Decimal(0) : value;
   }
 
+  private resolveInitialTodoStatus(status?: TodoStatus): TodoStatus {
+    return status ?? TodoStatus.ACTIVE;
+  }
+
+  private resolveRecordedTodoStatus(input: {
+    frequency: TodoFrequency;
+    remainingAmount: Prisma.Decimal | null;
+    recordedOccurrenceDates: string[];
+    occurrenceDates: string[];
+  }): TodoStatus {
+    if (input.frequency === TodoFrequency.ONCE) {
+      return TodoStatus.RECORDED;
+    }
+
+    const remainingOccurrencesCount = input.occurrenceDates.filter(
+      (date) => !input.recordedOccurrenceDates.includes(date),
+    ).length;
+
+    if (
+      input.remainingAmount?.lessThanOrEqualTo(0) === true ||
+      remainingOccurrencesCount === 0
+    ) {
+      return TodoStatus.COMPLETED;
+    }
+
+    return TodoStatus.RECORDED;
+  }
+
+  private resolveNextTodoStatus(input: {
+    currentStatus: TodoStatus;
+    explicitStatus?: TodoStatus;
+    frequency: TodoFrequency;
+    remainingAmount: Prisma.Decimal | null;
+    recordedOccurrenceDates: string[];
+    occurrenceDates: string[];
+    wasRecordingMutation: boolean;
+  }): TodoStatus {
+    if (input.wasRecordingMutation) {
+      return this.resolveRecordedTodoStatus({
+        frequency: input.frequency,
+        remainingAmount: input.remainingAmount,
+        recordedOccurrenceDates: input.recordedOccurrenceDates,
+        occurrenceDates: input.occurrenceDates,
+      });
+    }
+
+    const nextBaseStatus = input.explicitStatus ?? input.currentStatus;
+
+    if (
+      nextBaseStatus === TodoStatus.SKIPPED ||
+      nextBaseStatus === TodoStatus.ARCHIVED
+    ) {
+      return nextBaseStatus;
+    }
+
+    if (input.frequency === TodoFrequency.ONCE) {
+      return nextBaseStatus;
+    }
+
+    const hasRecordedOccurrences = input.recordedOccurrenceDates.length > 0;
+    const remainingOccurrencesCount = input.occurrenceDates.filter(
+      (date) => !input.recordedOccurrenceDates.includes(date),
+    ).length;
+    const isAutoCompleted =
+      input.remainingAmount?.lessThanOrEqualTo(0) === true ||
+      remainingOccurrencesCount === 0;
+
+    if (isAutoCompleted) {
+      return TodoStatus.COMPLETED;
+    }
+
+    if (input.explicitStatus === TodoStatus.COMPLETED) {
+      return TodoStatus.COMPLETED;
+    }
+
+    if (input.explicitStatus === TodoStatus.ACTIVE) {
+      return TodoStatus.ACTIVE;
+    }
+
+    if (input.explicitStatus === TodoStatus.RECORDED) {
+      return hasRecordedOccurrences ? TodoStatus.RECORDED : TodoStatus.ACTIVE;
+    }
+
+    return hasRecordedOccurrences ? TodoStatus.RECORDED : TodoStatus.ACTIVE;
+  }
+
   private computeEndDate(startDate: Date, frequency: TodoFrequency): Date {
     switch (frequency) {
       case TodoFrequency.WEEKLY:
@@ -830,6 +1208,103 @@ export class TodosService {
     const day = String(now.getDate()).padStart(2, '0');
 
     return `${year}-${month}-${day}`;
+  }
+
+  private async listSummaryRowsForUser(
+    userId: string,
+    query: Pick<
+      ListTodosQueryDto,
+      'frequency' | 'priority' | 'status' | 'search' | 'dateFrom' | 'dateTo'
+    >,
+  ): Promise<TodoSummaryRow[]> {
+    await this.usersService.findActiveByIdOrThrow(userId);
+    const visibleUserIds =
+      await this.partnershipsService.getVisibleUserIds(userId);
+    const dateRange = resolveListDateRange(query);
+
+    return this.todosRepository.findSummaryRowsByUserIds(visibleUserIds, {
+      frequency: query.frequency,
+      priority: query.priority,
+      status: query.status,
+      search: normalizeListSearch(query.search),
+      occurrenceDates: dateRange?.isoDates,
+    });
+  }
+
+  private computeScheduledWindowTotal(
+    rows: TodoSummaryRow[],
+    windowDays: number,
+  ): number {
+    const today = this.parseDateOnly(this.getTodayDateString());
+    const windowEnd = this.toIsoDate(this.addDays(today, windowDays - 1));
+    const todayIsoDate = this.toIsoDate(today);
+    let total = 0;
+
+    for (const row of rows) {
+      if (this.isTodoClosed(row.status)) {
+        continue;
+      }
+
+      const remainingDates = this.getRemainingOccurrenceDates(row);
+      if (remainingDates.length === 0) {
+        continue;
+      }
+
+      const matchingOccurrenceCount = remainingDates.filter(
+        (date) => date >= todayIsoDate && date <= windowEnd,
+      ).length;
+
+      if (matchingOccurrenceCount === 0) {
+        continue;
+      }
+
+      total +=
+        this.resolveUpcomingOccurrenceAmount(row, remainingDates) *
+        matchingOccurrenceCount;
+    }
+
+    return this.roundCurrency(total);
+  }
+
+  private getRemainingOccurrenceDates(row: TodoSummaryRow): string[] {
+    return row.occurrenceDates.filter(
+      (date) => !row.recordedOccurrenceDates.includes(date),
+    );
+  }
+
+  private resolveUpcomingOccurrenceAmount(
+    row: TodoSummaryRow,
+    remainingDates: string[],
+  ): number {
+    if (row.frequency === 'ONCE') {
+      return Number(row.price);
+    }
+
+    const remainingAmount = Number(row.remainingAmount ?? row.price);
+    if (remainingDates.length === 0) {
+      return this.roundCurrency(remainingAmount);
+    }
+
+    return this.roundCurrency(remainingAmount / remainingDates.length);
+  }
+
+  private hasOverdueOccurrence(
+    row: TodoSummaryRow,
+    todayIsoDate: string,
+  ): boolean {
+    return this.getRemainingOccurrenceDates(row).some(
+      (date) => date < todayIsoDate,
+    );
+  }
+
+  private isTodoClosed(status: TodoStatus): boolean {
+    return (
+      status === 'COMPLETED' || status === 'SKIPPED' || status === 'ARCHIVED'
+    );
+  }
+
+  private roundCurrency(value: number): number {
+    return Number(value.toFixed(2));
   }
 
   private async findOwnedTodoOrThrow(
