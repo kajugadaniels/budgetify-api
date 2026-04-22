@@ -19,7 +19,9 @@ import {
 import { TodoFrequency, TodoPriority, TodoStatus } from '@prisma/client';
 
 import { ApiErrorResponseDto } from '../../common/dto/api-error-response.dto';
+import { CreateTodoExpenseRequestDto } from './dto/create-todo-expense.request.dto';
 import { PaginatedTodoResponseDto } from './dto/paginated-todo.response.dto';
+import { TodoRecordingResponseDto } from './dto/todo-recording.response.dto';
 import { TodoResponseDto } from './dto/todo-response.dto';
 import { TodoSummaryResponseDto } from './dto/todo-summary.response.dto';
 import { TodoUpcomingResponseDto } from './dto/todo-upcoming.response.dto';
@@ -422,6 +424,45 @@ export function ApiCreateCurrentUserTodoEndpoint(): MethodDecorator {
     ApiTooManyRequestsResponse({
       description:
         'Too many todo write requests were sent in a short time. Wait about 15 seconds before trying again.',
+      type: ApiErrorResponseDto,
+    }),
+  );
+}
+
+export function ApiCreateCurrentUserTodoExpenseEndpoint(): MethodDecorator {
+  return applyDecorators(
+    ApiBearerAuth('access-token'),
+    ApiOperation({
+      summary: 'Record a todo directly as an expense',
+      description:
+        'Creates the expense and its todo recording in one database transaction. Mobile money charges are calculated from the configured tariff table, the recorded occurrence is validated against the todo schedule, recurring remaining budget is deducted by the charged total, and the recording stores planned-versus-actual variance for later audit reporting.',
+    }),
+    ApiParam({
+      name: 'todoId',
+      description: 'UUID of the todo item being recorded as an expense.',
+      format: 'uuid',
+    }),
+    ApiBody({ type: CreateTodoExpenseRequestDto }),
+    ApiCreatedResponse({
+      description: 'Todo expense recorded successfully.',
+      type: TodoRecordingResponseDto,
+    }),
+    ApiBadRequestResponse({
+      description:
+        'Request validation failed, the occurrence was already recorded, or the charged amount exceeds the recurring todo budget.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiUnauthorizedResponse({
+      description: 'Access token is missing, invalid, or expired.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiForbiddenResponse({
+      description:
+        'Authenticated user account is not allowed to record todo expenses.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiNotFoundResponse({
+      description: 'The requested todo item does not exist.',
       type: ApiErrorResponseDto,
     }),
   );
