@@ -1,6 +1,5 @@
 import { Body, Controller, Get, Patch, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { Throttle } from '@nestjs/throttler';
 
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrencyService } from './currency.service';
@@ -25,7 +24,6 @@ export class CurrencyController {
   }
 
   @Patch(CURRENCY_ROUTES.exchangeRate)
-  @Throttle({ write: { limit: 1, ttl: 15_000, blockDuration: 15_000 } })
   @ApiUpdateExchangeRateEndpoint()
   updateExchangeRate(
     @Body() body: UpdateExchangeRateRequestDto,
