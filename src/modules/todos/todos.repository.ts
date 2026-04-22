@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma, TodoFrequency, TodoImage } from '@prisma/client';
+import { Prisma, TodoFrequency, TodoImage, TodoStatus } from '@prisma/client';
 
 import {
   PaginatedResponse,
@@ -30,6 +30,24 @@ const TODO_RECORDING_INCLUDE = {
   expense: { select: TODO_RECORDING_EXPENSE_SELECT },
 } satisfies Prisma.TodoRecordingInclude;
 
+const TODO_SUMMARY_ROW_SELECT = {
+  id: true,
+  name: true,
+  price: true,
+  priority: true,
+  status: true,
+  frequency: true,
+  occurrenceDates: true,
+  recordedOccurrenceDates: true,
+  remainingAmount: true,
+  createdAt: true,
+  images: {
+    where: { deletedAt: null },
+    select: { id: true },
+    take: 1,
+  },
+} satisfies Prisma.TodoSelect;
+
 export const activeTodoInclude = {
   images: {
     where: { deletedAt: null },
@@ -59,6 +77,19 @@ export type TodoRecordingWithRelations = Prisma.TodoRecordingGetPayload<{
   include: typeof TODO_RECORDING_INCLUDE;
 }>;
 
+type TodoSummaryRowRaw = Prisma.TodoGetPayload<{
+  select: typeof TODO_SUMMARY_ROW_SELECT;
+}>;
+
+export type TodoSummaryRow = Omit<TodoSummaryRowRaw, 'images'> & {
+  hasActiveImage: boolean;
+};
+
+export type TodoRecordingAggregate = {
+  totalCount: number;
+  totalChargedAmount: Prisma.Decimal;
+};
+
 @Injectable()
 export class TodosRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -68,7 +99,7 @@ export class TodosRepository {
     options?: {
       frequency?: TodoFrequency;
       priority?: Prisma.TodoWhereInput['priority'];
-      done?: boolean;
+      status?: TodoStatus;
       search?: string;
       occurrenceDates?: string[];
       skip?: number;
@@ -78,46 +109,7 @@ export class TodosRepository {
     },
     db: PrismaExecutor = this.prisma,
   ): Promise<PaginatedResponse<TodoWithImages>> {
-    const frequencyWhere =
-      options?.frequency === TodoFrequency.ONCE
-        ? {
-            OR: [
-              { frequency: TodoFrequency.ONCE },
-              {
-                // Older one-time todos may exist without a stored schedule shape.
-                AND: [
-                  { startDate: null },
-                  { endDate: null },
-                  { frequencyDays: { isEmpty: true } },
-                  { occurrenceDates: { isEmpty: true } },
-                ],
-              },
-            ],
-          }
-        : options?.frequency !== undefined
-          ? { frequency: options.frequency }
-          : undefined;
-
-    const where: Prisma.TodoWhereInput = {
-      userId: { in: userIds },
-      deletedAt: null,
-      ...(frequencyWhere ?? {}),
-      priority: options?.priority,
-      done: options?.done,
-      name:
-        options?.search !== undefined
-          ? {
-              contains: options.search,
-              mode: 'insensitive',
-            }
-          : undefined,
-      occurrenceDates:
-        options?.occurrenceDates && options.occurrenceDates.length > 0
-          ? {
-              hasSome: options.occurrenceDates,
-            }
-          : undefined,
-    };
+    const where = this.buildWhere(userIds, options);
 
     const [items, totalItems] = await Promise.all([
       db.todo.findMany({
@@ -134,6 +126,53 @@ export class TodosRepository {
       page: options?.page ?? 1,
       limit: options?.limit ?? Math.max(items.length, 1),
     });
+  }
+
+  async findSummaryRowsByUserIds(
+    userIds: string[],
+    options?: {
+      frequency?: TodoFrequency;
+      priority?: Prisma.TodoWhereInput['priority'];
+      status?: TodoStatus;
+      search?: string;
+      occurrenceDates?: string[];
+    },
+    db: PrismaExecutor = this.prisma,
+  ): Promise<TodoSummaryRow[]> {
+    const items = await db.todo.findMany({
+      where: this.buildWhere(userIds, options),
+      select: TODO_SUMMARY_ROW_SELECT,
+      orderBy: [{ createdAt: 'desc' }],
+    });
+
+    return items.map((item) => ({
+      ...item,
+      hasActiveImage: item.images.length > 0,
+    }));
+  }
+
+  async aggregateRecordingsByTodoIds(
+    todoIds: string[],
+    db: PrismaExecutor = this.prisma,
+  ): Promise<TodoRecordingAggregate> {
+    if (todoIds.length === 0) {
+      return {
+        totalCount: 0,
+        totalChargedAmount: new Prisma.Decimal(0),
+      };
+    }
+
+    const result = await db.todoRecording.aggregate({
+      where: { todoId: { in: todoIds } },
+      _count: { _all: true },
+      _sum: { totalChargedAmount: true },
+    });
+
+    return {
+      totalCount: result._count._all,
+      totalChargedAmount:
+        result._sum.totalChargedAmount ?? new Prisma.Decimal(0),
+    };
   }
 
   async findActiveByIdAndUserId(
@@ -293,5 +332,56 @@ export class TodosRepository {
         isPrimary: false,
       },
     });
+  }
+
+  private buildWhere(
+    userIds: string[],
+    options?: {
+      frequency?: TodoFrequency;
+      priority?: Prisma.TodoWhereInput['priority'];
+      status?: TodoStatus;
+      search?: string;
+      occurrenceDates?: string[];
+    },
+  ): Prisma.TodoWhereInput {
+    const frequencyWhere =
+      options?.frequency === TodoFrequency.ONCE
+        ? {
+            OR: [
+              { frequency: TodoFrequency.ONCE },
+              {
+                AND: [
+                  { startDate: null },
+                  { endDate: null },
+                  { frequencyDays: { isEmpty: true } },
+                  { occurrenceDates: { isEmpty: true } },
+                ],
+              },
+            ],
+          }
+        : options?.frequency !== undefined
+          ? { frequency: options.frequency }
+          : undefined;
+
+    return {
+      userId: { in: userIds },
+      deletedAt: null,
+      ...(frequencyWhere ?? {}),
+      priority: options?.priority,
+      status: options?.status,
+      name:
+        options?.search !== undefined
+          ? {
+              contains: options.search,
+              mode: 'insensitive',
+            }
+          : undefined,
+      occurrenceDates:
+        options?.occurrenceDates && options.occurrenceDates.length > 0
+          ? {
+              hasSome: options.occurrenceDates,
+            }
+          : undefined,
+    };
   }
 }
