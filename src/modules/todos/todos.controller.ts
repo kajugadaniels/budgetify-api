@@ -22,8 +22,10 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthenticatedRequestUser } from '../../common/interfaces/authenticated-request.interface';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CreateTodoRequestDto } from './dto/create-todo.request.dto';
+import { CreateTodoRecordingRequestDto } from './dto/create-todo-recording.request.dto';
 import { ListTodosQueryDto } from './dto/list-todos.query.dto';
 import { PaginatedTodoResponseDto } from './dto/paginated-todo.response.dto';
+import { TodoRecordingResponseDto } from './dto/todo-recording.response.dto';
 import { TodoResponseDto } from './dto/todo-response.dto';
 import { UpdateTodoRequestDto } from './dto/update-todo.request.dto';
 import { TodosMapper } from './mappers/todos.mapper';
@@ -98,6 +100,21 @@ export class TodosController {
     return TodosMapper.toTodoResponse(todo);
   }
 
+  @Get(TODOS_ROUTES.recordings)
+  async listCurrentUserTodoRecordings(
+    @CurrentUser() user: AuthenticatedRequestUser,
+    @Param('todoId', ParseUUIDPipe) todoId: string,
+  ): Promise<TodoRecordingResponseDto[]> {
+    const recordings = await this.todosService.listCurrentUserTodoRecordings(
+      user.userId,
+      todoId,
+    );
+
+    return recordings.map((recording) =>
+      TodosMapper.toTodoRecordingResponse(recording),
+    );
+  }
+
   @Post()
   @UseInterceptors(todoImagesInterceptor)
   @ApiCreateCurrentUserTodoEndpoint()
@@ -113,6 +130,21 @@ export class TodosController {
     );
 
     return TodosMapper.toTodoResponse(todo);
+  }
+
+  @Post(TODOS_ROUTES.recordings)
+  async createCurrentUserTodoRecording(
+    @CurrentUser() user: AuthenticatedRequestUser,
+    @Param('todoId', ParseUUIDPipe) todoId: string,
+    @Body() body: CreateTodoRecordingRequestDto,
+  ): Promise<TodoRecordingResponseDto> {
+    const recording = await this.todosService.recordCurrentUserTodoExpense(
+      user.userId,
+      todoId,
+      body,
+    );
+
+    return TodosMapper.toTodoRecordingResponse(recording);
   }
 
   @Patch(TODOS_ROUTES.byId)
