@@ -22,8 +22,20 @@ const USER_SELECT = {
   avatarUrl: true,
 } as const;
 
+const EXPENSE_TODO_RECORDING_INCLUDE = {
+  todo: {
+    select: {
+      id: true,
+      name: true,
+    },
+  },
+} satisfies Prisma.TodoRecordingInclude;
+
 export type ExpenseWithCreator = Prisma.ExpenseGetPayload<{
-  include: { user: { select: typeof USER_SELECT } };
+  include: {
+    user: { select: typeof USER_SELECT };
+    todoRecording: { include: typeof EXPENSE_TODO_RECORDING_INCLUDE };
+  };
 }>;
 
 export interface ExpenseSummaryAggregate {
@@ -103,7 +115,12 @@ export class ExpensesRepository {
     const [items, totalItems] = await Promise.all([
       db.expense.findMany({
         where,
-        include: { user: { select: USER_SELECT } },
+        include: {
+          user: { select: USER_SELECT },
+          todoRecording: {
+            include: EXPENSE_TODO_RECORDING_INCLUDE,
+          },
+        },
         orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
         skip: options?.skip,
         take: options?.take,
@@ -136,7 +153,12 @@ export class ExpensesRepository {
         userId: { in: userIds },
         deletedAt: null,
       },
-      include: { user: { select: USER_SELECT } },
+      include: {
+        user: { select: USER_SELECT },
+        todoRecording: {
+          include: EXPENSE_TODO_RECORDING_INCLUDE,
+        },
+      },
     });
   }
 
@@ -146,7 +168,12 @@ export class ExpensesRepository {
   ): Promise<ExpenseWithCreator> {
     return db.expense.create({
       data,
-      include: { user: { select: USER_SELECT } },
+      include: {
+        user: { select: USER_SELECT },
+        todoRecording: {
+          include: EXPENSE_TODO_RECORDING_INCLUDE,
+        },
+      },
     });
   }
 
@@ -158,7 +185,12 @@ export class ExpensesRepository {
     return db.expense.update({
       where: { id },
       data,
-      include: { user: { select: USER_SELECT } },
+      include: {
+        user: { select: USER_SELECT },
+        todoRecording: {
+          include: EXPENSE_TODO_RECORDING_INCLUDE,
+        },
+      },
     });
   }
 
