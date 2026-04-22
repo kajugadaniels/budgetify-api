@@ -424,31 +424,10 @@ export class ExpensesService {
     nextChargedAmountRwf: number,
     existingChargedAmountRwf = 0,
   ): Promise<void> {
-    const [incomeSummary, expenseSummary] = await Promise.all([
-      this.incomeService.summarizeCurrentUserIncome(userId, {}),
-      this.expensesRepository.summarizeByUserIds(visibleUserIds),
-    ]);
-    const availableMoneyAfterChargedExpensesRwf =
-      incomeSummary.availableMoneyNowRwf +
-      incomeSummary.totalExpensesRwf -
-      expenseSummary.totalChargedAmountRwf;
-    const maxAllowedChargedAmountRwf =
-      availableMoneyAfterChargedExpensesRwf + existingChargedAmountRwf;
-
-    if (nextChargedAmountRwf <= maxAllowedChargedAmountRwf) {
-      return;
-    }
-
-    const shortageRwf = nextChargedAmountRwf - maxAllowedChargedAmountRwf;
-
-    throw new BadRequestException(
-      `This expense exceeds available money by ${shortageRwf.toFixed(
-        2,
-      )} RWF. Available charged capacity is ${Math.max(
-        maxAllowedChargedAmountRwf,
-        0,
-      ).toFixed(2)} RWF.`,
-    );
+    void userId;
+    void visibleUserIds;
+    void nextChargedAmountRwf;
+    void existingChargedAmountRwf;
   }
 
   private toMobileMoneyTariffResponse(tariff: {
