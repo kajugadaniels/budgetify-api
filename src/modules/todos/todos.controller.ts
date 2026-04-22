@@ -17,7 +17,6 @@ import {
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { ApiTags } from '@nestjs/swagger';
-import { Throttle } from '@nestjs/throttler';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthenticatedRequestUser } from '../../common/interfaces/authenticated-request.interface';
@@ -101,7 +100,6 @@ export class TodosController {
 
   @Post()
   @UseInterceptors(todoImagesInterceptor)
-  @Throttle({ write: { limit: 1, ttl: 15_000, blockDuration: 15_000 } })
   @ApiCreateCurrentUserTodoEndpoint()
   async createCurrentUserTodo(
     @CurrentUser() user: AuthenticatedRequestUser,
@@ -119,7 +117,6 @@ export class TodosController {
 
   @Patch(TODOS_ROUTES.byId)
   @UseInterceptors(todoImagesInterceptor)
-  @Throttle({ write: { limit: 1, ttl: 15_000, blockDuration: 15_000 } })
   @ApiUpdateCurrentUserTodoEndpoint()
   async updateCurrentUserTodo(
     @CurrentUser() user: AuthenticatedRequestUser,
@@ -139,7 +136,6 @@ export class TodosController {
 
   @Delete(TODOS_ROUTES.byId)
   @HttpCode(HttpStatus.NO_CONTENT)
-  @Throttle({ write: { limit: 1, ttl: 15_000, blockDuration: 15_000 } })
   @ApiDeleteCurrentUserTodoEndpoint()
   async deleteCurrentUserTodo(
     @CurrentUser() user: AuthenticatedRequestUser,
@@ -149,7 +145,6 @@ export class TodosController {
   }
 
   @Delete(TODOS_ROUTES.imageById)
-  @Throttle({ write: { limit: 1, ttl: 15_000, blockDuration: 15_000 } })
   @ApiDeleteCurrentUserTodoImageEndpoint()
   async deleteCurrentUserTodoImage(
     @CurrentUser() user: AuthenticatedRequestUser,
