@@ -13,7 +13,6 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { Throttle } from '@nestjs/throttler';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthenticatedRequestUser } from '../../common/interfaces/authenticated-request.interface';
@@ -100,7 +99,6 @@ export class IncomeController {
   }
 
   @Post()
-  @Throttle({ write: { limit: 1, ttl: 15_000, blockDuration: 15_000 } })
   @ApiCreateCurrentUserIncomeEndpoint()
   async createCurrentUserIncome(
     @CurrentUser() user: AuthenticatedRequestUser,
@@ -115,7 +113,6 @@ export class IncomeController {
   }
 
   @Patch(INCOME_ROUTES.byId)
-  @Throttle({ write: { limit: 1, ttl: 15_000, blockDuration: 15_000 } })
   @ApiUpdateCurrentUserIncomeEndpoint()
   async updateCurrentUserIncome(
     @CurrentUser() user: AuthenticatedRequestUser,
@@ -133,7 +130,6 @@ export class IncomeController {
 
   @Delete(INCOME_ROUTES.byId)
   @HttpCode(HttpStatus.NO_CONTENT)
-  @Throttle({ write: { limit: 1, ttl: 15_000, blockDuration: 15_000 } })
   @ApiDeleteCurrentUserIncomeEndpoint()
   async deleteCurrentUserIncome(
     @CurrentUser() user: AuthenticatedRequestUser,
