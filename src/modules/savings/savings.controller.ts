@@ -13,7 +13,6 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { Throttle } from '@nestjs/throttler';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthenticatedRequestUser } from '../../common/interfaces/authenticated-request.interface';
@@ -62,7 +61,6 @@ export class SavingsController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @Throttle({ write: { limit: 1, ttl: 15_000, blockDuration: 15_000 } })
   @ApiCreateCurrentUserSavingEndpoint()
   async createCurrentUserSaving(
     @CurrentUser() user: AuthenticatedRequestUser,
@@ -77,7 +75,6 @@ export class SavingsController {
   }
 
   @Patch(SAVINGS_ROUTES.byId)
-  @Throttle({ write: { limit: 1, ttl: 15_000, blockDuration: 15_000 } })
   @ApiUpdateCurrentUserSavingEndpoint()
   async updateCurrentUserSaving(
     @CurrentUser() user: AuthenticatedRequestUser,
@@ -110,7 +107,6 @@ export class SavingsController {
 
   @Post(SAVINGS_ROUTES.deposits)
   @HttpCode(HttpStatus.CREATED)
-  @Throttle({ write: { limit: 1, ttl: 15_000, blockDuration: 15_000 } })
   @ApiCreateCurrentUserSavingDepositEndpoint()
   async createCurrentUserSavingDeposit(
     @CurrentUser() user: AuthenticatedRequestUser,
@@ -128,7 +124,6 @@ export class SavingsController {
 
   @Post(SAVINGS_ROUTES.withdrawals)
   @HttpCode(HttpStatus.CREATED)
-  @Throttle({ write: { limit: 1, ttl: 15_000, blockDuration: 15_000 } })
   @ApiCreateCurrentUserSavingWithdrawalEndpoint()
   async createCurrentUserSavingWithdrawal(
     @CurrentUser() user: AuthenticatedRequestUser,
@@ -146,7 +141,6 @@ export class SavingsController {
 
   @Post(SAVINGS_ROUTES.reverseDeposit)
   @HttpCode(HttpStatus.CREATED)
-  @Throttle({ write: { limit: 1, ttl: 15_000, blockDuration: 15_000 } })
   @ApiReverseCurrentUserSavingDepositEndpoint()
   async reverseCurrentUserSavingDeposit(
     @CurrentUser() user: AuthenticatedRequestUser,
@@ -164,7 +158,6 @@ export class SavingsController {
 
   @Delete(SAVINGS_ROUTES.byId)
   @HttpCode(HttpStatus.NO_CONTENT)
-  @Throttle({ write: { limit: 1, ttl: 15_000, blockDuration: 15_000 } })
   @ApiDeleteCurrentUserSavingEndpoint()
   async deleteCurrentUserSaving(
     @CurrentUser() user: AuthenticatedRequestUser,
