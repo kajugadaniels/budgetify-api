@@ -11,7 +11,6 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags } from '@nestjs/swagger';
-import { Throttle } from '@nestjs/throttler';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthenticatedRequestUser } from '../../common/interfaces/authenticated-request.interface';
@@ -73,7 +72,6 @@ export class UsersController {
 
   @Patch(USERS_ROUTES.avatar)
   @UseInterceptors(profileAvatarInterceptor)
-  @Throttle({ write: { limit: 1, ttl: 15_000, blockDuration: 15_000 } })
   @ApiUploadCurrentUserAvatarEndpoint()
   async uploadCurrentUserAvatar(
     @CurrentUser() user: AuthenticatedRequestUser,
