@@ -16,12 +16,26 @@ const USER_SELECT = {
   avatarUrl: true,
 } as const;
 
+const TODO_RECORDING_INCLUDE = {
+  recordedBy: { select: USER_SELECT },
+} satisfies Prisma.TodoRecordingInclude;
+
 export const activeTodoInclude = {
   images: {
     where: { deletedAt: null },
     orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
   },
   user: { select: USER_SELECT },
+  recordings: {
+    orderBy: [{ recordedAt: 'desc' }],
+    take: 5,
+    include: TODO_RECORDING_INCLUDE,
+  },
+  _count: {
+    select: {
+      recordings: true,
+    },
+  },
 } satisfies Prisma.TodoInclude;
 
 /** @deprecated Use activeTodoInclude */
@@ -29,6 +43,10 @@ export const activeTodoImagesInclude = activeTodoInclude;
 
 export type TodoWithImages = Prisma.TodoGetPayload<{
   include: typeof activeTodoInclude;
+}>;
+
+export type TodoRecordingWithRelations = Prisma.TodoRecordingGetPayload<{
+  include: typeof TODO_RECORDING_INCLUDE;
 }>;
 
 @Injectable()
@@ -167,6 +185,37 @@ export class TodosRepository {
     db: PrismaExecutor = this.prisma,
   ): Promise<TodoWithImages> {
     return db.todo.create({ data, include: activeTodoInclude });
+  }
+
+  async findRecordingByExpenseId(
+    expenseId: string,
+    db: PrismaExecutor = this.prisma,
+  ): Promise<TodoRecordingWithRelations | null> {
+    return db.todoRecording.findUnique({
+      where: { expenseId },
+      include: TODO_RECORDING_INCLUDE,
+    });
+  }
+
+  async findRecordingsByTodoId(
+    todoId: string,
+    db: PrismaExecutor = this.prisma,
+  ): Promise<TodoRecordingWithRelations[]> {
+    return db.todoRecording.findMany({
+      where: { todoId },
+      include: TODO_RECORDING_INCLUDE,
+      orderBy: [{ recordedAt: 'desc' }],
+    });
+  }
+
+  async createRecording(
+    data: Prisma.TodoRecordingUncheckedCreateInput,
+    db: PrismaExecutor = this.prisma,
+  ): Promise<TodoRecordingWithRelations> {
+    return db.todoRecording.create({
+      data,
+      include: TODO_RECORDING_INCLUDE,
+    });
   }
 
   async update(
