@@ -72,6 +72,16 @@ export class TodosMapper {
         lastName: recording.recordedBy.lastName,
         avatarUrl: recording.recordedBy.avatarUrl,
       },
+      expense: recording.expense
+        ? {
+            id: recording.expense.id,
+            label: recording.expense.label,
+            category: recording.expense.category,
+            date: recording.expense.date,
+            totalAmountRwf: Number(recording.expense.totalAmountRwf),
+            feeAmountRwf: Number(recording.expense.feeAmountRwf),
+          }
+        : null,
     };
   }
 
