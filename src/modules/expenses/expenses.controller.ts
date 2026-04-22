@@ -13,7 +13,6 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { Throttle } from '@nestjs/throttler';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthenticatedRequestUser } from '../../common/interfaces/authenticated-request.interface';
@@ -113,7 +112,6 @@ export class ExpensesController {
   }
 
   @Patch(EXPENSES_ROUTES.mobileMoneyTariffById)
-  @Throttle({ write: { limit: 1, ttl: 15_000, blockDuration: 15_000 } })
   async updateCurrentUserMobileMoneyTariff(
     @CurrentUser() user: AuthenticatedRequestUser,
     @Param('tariffId', ParseUUIDPipe) tariffId: string,
@@ -128,7 +126,6 @@ export class ExpensesController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @Throttle({ write: { limit: 1, ttl: 15_000, blockDuration: 15_000 } })
   @ApiCreateCurrentUserExpenseEndpoint()
   async createCurrentUserExpense(
     @CurrentUser() user: AuthenticatedRequestUser,
@@ -143,7 +140,6 @@ export class ExpensesController {
   }
 
   @Patch(EXPENSES_ROUTES.byId)
-  @Throttle({ write: { limit: 1, ttl: 15_000, blockDuration: 15_000 } })
   @ApiUpdateCurrentUserExpenseEndpoint()
   async updateCurrentUserExpense(
     @CurrentUser() user: AuthenticatedRequestUser,
@@ -161,7 +157,6 @@ export class ExpensesController {
 
   @Delete(EXPENSES_ROUTES.byId)
   @HttpCode(HttpStatus.NO_CONTENT)
-  @Throttle({ write: { limit: 1, ttl: 15_000, blockDuration: 15_000 } })
   @ApiDeleteCurrentUserExpenseEndpoint()
   async deleteCurrentUserExpense(
     @CurrentUser() user: AuthenticatedRequestUser,
