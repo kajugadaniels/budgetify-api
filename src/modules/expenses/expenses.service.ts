@@ -300,6 +300,14 @@ export class ExpensesService {
     });
   }
 
+  async getCurrentUserExpense(
+    userId: string,
+    expenseId: string,
+  ): Promise<ExpenseWithCreator> {
+    await this.usersService.findActiveByIdOrThrow(userId);
+    return this.findVisibleExpenseOrThrow(userId, expenseId);
+  }
+
   async updateCurrentUserExpense(
     userId: string,
     expenseId: string,
