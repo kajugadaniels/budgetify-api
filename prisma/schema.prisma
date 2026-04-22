@@ -59,6 +59,14 @@ enum TodoFrequency {
   YEARLY
 }
 
+enum TodoStatus {
+  ACTIVE
+  RECORDED
+  COMPLETED
+  SKIPPED
+  ARCHIVED
+}
+
 enum PartnershipStatus {
   PENDING
   ACCEPTED
@@ -412,7 +420,7 @@ model Todo {
   name                   String
   price                  Decimal       @db.Decimal(15, 2)
   priority               TodoPriority
-  done                   Boolean       @default(false)
+  status                 TodoStatus    @default(ACTIVE)
   frequency              TodoFrequency @default(ONCE)
   startDate              DateTime?     @db.Date
   endDate                DateTime?     @db.Date
@@ -431,7 +439,7 @@ model Todo {
   @@index([deletedAt])
   @@index([createdAt])
   @@index([userId, priority])
-  @@index([userId, done])
+  @@index([userId, status])
   @@index([userId, frequency])
 }
 
