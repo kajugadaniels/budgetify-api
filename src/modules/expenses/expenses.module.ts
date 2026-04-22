@@ -26,6 +26,6 @@ import { MobileMoneyTariffService } from './mobile-money-tariff.service';
     MobileMoneyTariffService,
     JwtAuthGuard,
   ],
-  exports: [ExpensesService, ExpensesRepository],
+  exports: [ExpensesService, ExpensesRepository, MobileMoneyTariffService],
 })
 export class ExpensesModule {}
