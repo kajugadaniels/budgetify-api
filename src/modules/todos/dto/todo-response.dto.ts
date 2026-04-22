@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { TodoFrequency, TodoPriority } from '@prisma/client';
+import { TodoFrequency, TodoPriority, TodoStatus } from '@prisma/client';
 
 import { CreatedByResponseDto } from '../../../common/dto/created-by.response.dto';
 import { TodoImageResponseDto } from './todo-image-response.dto';
@@ -22,10 +22,11 @@ export class TodoResponseDto {
   priority!: TodoPriority;
 
   @ApiProperty({
-    example: false,
-    description: 'Whether the todo item has already been completed.',
+    enum: TodoStatus,
+    example: TodoStatus.ACTIVE,
+    description: 'Current lifecycle status of the todo item.',
   })
-  done!: boolean;
+  status!: TodoStatus;
 
   @ApiProperty({
     enum: TodoFrequency,
