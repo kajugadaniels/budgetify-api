@@ -3,8 +3,12 @@ import { TodoImage } from '@prisma/client';
 import { PaginatedResponse } from '../../../common/interfaces/paginated-response.interface';
 import { PaginatedTodoResponseDto } from '../dto/paginated-todo.response.dto';
 import { TodoImageResponseDto } from '../dto/todo-image-response.dto';
+import { TodoRecordingResponseDto } from '../dto/todo-recording.response.dto';
 import { TodoResponseDto } from '../dto/todo-response.dto';
-import { TodoWithImages } from '../todos.repository';
+import {
+  TodoRecordingWithRelations,
+  TodoWithImages,
+} from '../todos.repository';
 
 export class TodosMapper {
   static toTodoResponse(todo: TodoWithImages): TodoResponseDto {
@@ -27,6 +31,10 @@ export class TodosMapper {
       recordedOccurrenceDates: todo.recordedOccurrenceDates,
       remainingAmount:
         todo.remainingAmount !== null ? Number(todo.remainingAmount) : null,
+      recordingCount: todo._count.recordings,
+      recordings: todo.recordings.map((recording) =>
+        TodosMapper.toTodoRecordingResponse(recording),
+      ),
       coverImageUrl: coverImage?.imageUrl ?? null,
       imageCount: todo.images.length,
       images: todo.images.map((image) =>
@@ -39,6 +47,30 @@ export class TodosMapper {
         firstName: todo.user.firstName,
         lastName: todo.user.lastName,
         avatarUrl: todo.user.avatarUrl,
+      },
+    };
+  }
+
+  static toTodoRecordingResponse(
+    recording: TodoRecordingWithRelations,
+  ): TodoRecordingResponseDto {
+    return {
+      id: recording.id,
+      todoId: recording.todoId,
+      expenseId: recording.expenseId,
+      occurrenceDate: recording.occurrenceDate.toISOString().slice(0, 10),
+      baseAmount: Number(recording.baseAmount),
+      feeAmount: Number(recording.feeAmount),
+      totalChargedAmount: Number(recording.totalChargedAmount),
+      paymentMethod: recording.paymentMethod,
+      mobileMoneyChannel: recording.mobileMoneyChannel,
+      mobileMoneyNetwork: recording.mobileMoneyNetwork,
+      recordedAt: recording.recordedAt,
+      recordedBy: {
+        id: recording.recordedBy.id,
+        firstName: recording.recordedBy.firstName,
+        lastName: recording.recordedBy.lastName,
+        avatarUrl: recording.recordedBy.avatarUrl,
       },
     };
   }
