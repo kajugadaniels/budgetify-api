@@ -16,11 +16,13 @@ import {
   ApiTooManyRequestsResponse,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
-import { TodoFrequency, TodoPriority } from '@prisma/client';
+import { TodoFrequency, TodoPriority, TodoStatus } from '@prisma/client';
 
 import { ApiErrorResponseDto } from '../../common/dto/api-error-response.dto';
 import { PaginatedTodoResponseDto } from './dto/paginated-todo.response.dto';
 import { TodoResponseDto } from './dto/todo-response.dto';
+import { TodoSummaryResponseDto } from './dto/todo-summary.response.dto';
+import { TodoUpcomingResponseDto } from './dto/todo-upcoming.response.dto';
 
 function createTodoMultipartSchema(
   requiredImages: boolean,
@@ -45,10 +47,11 @@ function createTodoMultipartSchema(
         enum: Object.values(TodoPriority),
         example: TodoPriority.TOP_PRIORITY,
       },
-      done: {
-        type: 'boolean',
-        example: false,
-        default: false,
+      status: {
+        type: 'string',
+        enum: Object.values(TodoStatus),
+        example: TodoStatus.ACTIVE,
+        default: TodoStatus.ACTIVE,
       },
       frequency: {
         type: 'string',
@@ -123,7 +126,7 @@ export function ApiListCurrentUserTodosEndpoint(): MethodDecorator {
     ApiOperation({
       summary: 'List current user todo items',
       description:
-        'Returns paginated non-deleted todo items owned by the authenticated user. Each todo response includes its active images, the primary cover image URL, and the stored priority level. Text search matches the todo name when at least 3 characters are provided. Frequency filtering supports ONCE, WEEKLY, MONTHLY, and YEARLY. dateFrom/dateTo filters are applied against the todo schedule occurrence dates, not createdAt.',
+        'Returns paginated non-deleted todo items owned by the authenticated user. Each todo response includes its active images, the primary cover image URL, and the stored lifecycle status. Text search matches the todo name when at least 3 characters are provided. Frequency filtering supports ONCE, WEEKLY, MONTHLY, and YEARLY. dateFrom/dateTo filters are applied against the todo schedule occurrence dates, not createdAt.',
     }),
     ApiQuery({
       name: 'frequency',
@@ -141,11 +144,11 @@ export function ApiListCurrentUserTodosEndpoint(): MethodDecorator {
       description: 'Optional todo priority filter.',
     }),
     ApiQuery({
-      name: 'done',
+      name: 'status',
       required: false,
-      type: Boolean,
-      example: false,
-      description: 'Optional done-state filter.',
+      enum: TodoStatus,
+      example: TodoStatus.ACTIVE,
+      description: 'Optional lifecycle status filter.',
     }),
     ApiQuery({
       name: 'search',
@@ -235,6 +238,152 @@ export function ApiGetCurrentUserTodoEndpoint(): MethodDecorator {
   );
 }
 
+export function ApiSummarizeCurrentUserTodosEndpoint(): MethodDecorator {
+  return applyDecorators(
+    ApiBearerAuth('access-token'),
+    ApiOperation({
+      summary: 'Summarize current user todo items',
+      description:
+        'Returns high-level todo planning metrics for the authenticated user across the currently visible todo set. The summary respects the same frequency, priority, status, search, and occurrence date filters as the main todo listing, but does not paginate.',
+    }),
+    ApiQuery({
+      name: 'frequency',
+      required: false,
+      enum: TodoFrequency,
+      example: TodoFrequency.ONCE,
+      description: 'Optional todo frequency filter.',
+    }),
+    ApiQuery({
+      name: 'priority',
+      required: false,
+      type: String,
+      example: 'TOP_PRIORITY',
+      description: 'Optional todo priority filter.',
+    }),
+    ApiQuery({
+      name: 'status',
+      required: false,
+      enum: TodoStatus,
+      example: TodoStatus.ACTIVE,
+      description: 'Optional lifecycle status filter.',
+    }),
+    ApiQuery({
+      name: 'search',
+      required: false,
+      type: String,
+      example: 'insurance',
+      description:
+        'Optional text search applied when at least 3 characters are provided. Matches the todo name.',
+    }),
+    ApiQuery({
+      name: 'dateFrom',
+      required: false,
+      type: String,
+      example: '2026-04-01',
+      description:
+        'Optional inclusive start date filter applied against scheduled occurrence dates.',
+    }),
+    ApiQuery({
+      name: 'dateTo',
+      required: false,
+      type: String,
+      example: '2026-04-30',
+      description:
+        'Optional inclusive end date filter applied against scheduled occurrence dates.',
+    }),
+    ApiOkResponse({
+      description: 'Todo summary retrieved successfully.',
+      type: TodoSummaryResponseDto,
+    }),
+    ApiUnauthorizedResponse({
+      description: 'Access token is missing, invalid, or expired.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiForbiddenResponse({
+      description:
+        'Authenticated user account is not allowed to access todo items.',
+      type: ApiErrorResponseDto,
+    }),
+  );
+}
+
+export function ApiListCurrentUserTodoUpcomingEndpoint(): MethodDecorator {
+  return applyDecorators(
+    ApiBearerAuth('access-token'),
+    ApiOperation({
+      summary: 'Plan upcoming todo commitments',
+      description:
+        'Returns the next upcoming todo occurrence buckets together with recurring reserve guidance for the authenticated user. The planning view respects the same todo filters as the list endpoint and groups still-open occurrence dates starting from today.',
+    }),
+    ApiQuery({
+      name: 'frequency',
+      required: false,
+      enum: TodoFrequency,
+      example: TodoFrequency.MONTHLY,
+      description: 'Optional todo frequency filter.',
+    }),
+    ApiQuery({
+      name: 'priority',
+      required: false,
+      type: String,
+      example: 'TOP_PRIORITY',
+      description: 'Optional todo priority filter.',
+    }),
+    ApiQuery({
+      name: 'status',
+      required: false,
+      enum: TodoStatus,
+      example: TodoStatus.ACTIVE,
+      description: 'Optional lifecycle status filter.',
+    }),
+    ApiQuery({
+      name: 'search',
+      required: false,
+      type: String,
+      example: 'fees',
+      description:
+        'Optional text search applied when at least 3 characters are provided. Matches the todo name.',
+    }),
+    ApiQuery({
+      name: 'dateFrom',
+      required: false,
+      type: String,
+      example: '2026-04-01',
+      description:
+        'Optional inclusive start date filter applied against scheduled occurrence dates.',
+    }),
+    ApiQuery({
+      name: 'dateTo',
+      required: false,
+      type: String,
+      example: '2026-04-30',
+      description:
+        'Optional inclusive end date filter applied against scheduled occurrence dates.',
+    }),
+    ApiQuery({
+      name: 'days',
+      required: false,
+      type: Number,
+      example: 7,
+      description:
+        'How many upcoming calendar days to include starting from today. Defaults to 7.',
+    }),
+    ApiOkResponse({
+      description: 'Upcoming todo planning data retrieved successfully.',
+      type: TodoUpcomingResponseDto,
+    }),
+    ApiUnauthorizedResponse({
+      description: 'Access token is missing, invalid, or expired.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiForbiddenResponse({
+      description:
+        'Authenticated user account is not allowed to access todo items.',
+      type: ApiErrorResponseDto,
+    }),
+  );
+}
+
 export function ApiCreateCurrentUserTodoEndpoint(): MethodDecorator {
   return applyDecorators(
     ApiBearerAuth('access-token'),
@@ -285,7 +434,7 @@ export function ApiUpdateCurrentUserTodoEndpoint(): MethodDecorator {
     ApiOperation({
       summary: 'Update a todo item and optionally append images',
       description:
-        'Updates one existing todo item owned by the authenticated user. Name, price, priority, schedule, and done state can be changed. New images may be appended in the same request, an existing active image can be promoted to become the primary cover image, and recurring todos can record expense deductions against their remaining budget.',
+        'Updates one existing todo item owned by the authenticated user. Name, price, priority, status, and schedule can be changed. New images may be appended in the same request, an existing active image can be promoted to become the primary cover image, and recurring todos can record expense deductions against their remaining budget.',
     }),
     ApiParam({
       name: 'todoId',
