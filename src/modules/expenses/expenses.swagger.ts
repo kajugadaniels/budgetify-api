@@ -170,6 +170,39 @@ export function ApiCreateCurrentUserExpenseEndpoint(): MethodDecorator {
   );
 }
 
+export function ApiGetCurrentUserExpenseEndpoint(): MethodDecorator {
+  return applyDecorators(
+    ApiBearerAuth('access-token'),
+    ApiOperation({
+      summary: 'Get a single expense record',
+      description:
+        'Returns one visible expense record for the authenticated user scope, including any todo linkage metadata when the expense originated from a todo recording.',
+    }),
+    ApiParam({
+      name: 'expenseId',
+      type: String,
+      example: '3e8063c6-714f-482e-8d2c-6b6771ce9e14',
+    }),
+    ApiOkResponse({
+      description: 'Expense record retrieved successfully.',
+      type: ExpenseResponseDto,
+    }),
+    ApiUnauthorizedResponse({
+      description: 'Access token is missing, invalid, or expired.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiForbiddenResponse({
+      description:
+        'Authenticated user account is not allowed to access the expense record.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiNotFoundResponse({
+      description: 'Expense record was not found.',
+      type: ApiErrorResponseDto,
+    }),
+  );
+}
+
 export function ApiSummarizeCurrentUserExpensesEndpoint(): MethodDecorator {
   return applyDecorators(
     ApiBearerAuth('access-token'),
