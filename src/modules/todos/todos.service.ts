@@ -15,9 +15,11 @@ import {
 } from '../../common/utils/list-query.utils';
 import { PrismaService } from '../../database/prisma/prisma.service';
 import { ExpensesRepository } from '../expenses/expenses.repository';
+import { MobileMoneyTariffService } from '../expenses/mobile-money-tariff.service';
 import { PartnershipsService } from '../partnerships/partnerships.service';
 import { UsersService } from '../users/users.service';
 import { CreateTodoRequestDto } from './dto/create-todo.request.dto';
+import { CreateTodoExpenseRequestDto } from './dto/create-todo-expense.request.dto';
 import { CreateTodoRecordingRequestDto } from './dto/create-todo-recording.request.dto';
 import { ListTodosQueryDto } from './dto/list-todos.query.dto';
 import { TodoSummaryQueryDto } from './dto/todo-summary.query.dto';
@@ -44,6 +46,15 @@ type ResolvedRecurringSchedule = {
   frequencyDays: number[];
   occurrenceDates: string[];
   startDate: Date;
+};
+
+type PreparedTodoRecordingMutation = {
+  nextRecordedOccurrenceDates: string[];
+  nextRemainingAmount: Prisma.Decimal | null;
+  nextStatus: TodoStatus;
+  occurrenceDate: Date;
+  plannedAmount: Prisma.Decimal;
+  varianceAmount: Prisma.Decimal;
 };
 
 export type TodoSummarySnapshot = {
@@ -109,6 +120,7 @@ export class TodosService {
     private readonly prisma: PrismaService,
     private readonly todosRepository: TodosRepository,
     private readonly expensesRepository: ExpensesRepository,
+    private readonly mobileMoneyTariffService: MobileMoneyTariffService,
     private readonly usersService: UsersService,
     private readonly partnershipsService: PartnershipsService,
     private readonly todoImageStorageService: TodoImageStorageService,
@@ -486,65 +498,25 @@ export class TodosService {
       );
     }
 
-    const chargedAmount = new Prisma.Decimal(expense.totalAmountRwf);
-
-    if (todo.frequency === TodoFrequency.ONCE && todo._count.recordings > 0) {
-      throw new BadRequestException(
-        'This one-time todo already has a recorded expense.',
-      );
-    }
-
-    let nextRecordedOccurrenceDates = [...todo.recordedOccurrenceDates];
-    let nextRemainingAmount = todo.remainingAmount;
-
-    if (todo.frequency !== TodoFrequency.ONCE) {
-      if (nextRemainingAmount === null) {
-        throw new BadRequestException(
-          'Recurring todos must keep a remaining amount.',
-        );
-      }
-
-      this.assertOccurrenceDateAvailable(
-        occurrenceIsoDate,
-        todo.occurrenceDates,
-        nextRecordedOccurrenceDates,
-      );
-
-      if (chargedAmount.greaterThan(nextRemainingAmount)) {
-        throw new BadRequestException(
-          'Total charged amount cannot exceed the remaining recurring budget.',
-        );
-      }
-
-      nextRecordedOccurrenceDates = this.sortIsoDates([
-        ...nextRecordedOccurrenceDates,
-        occurrenceIsoDate,
-      ]);
-      nextRemainingAmount = this.clampDecimalToZero(
-        nextRemainingAmount.minus(chargedAmount),
-      );
-    }
-
-    const nextStatus = this.resolveRecordedTodoStatus({
-      frequency: todo.frequency,
-      remainingAmount: nextRemainingAmount,
-      recordedOccurrenceDates: nextRecordedOccurrenceDates,
-      occurrenceDates: todo.occurrenceDates,
-    });
+    const preparedRecording = this.prepareTodoRecordingMutation(
+      todo,
+      occurrenceIsoDate,
+      new Prisma.Decimal(expense.totalAmountRwf),
+    );
 
     return this.prisma.$transaction(async (tx) => {
       await this.todosRepository.update(
         todo.id,
         {
-          status: nextStatus,
+          status: preparedRecording.nextStatus,
           recordedOccurrenceDates:
             todo.frequency === TodoFrequency.ONCE
               ? undefined
-              : { set: nextRecordedOccurrenceDates },
+              : { set: preparedRecording.nextRecordedOccurrenceDates },
           remainingAmount:
             todo.frequency === TodoFrequency.ONCE
               ? undefined
-              : nextRemainingAmount,
+              : preparedRecording.nextRemainingAmount,
         },
         tx,
       );
@@ -553,13 +525,123 @@ export class TodosService {
         {
           todoId: todo.id,
           expenseId: expense.id,
-          occurrenceDate,
+          occurrenceDate: preparedRecording.occurrenceDate,
+          plannedAmount: preparedRecording.plannedAmount,
           baseAmount: expense.amountRwf,
           feeAmount: expense.feeAmountRwf,
           totalChargedAmount: expense.totalAmountRwf,
+          varianceAmount: preparedRecording.varianceAmount,
           paymentMethod: expense.paymentMethod,
           mobileMoneyChannel: expense.mobileMoneyChannel,
           mobileMoneyNetwork: expense.mobileMoneyNetwork,
+          recordedAt: new Date(),
+          recordedByUserId: userId,
+        },
+        tx,
+      );
+    });
+  }
+
+  async recordCurrentUserTodoExpenseFromPayload(
+    userId: string,
+    todoId: string,
+    payload: CreateTodoExpenseRequestDto,
+  ): Promise<TodoRecordingWithRelations> {
+    await this.usersService.findActiveByIdOrThrow(userId);
+
+    const visibleUserIds =
+      await this.partnershipsService.getVisibleUserIds(userId);
+    const charges = await this.mobileMoneyTariffService.resolveExpenseCharges({
+      amount: payload.amount,
+      currency: payload.currency,
+      paymentMethod: payload.paymentMethod,
+      mobileMoneyChannel: payload.mobileMoneyChannel,
+      mobileMoneyProvider: payload.mobileMoneyProvider,
+      mobileMoneyNetwork: payload.mobileMoneyNetwork,
+    });
+    const expenseDate = new Date(payload.date);
+
+    if (Number.isNaN(expenseDate.getTime())) {
+      throw new BadRequestException('Expense date must be valid.');
+    }
+
+    const occurrenceDateValue =
+      payload.occurrenceDate ?? expenseDate.toISOString().slice(0, 10);
+    const occurrenceDate = this.parseDateOnly(occurrenceDateValue.slice(0, 10));
+    const occurrenceIsoDate = this.toIsoDate(occurrenceDate);
+
+    if (expenseDate.toISOString().slice(0, 10) !== occurrenceIsoDate) {
+      throw new BadRequestException(
+        'The occurrence date must match the expense date.',
+      );
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const todo = await this.todosRepository.findActiveByIdAndUserIds(
+        todoId,
+        visibleUserIds,
+        tx,
+      );
+
+      if (!todo) {
+        throw new NotFoundException('Todo item was not found.');
+      }
+
+      const preparedRecording = this.prepareTodoRecordingMutation(
+        todo,
+        occurrenceIsoDate,
+        charges.totalAmountRwf,
+      );
+      const expense = await this.expensesRepository.create(
+        {
+          userId,
+          label: payload.label,
+          amount: charges.amount,
+          currency: charges.currency,
+          amountRwf: charges.amountRwf,
+          feeAmount: charges.feeAmount,
+          feeAmountRwf: charges.feeAmountRwf,
+          totalAmountRwf: charges.totalAmountRwf,
+          paymentMethod: charges.paymentMethod,
+          mobileMoneyChannel: charges.mobileMoneyChannel,
+          mobileMoneyProvider: charges.mobileMoneyProvider,
+          mobileMoneyNetwork: charges.mobileMoneyNetwork,
+          category: payload.category,
+          date: expenseDate,
+          note: payload.note ?? null,
+        },
+        tx,
+      );
+
+      await this.todosRepository.update(
+        todo.id,
+        {
+          status: preparedRecording.nextStatus,
+          recordedOccurrenceDates:
+            todo.frequency === TodoFrequency.ONCE
+              ? undefined
+              : { set: preparedRecording.nextRecordedOccurrenceDates },
+          remainingAmount:
+            todo.frequency === TodoFrequency.ONCE
+              ? undefined
+              : preparedRecording.nextRemainingAmount,
+        },
+        tx,
+      );
+
+      return this.todosRepository.createRecording(
+        {
+          todoId: todo.id,
+          expenseId: expense.id,
+          occurrenceDate: preparedRecording.occurrenceDate,
+          plannedAmount: preparedRecording.plannedAmount,
+          baseAmount: charges.amountRwf,
+          feeAmount: charges.feeAmountRwf,
+          totalChargedAmount: charges.totalAmountRwf,
+          varianceAmount: preparedRecording.varianceAmount,
+          paymentMethod: charges.paymentMethod,
+          mobileMoneyChannel: charges.mobileMoneyChannel,
+          mobileMoneyNetwork: charges.mobileMoneyNetwork,
           recordedAt: new Date(),
           recordedByUserId: userId,
         },
@@ -1017,6 +1099,81 @@ export class TodosService {
     return this.sortIsoDates(
       recordedOccurrenceDates.filter((date) => occurrenceDates.includes(date)),
     );
+  }
+
+  private prepareTodoRecordingMutation(
+    todo: TodoWithImages,
+    occurrenceIsoDate: string,
+    chargedAmount: Prisma.Decimal,
+  ): PreparedTodoRecordingMutation {
+    if (todo.frequency === TodoFrequency.ONCE && todo._count.recordings > 0) {
+      throw new BadRequestException(
+        'This one-time todo already has a recorded expense.',
+      );
+    }
+
+    const plannedAmount = this.resolvePlannedRecordingAmount(todo);
+    let nextRecordedOccurrenceDates = [...todo.recordedOccurrenceDates];
+    let nextRemainingAmount = todo.remainingAmount;
+
+    if (todo.frequency !== TodoFrequency.ONCE) {
+      if (nextRemainingAmount === null) {
+        throw new BadRequestException(
+          'Recurring todos must keep a remaining amount.',
+        );
+      }
+
+      this.assertOccurrenceDateAvailable(
+        occurrenceIsoDate,
+        todo.occurrenceDates,
+        nextRecordedOccurrenceDates,
+      );
+
+      if (chargedAmount.greaterThan(nextRemainingAmount)) {
+        throw new BadRequestException(
+          'Total charged amount cannot exceed the remaining recurring budget.',
+        );
+      }
+
+      nextRecordedOccurrenceDates = this.sortIsoDates([
+        ...nextRecordedOccurrenceDates,
+        occurrenceIsoDate,
+      ]);
+      nextRemainingAmount = this.clampDecimalToZero(
+        nextRemainingAmount.minus(chargedAmount),
+      );
+    }
+
+    return {
+      nextRecordedOccurrenceDates,
+      nextRemainingAmount,
+      nextStatus: this.resolveRecordedTodoStatus({
+        frequency: todo.frequency,
+        remainingAmount: nextRemainingAmount,
+        recordedOccurrenceDates: nextRecordedOccurrenceDates,
+        occurrenceDates: todo.occurrenceDates,
+      }),
+      occurrenceDate: this.parseDateOnly(occurrenceIsoDate),
+      plannedAmount,
+      varianceAmount: chargedAmount.minus(plannedAmount).toDecimalPlaces(2),
+    };
+  }
+
+  private resolvePlannedRecordingAmount(todo: TodoWithImages): Prisma.Decimal {
+    if (todo.frequency === TodoFrequency.ONCE) {
+      return todo.price.toDecimalPlaces(2);
+    }
+
+    const remainingDates = todo.occurrenceDates.filter(
+      (date) => !todo.recordedOccurrenceDates.includes(date),
+    );
+    const remainingAmount = todo.remainingAmount ?? todo.price;
+
+    if (remainingDates.length === 0) {
+      return remainingAmount.toDecimalPlaces(2);
+    }
+
+    return remainingAmount.dividedBy(remainingDates.length).toDecimalPlaces(2);
   }
 
   private assertOccurrenceDateAvailable(
