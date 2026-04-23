@@ -1,5 +1,10 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { TodoFrequency, TodoPriority, TodoStatus } from '@prisma/client';
+import {
+  TodoFrequency,
+  TodoPriority,
+  TodoStatus,
+  TodoType,
+} from '@prisma/client';
 import { Transform } from 'class-transformer';
 import {
   ArrayMaxSize,
@@ -140,6 +145,20 @@ export class UpdateTodoRequestDto {
     message: 'Priority must be a valid todo priority.',
   })
   priority?: TodoPriority;
+
+  @ApiPropertyOptional({
+    description:
+      'Updated planning intent. WISHLIST stays aspirational, PLANNED_SPEND is a one-off spend plan, and RECURRING_OBLIGATION is a repeating commitment.',
+    enum: TodoType,
+    enumName: 'TodoType',
+    example: TodoType.PLANNED_SPEND,
+  })
+  @Transform(({ value }) => normalizeOptionalStatus(value))
+  @IsOptional()
+  @IsEnum(TodoType, {
+    message: 'Type must be a valid todo type.',
+  })
+  type?: TodoType;
 
   @ApiPropertyOptional({
     description: 'Updated lifecycle status for the todo item.',

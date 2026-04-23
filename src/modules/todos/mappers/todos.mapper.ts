@@ -29,6 +29,7 @@ export class TodosMapper {
       id: todo.id,
       name: todo.name,
       price: Number(todo.price),
+      type: todo.type,
       priority: todo.priority,
       status: todo.status,
       frequency: todo.frequency,
@@ -102,6 +103,7 @@ export class TodosMapper {
       todo: {
         id: recording.todo.id,
         name: recording.todo.name,
+        type: recording.todo.type,
         frequency: recording.todo.frequency,
         status: recording.todo.status,
       },
@@ -176,6 +178,7 @@ export class TodosMapper {
       next30DaysScheduledAmount: summary.dueNext30DaysAmount,
       recurringBudgetBurnDown: summary.recurringBudgetBurnDown,
       completionByFrequency: summary.completionByFrequency,
+      typeBreakdown: summary.typeBreakdown,
       latestTodo: summary.latestTodo,
     };
   }
@@ -204,6 +207,7 @@ export class TodosMapper {
       completionPercentage: audit.completionPercentage,
       recurringBudgetBurnDown: audit.recurringBudgetBurnDown,
       completionByFrequency: audit.completionByFrequency,
+      typeBreakdown: audit.typeBreakdown,
     };
   }
 

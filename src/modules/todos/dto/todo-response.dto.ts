@@ -1,5 +1,10 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { TodoFrequency, TodoPriority, TodoStatus } from '@prisma/client';
+import {
+  TodoFrequency,
+  TodoPriority,
+  TodoStatus,
+  TodoType,
+} from '@prisma/client';
 
 import { CreatedByResponseDto } from '../../../common/dto/created-by.response.dto';
 import { TodoImageResponseDto } from './todo-image-response.dto';
@@ -15,6 +20,13 @@ export class TodoResponseDto {
 
   @ApiProperty({ example: 85000 })
   price!: number;
+
+  @ApiProperty({
+    enum: TodoType,
+    example: TodoType.WISHLIST,
+    description: 'Planning intent for this todo item.',
+  })
+  type!: TodoType;
 
   @ApiProperty({
     enum: TodoPriority,

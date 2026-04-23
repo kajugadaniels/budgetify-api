@@ -3,6 +3,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import {
   TodoFrequencyCompletionDto,
   TodoRecurringBudgetBurnDownDto,
+  TodoTypeBreakdownDto,
 } from './todo-summary.response.dto';
 
 export class TodoAuditResponseDto {
@@ -71,4 +72,7 @@ export class TodoAuditResponseDto {
 
   @ApiProperty({ type: TodoFrequencyCompletionDto, isArray: true })
   completionByFrequency!: TodoFrequencyCompletionDto[];
+
+  @ApiProperty({ type: TodoTypeBreakdownDto, isArray: true })
+  typeBreakdown!: TodoTypeBreakdownDto[];
 }

@@ -16,7 +16,12 @@ import {
   ApiTooManyRequestsResponse,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
-import { TodoFrequency, TodoPriority, TodoStatus } from '@prisma/client';
+import {
+  TodoFrequency,
+  TodoPriority,
+  TodoStatus,
+  TodoType,
+} from '@prisma/client';
 
 import { ApiErrorResponseDto } from '../../common/dto/api-error-response.dto';
 import { CreateTodoExpenseRequestDto } from './dto/create-todo-expense.request.dto';
@@ -49,6 +54,14 @@ function createTodoMultipartSchema(
         type: 'string',
         enum: Object.values(TodoPriority),
         example: TodoPriority.TOP_PRIORITY,
+      },
+      type: {
+        type: 'string',
+        enum: Object.values(TodoType),
+        example: TodoType.WISHLIST,
+        default: TodoType.WISHLIST,
+        description:
+          'Planning intent. WISHLIST is aspirational, PLANNED_SPEND is a one-off operational spend, and RECURRING_OBLIGATION is a repeating commitment.',
       },
       status: {
         type: 'string',
@@ -145,6 +158,13 @@ export function ApiListCurrentUserTodosEndpoint(): MethodDecorator {
       type: String,
       example: 'TOP_PRIORITY',
       description: 'Optional todo priority filter.',
+    }),
+    ApiQuery({
+      name: 'type',
+      required: false,
+      enum: TodoType,
+      example: TodoType.WISHLIST,
+      description: 'Optional planning intent filter.',
     }),
     ApiQuery({
       name: 'status',
@@ -264,6 +284,13 @@ export function ApiSummarizeCurrentUserTodosEndpoint(): MethodDecorator {
       description: 'Optional todo priority filter.',
     }),
     ApiQuery({
+      name: 'type',
+      required: false,
+      enum: TodoType,
+      example: TodoType.PLANNED_SPEND,
+      description: 'Optional planning intent filter.',
+    }),
+    ApiQuery({
       name: 'status',
       required: false,
       enum: TodoStatus,
@@ -333,6 +360,13 @@ export function ApiAuditCurrentUserTodosEndpoint(): MethodDecorator {
       description: 'Optional todo priority filter.',
     }),
     ApiQuery({
+      name: 'type',
+      required: false,
+      enum: TodoType,
+      example: TodoType.RECURRING_OBLIGATION,
+      description: 'Optional planning intent filter.',
+    }),
+    ApiQuery({
       name: 'status',
       required: false,
       enum: TodoStatus,
@@ -400,6 +434,13 @@ export function ApiListCurrentUserTodoUpcomingEndpoint(): MethodDecorator {
       type: String,
       example: 'TOP_PRIORITY',
       description: 'Optional todo priority filter.',
+    }),
+    ApiQuery({
+      name: 'type',
+      required: false,
+      enum: TodoType,
+      example: TodoType.RECURRING_OBLIGATION,
+      description: 'Optional planning intent filter.',
     }),
     ApiQuery({
       name: 'status',
@@ -477,6 +518,13 @@ export function ApiListCurrentUserTodoRecordingsEndpoint(): MethodDecorator {
       type: String,
       example: 'TOP_PRIORITY',
       description: 'Optional todo priority filter.',
+    }),
+    ApiQuery({
+      name: 'type',
+      required: false,
+      enum: TodoType,
+      example: TodoType.WISHLIST,
+      description: 'Optional planning intent filter.',
     }),
     ApiQuery({
       name: 'status',

@@ -6,6 +6,7 @@ import {
   ExpensePaymentMethod,
   TodoFrequency,
   TodoStatus,
+  TodoType,
 } from '@prisma/client';
 
 import { CreatedByResponseDto } from '../../../common/dto/created-by.response.dto';
@@ -45,6 +46,12 @@ export class TodoRecordingTodoSummaryDto {
     example: TodoFrequency.MONTHLY,
   })
   frequency!: TodoFrequency;
+
+  @ApiProperty({
+    enum: TodoType,
+    example: TodoType.RECURRING_OBLIGATION,
+  })
+  type!: TodoType;
 
   @ApiProperty({
     enum: TodoStatus,

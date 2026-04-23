@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { TodoFrequency } from '@prisma/client';
+import { TodoFrequency, TodoType } from '@prisma/client';
 
 export class TodoSummaryLatestTodoDto {
   @ApiProperty({ example: '8d65c09f-e7fa-4ee1-9428-3b1ebc80a918' })
@@ -38,6 +38,23 @@ export class TodoRecurringBudgetBurnDownDto {
 
   @ApiProperty({ example: 44 })
   usagePercentage!: number;
+}
+
+export class TodoTypeBreakdownDto {
+  @ApiProperty({ enum: TodoType, example: TodoType.WISHLIST })
+  type!: TodoType;
+
+  @ApiProperty({ example: 5 })
+  totalCount!: number;
+
+  @ApiProperty({ example: 4 })
+  openCount!: number;
+
+  @ApiProperty({ example: 420000 })
+  plannedTotal!: number;
+
+  @ApiProperty({ example: 275000 })
+  remainingTotal!: number;
 }
 
 export class TodoSummaryResponseDto {
@@ -118,6 +135,9 @@ export class TodoSummaryResponseDto {
 
   @ApiProperty({ type: TodoFrequencyCompletionDto, isArray: true })
   completionByFrequency!: TodoFrequencyCompletionDto[];
+
+  @ApiProperty({ type: TodoTypeBreakdownDto, isArray: true })
+  typeBreakdown!: TodoTypeBreakdownDto[];
 
   @ApiPropertyOptional({
     type: TodoSummaryLatestTodoDto,

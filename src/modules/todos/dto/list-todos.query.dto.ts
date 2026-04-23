@@ -1,5 +1,10 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { TodoFrequency, TodoPriority, TodoStatus } from '@prisma/client';
+import {
+  TodoFrequency,
+  TodoPriority,
+  TodoStatus,
+  TodoType,
+} from '@prisma/client';
 import { Transform } from 'class-transformer';
 import { IsEnum, IsOptional } from 'class-validator';
 
@@ -32,6 +37,18 @@ export class ListTodosQueryDto extends PaginationQueryDto {
     message: 'Priority must be a valid todo priority.',
   })
   priority?: TodoPriority;
+
+  @ApiPropertyOptional({
+    enum: TodoType,
+    example: TodoType.WISHLIST,
+    description: 'Optional planning intent filter.',
+  })
+  @Transform(({ value }) => normalizeOptionalString(value))
+  @IsOptional()
+  @IsEnum(TodoType, {
+    message: 'Type must be a valid todo type.',
+  })
+  type?: TodoType;
 
   @ApiPropertyOptional({
     enum: TodoStatus,

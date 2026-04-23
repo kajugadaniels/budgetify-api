@@ -1,5 +1,10 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { TodoFrequency, TodoPriority, TodoStatus } from '@prisma/client';
+import {
+  TodoFrequency,
+  TodoPriority,
+  TodoStatus,
+  TodoType,
+} from '@prisma/client';
 import { Transform } from 'class-transformer';
 import {
   ArrayMaxSize,
@@ -10,6 +15,7 @@ import {
   IsInt,
   IsNotEmpty,
   IsNumber,
+  IsOptional,
   IsString,
   Max,
   MaxLength,
@@ -107,6 +113,21 @@ export class CreateTodoRequestDto {
   )
   @Min(0, { message: 'Price must be zero or greater.' })
   price!: number;
+
+  @ApiPropertyOptional({
+    description:
+      'Planning intent for this todo item. WISHLIST is aspirational, PLANNED_SPEND is a one-off operational spend, and RECURRING_OBLIGATION is a repeating commitment.',
+    enum: TodoType,
+    enumName: 'TodoType',
+    example: TodoType.WISHLIST,
+    default: TodoType.WISHLIST,
+  })
+  @Transform(({ value }) => normalizeStatus(value))
+  @IsOptional()
+  @IsEnum(TodoType, {
+    message: 'Type must be a valid todo type.',
+  })
+  type?: TodoType;
 
   @ApiProperty({
     description: 'Priority level assigned to the todo item.',

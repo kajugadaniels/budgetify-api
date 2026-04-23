@@ -1,5 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma, TodoFrequency, TodoImage, TodoStatus } from '@prisma/client';
+import {
+  Prisma,
+  TodoFrequency,
+  TodoImage,
+  TodoStatus,
+  TodoType,
+} from '@prisma/client';
 
 import {
   PaginatedResponse,
@@ -28,6 +34,7 @@ const TODO_RECORDING_EXPENSE_SELECT = {
 const TODO_RECORDING_TODO_SELECT = {
   id: true,
   name: true,
+  type: true,
   frequency: true,
   status: true,
 } as const;
@@ -58,6 +65,7 @@ const TODO_SUMMARY_ROW_SELECT = {
   id: true,
   name: true,
   price: true,
+  type: true,
   priority: true,
   status: true,
   frequency: true,
@@ -143,6 +151,7 @@ export class TodosRepository {
       frequency?: TodoFrequency;
       priority?: Prisma.TodoWhereInput['priority'];
       status?: TodoStatus;
+      type?: TodoType;
       search?: string;
       occurrenceDates?: string[];
       skip?: number;
@@ -177,6 +186,7 @@ export class TodosRepository {
       frequency?: TodoFrequency;
       priority?: Prisma.TodoWhereInput['priority'];
       status?: TodoStatus;
+      type?: TodoType;
       search?: string;
       occurrenceDates?: string[];
     },
@@ -497,6 +507,7 @@ export class TodosRepository {
       frequency?: TodoFrequency;
       priority?: Prisma.TodoWhereInput['priority'];
       status?: TodoStatus;
+      type?: TodoType;
       search?: string;
       occurrenceDates?: string[];
     },
@@ -526,6 +537,7 @@ export class TodosRepository {
       ...(frequencyWhere ?? {}),
       priority: options?.priority,
       status: options?.status,
+      type: options?.type,
       name:
         options?.search !== undefined
           ? {
