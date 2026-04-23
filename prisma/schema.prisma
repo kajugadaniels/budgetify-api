@@ -81,6 +81,11 @@ enum TodoOccurrenceStatus {
   COMPLETED
 }
 
+enum TodoRecordingExpenseSource {
+  GENERATED
+  LINKED_EXISTING
+}
+
 enum PartnershipStatus {
   PENDING
   ACCEPTED
@@ -154,7 +159,8 @@ model User {
   todos             Todo[]              @relation("TodoOwner")
   responsibleTodos  Todo[]              @relation("TodoResponsibleUser")
   expenses          Expense[]
-  todoRecordings    TodoRecording[]
+  todoRecordings    TodoRecording[]        @relation("TodoRecordingRecordedBy")
+  reversedTodoRecordings TodoRecording[]   @relation("TodoRecordingReversedBy")
   loans             Loan[]
   savings           Saving[]
   savingTransactions SavingTransaction[]
@@ -482,19 +488,26 @@ model TodoRecording {
   feeAmount          Decimal                   @db.Decimal(15, 2)
   totalChargedAmount Decimal                   @db.Decimal(15, 2)
   varianceAmount     Decimal                   @default(0) @db.Decimal(15, 2)
+  expenseSource      TodoRecordingExpenseSource @default(GENERATED)
   paymentMethod      ExpensePaymentMethod
   mobileMoneyChannel ExpenseMobileMoneyChannel?
   mobileMoneyNetwork ExpenseMobileMoneyNetwork?
   recordedAt         DateTime                  @default(now())
   recordedByUserId   String                    @db.Uuid
+  reversedAt         DateTime?
+  reversalReason     String?
+  reversedByUserId   String?                   @db.Uuid
   todo               Todo                      @relation(fields: [todoId], references: [id], onDelete: Cascade)
   occurrence         TodoOccurrence?           @relation(fields: [todoOccurrenceId], references: [id], onDelete: SetNull)
   expense            Expense?                  @relation(fields: [expenseId], references: [id], onDelete: SetNull)
-  recordedBy         User                      @relation(fields: [recordedByUserId], references: [id], onDelete: Cascade)
+  recordedBy         User                      @relation("TodoRecordingRecordedBy", fields: [recordedByUserId], references: [id], onDelete: Cascade)
+  reversedBy         User?                     @relation("TodoRecordingReversedBy", fields: [reversedByUserId], references: [id], onDelete: SetNull)
 
   @@index([todoId, recordedAt(sort: Desc)])
   @@index([recordedByUserId])
   @@index([occurrenceDate])
+  @@index([reversedAt])
+  @@index([reversedByUserId])
 }
 
 model TodoOccurrence {
