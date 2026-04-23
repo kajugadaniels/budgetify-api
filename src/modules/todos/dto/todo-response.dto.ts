@@ -159,7 +159,8 @@ export class TodoResponseDto {
 
   @ApiProperty({
     example: 2,
-    description: 'Total number of expense recordings linked to this todo.',
+    description:
+      'Current number of active expense recordings linked to this todo. Reversed recordings stay in the audit trail but are excluded from this count.',
   })
   recordingCount!: number;
 
