@@ -4,6 +4,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  ExpenseCategory,
+  ExpenseMobileMoneyChannel,
+  ExpenseMobileMoneyNetwork,
+  ExpensePaymentMethod,
   Prisma,
   TodoFrequency,
   TodoOccurrenceStatus,
@@ -499,6 +503,18 @@ export class TodosService {
       schedule.frequency,
       'create',
     );
+    const responsibleUserId = await this.resolveResponsibleUserId(
+      userId,
+      payload.responsibleUserId,
+    );
+    const financialDefaults = this.resolveTodoFinancialDefaults({
+      defaultExpenseCategory: payload.defaultExpenseCategory,
+      defaultPaymentMethod: payload.defaultPaymentMethod,
+      defaultMobileMoneyChannel: payload.defaultMobileMoneyChannel,
+      defaultMobileMoneyNetwork: payload.defaultMobileMoneyNetwork,
+      payee: payload.payee,
+      expenseNote: payload.expenseNote,
+    });
 
     const price = new Prisma.Decimal(payload.price);
     const remainingAmount =
@@ -508,12 +524,21 @@ export class TodosService {
       const createdTodo = await this.todosRepository.create(
         {
           userId,
+          responsibleUserId,
           name: payload.name,
           price,
           type: todoType,
           priority: payload.priority,
           status: this.resolveInitialTodoStatus(payload.status),
           frequency: schedule.frequency,
+          defaultExpenseCategory: financialDefaults.defaultExpenseCategory,
+          defaultPaymentMethod: financialDefaults.defaultPaymentMethod,
+          defaultMobileMoneyChannel:
+            financialDefaults.defaultMobileMoneyChannel,
+          defaultMobileMoneyNetwork:
+            financialDefaults.defaultMobileMoneyNetwork,
+          payee: financialDefaults.payee,
+          expenseNote: financialDefaults.expenseNote,
           startDate: schedule.startDate,
           endDate: schedule.endDate,
           frequencyDays: schedule.frequencyDays,
@@ -719,10 +744,15 @@ export class TodosService {
         charges.totalAmountRwf,
       );
       const recordedAt = new Date();
+      const resolvedExpenseLabel =
+        payload.label.trim().length > 0
+          ? payload.label.trim()
+          : todo.payee?.trim() || todo.name;
+      const resolvedExpenseNote = payload.note ?? todo.expenseNote ?? null;
       const expense = await this.expensesRepository.create(
         {
           userId,
-          label: payload.label,
+          label: resolvedExpenseLabel,
           amount: charges.amount,
           currency: charges.currency,
           amountRwf: charges.amountRwf,
@@ -735,7 +765,7 @@ export class TodosService {
           mobileMoneyNetwork: charges.mobileMoneyNetwork,
           category: payload.category,
           date: expenseDate,
-          note: payload.note ?? null,
+          note: resolvedExpenseNote,
         },
         tx,
       );
@@ -799,6 +829,13 @@ export class TodosService {
       payload.priority === undefined &&
       payload.status === undefined &&
       payload.frequency === undefined &&
+      payload.defaultExpenseCategory === undefined &&
+      payload.defaultPaymentMethod === undefined &&
+      payload.defaultMobileMoneyChannel === undefined &&
+      payload.defaultMobileMoneyNetwork === undefined &&
+      payload.payee === undefined &&
+      payload.expenseNote === undefined &&
+      payload.responsibleUserId === undefined &&
       payload.startDate === undefined &&
       payload.endDate === undefined &&
       payload.frequencyDays === undefined &&
@@ -883,6 +920,36 @@ export class TodosService {
       nextSchedule.frequency,
       'update',
     );
+    const nextResponsibleUserId =
+      payload.responsibleUserId === undefined
+        ? todo.responsibleUserId
+        : await this.resolveResponsibleUserId(
+            userId,
+            payload.responsibleUserId ?? userId,
+          );
+    const nextFinancialDefaults = this.resolveTodoFinancialDefaults({
+      defaultExpenseCategory:
+        payload.defaultExpenseCategory === undefined
+          ? todo.defaultExpenseCategory
+          : payload.defaultExpenseCategory,
+      defaultPaymentMethod:
+        payload.defaultPaymentMethod === undefined
+          ? todo.defaultPaymentMethod
+          : payload.defaultPaymentMethod,
+      defaultMobileMoneyChannel:
+        payload.defaultMobileMoneyChannel === undefined
+          ? todo.defaultMobileMoneyChannel
+          : payload.defaultMobileMoneyChannel,
+      defaultMobileMoneyNetwork:
+        payload.defaultMobileMoneyNetwork === undefined
+          ? todo.defaultMobileMoneyNetwork
+          : payload.defaultMobileMoneyNetwork,
+      payee: payload.payee === undefined ? todo.payee : payload.payee,
+      expenseNote:
+        payload.expenseNote === undefined
+          ? todo.expenseNote
+          : payload.expenseNote,
+    });
 
     if (nextType !== todo.type && todo._count.recordings > 0) {
       throw new BadRequestException(
@@ -970,9 +1037,21 @@ export class TodosService {
                 ? undefined
                 : new Prisma.Decimal(payload.price),
             type: nextType,
+            responsibleUser: {
+              connect: { id: nextResponsibleUserId },
+            },
             priority: payload.priority,
             status: nextStatus,
             frequency: nextSchedule.frequency,
+            defaultExpenseCategory:
+              nextFinancialDefaults.defaultExpenseCategory,
+            defaultPaymentMethod: nextFinancialDefaults.defaultPaymentMethod,
+            defaultMobileMoneyChannel:
+              nextFinancialDefaults.defaultMobileMoneyChannel,
+            defaultMobileMoneyNetwork:
+              nextFinancialDefaults.defaultMobileMoneyNetwork,
+            payee: nextFinancialDefaults.payee,
+            expenseNote: nextFinancialDefaults.expenseNote,
             startDate: nextSchedule.startDate,
             endDate: nextSchedule.endDate,
             frequencyDays: { set: nextSchedule.frequencyDays },
@@ -2074,6 +2153,86 @@ export class TodosService {
     }
 
     return Number(row.remainingAmount ?? row.price);
+  }
+
+  private resolveTodoFinancialDefaults(input: {
+    defaultExpenseCategory?: ExpenseCategory | null;
+    defaultPaymentMethod?: ExpensePaymentMethod | null;
+    defaultMobileMoneyChannel?: ExpenseMobileMoneyChannel | null;
+    defaultMobileMoneyNetwork?: ExpenseMobileMoneyNetwork | null;
+    payee?: string | null;
+    expenseNote?: string | null;
+  }): {
+    defaultExpenseCategory: ExpenseCategory | null;
+    defaultPaymentMethod: ExpensePaymentMethod | null;
+    defaultMobileMoneyChannel: ExpenseMobileMoneyChannel | null;
+    defaultMobileMoneyNetwork: ExpenseMobileMoneyNetwork | null;
+    payee: string | null;
+    expenseNote: string | null;
+  } {
+    const paymentMethod = input.defaultPaymentMethod ?? null;
+    const channel = input.defaultMobileMoneyChannel ?? null;
+    const network = input.defaultMobileMoneyNetwork ?? null;
+
+    if (paymentMethod === null) {
+      if (channel !== null || network !== null) {
+        throw new BadRequestException(
+          'Default mobile money metadata requires a default mobile money payment method.',
+        );
+      }
+    } else if (paymentMethod !== ExpensePaymentMethod.MOBILE_MONEY) {
+      if (channel !== null || network !== null) {
+        throw new BadRequestException(
+          'Default mobile money metadata can only be set when the default payment method is MOBILE_MONEY.',
+        );
+      }
+    } else {
+      if (channel === null) {
+        throw new BadRequestException(
+          'Default mobile money payments require a default mobile money channel.',
+        );
+      }
+
+      if (
+        channel === ExpenseMobileMoneyChannel.P2P_TRANSFER &&
+        network === null
+      ) {
+        throw new BadRequestException(
+          'Default P2P mobile money payments require a default mobile money network.',
+        );
+      }
+    }
+
+    return {
+      defaultExpenseCategory: input.defaultExpenseCategory ?? null,
+      defaultPaymentMethod: paymentMethod,
+      defaultMobileMoneyChannel:
+        paymentMethod === ExpensePaymentMethod.MOBILE_MONEY ? channel : null,
+      defaultMobileMoneyNetwork:
+        paymentMethod === ExpensePaymentMethod.MOBILE_MONEY &&
+        channel === ExpenseMobileMoneyChannel.P2P_TRANSFER
+          ? network
+          : null,
+      payee: input.payee ?? null,
+      expenseNote: input.expenseNote ?? null,
+    };
+  }
+
+  private async resolveResponsibleUserId(
+    userId: string,
+    responsibleUserId?: string | null,
+  ): Promise<string> {
+    const visibleUserIds =
+      await this.partnershipsService.getVisibleUserIds(userId);
+    const resolvedUserId = responsibleUserId ?? userId;
+
+    if (!visibleUserIds.includes(resolvedUserId)) {
+      throw new BadRequestException(
+        'Responsible user must be visible in the current shared workspace.',
+      );
+    }
+
+    return resolvedUserId;
   }
 
   private resolveTodoType(
