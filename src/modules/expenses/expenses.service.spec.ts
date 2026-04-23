@@ -268,4 +268,27 @@ describe('ExpensesService', () => {
       } as never),
     ).resolves.toEqual({ id: 'expense-3' });
   });
+
+  it('blocks direct deletion of expenses that still have an active todo recording', async () => {
+    usersService.findActiveByIdOrThrow.mockResolvedValue(undefined);
+    partnershipsService.getVisibleUserIds.mockResolvedValue(['user-1']);
+    expensesRepository.findActiveByIdAndUserIds.mockResolvedValue({
+      id: 'expense-4',
+      todoRecording: {
+        id: 'recording-1',
+        reversedAt: null,
+        todo: {
+          id: 'todo-1',
+          name: 'School fees reserve',
+        },
+      },
+    });
+
+    await expect(
+      service.deleteCurrentUserExpense('user-1', 'expense-4'),
+    ).rejects.toThrow(
+      'Reverse the linked todo recording before deleting this expense directly.',
+    );
+    expect(expensesRepository.update).not.toHaveBeenCalled();
+  });
 });
