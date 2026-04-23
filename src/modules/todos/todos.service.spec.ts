@@ -9,8 +9,10 @@ describe('TodosService', () => {
   const todosRepository = {
     findSummaryRowsByUserIds: jest.fn(),
     aggregateRecordingsByTodoIds: jest.fn(),
+    findRecordingsByTodoIds: jest.fn(),
     findActiveByIdAndUserIds: jest.fn(),
     update: jest.fn(),
+    updateOccurrence: jest.fn(),
     createRecording: jest.fn(),
   };
   const expensesRepository = {
@@ -59,6 +61,16 @@ describe('TodosService', () => {
         frequency: 'ONCE',
         occurrenceDates: ['2026-04-20'],
         recordedOccurrenceDates: [],
+        occurrences: [
+          {
+            id: 'occ-1',
+            occurrenceDate: new Date('2026-04-20T00:00:00.000Z'),
+            status: 'SCHEDULED',
+            active: true,
+            resolvedAt: null,
+            recording: null,
+          },
+        ],
         remainingAmount: null,
         createdAt: new Date('2026-04-21T10:25:00.000Z'),
         hasActiveImage: true,
@@ -72,6 +84,27 @@ describe('TodosService', () => {
         frequency: 'MONTHLY',
         occurrenceDates: ['2026-04-15', '2026-04-24'],
         recordedOccurrenceDates: ['2026-04-15'],
+        occurrences: [
+          {
+            id: 'occ-2',
+            occurrenceDate: new Date('2026-04-15T00:00:00.000Z'),
+            status: 'RECORDED',
+            active: true,
+            resolvedAt: new Date('2026-04-15T00:00:00.000Z'),
+            recording: {
+              id: 'recording-1',
+              expenseId: 'expense-1',
+            },
+          },
+          {
+            id: 'occ-3',
+            occurrenceDate: new Date('2026-04-24T00:00:00.000Z'),
+            status: 'SCHEDULED',
+            active: true,
+            resolvedAt: null,
+            recording: null,
+          },
+        ],
         remainingAmount: new Prisma.Decimal(150),
         createdAt: new Date('2026-04-20T10:25:00.000Z'),
         hasActiveImage: false,
@@ -85,6 +118,19 @@ describe('TodosService', () => {
         frequency: 'WEEKLY',
         occurrenceDates: ['2026-04-14'],
         recordedOccurrenceDates: ['2026-04-14'],
+        occurrences: [
+          {
+            id: 'occ-4',
+            occurrenceDate: new Date('2026-04-14T00:00:00.000Z'),
+            status: 'RECORDED',
+            active: true,
+            resolvedAt: new Date('2026-04-14T00:00:00.000Z'),
+            recording: {
+              id: 'recording-2',
+              expenseId: 'expense-2',
+            },
+          },
+        ],
         remainingAmount: new Prisma.Decimal(0),
         createdAt: new Date('2026-04-19T10:25:00.000Z'),
         hasActiveImage: false,
@@ -98,6 +144,24 @@ describe('TodosService', () => {
         frequency: 'MONTHLY',
         occurrenceDates: ['2026-04-01', '2026-05-01'],
         recordedOccurrenceDates: [],
+        occurrences: [
+          {
+            id: 'occ-5',
+            occurrenceDate: new Date('2026-04-01T00:00:00.000Z'),
+            status: 'SCHEDULED',
+            active: true,
+            resolvedAt: null,
+            recording: null,
+          },
+          {
+            id: 'occ-6',
+            occurrenceDate: new Date('2026-05-01T00:00:00.000Z'),
+            status: 'SCHEDULED',
+            active: true,
+            resolvedAt: null,
+            recording: null,
+          },
+        ],
         remainingAmount: new Prisma.Decimal(400),
         createdAt: new Date('2026-04-18T10:25:00.000Z'),
         hasActiveImage: false,
@@ -112,8 +176,13 @@ describe('TodosService', () => {
       buildSummaryRows(),
     );
     todosRepository.aggregateRecordingsByTodoIds.mockResolvedValue({
+      feeBearingCount: 1,
+      totalPlannedAmount: new Prisma.Decimal(250),
+      totalBaseAmount: new Prisma.Decimal(250),
+      totalFeeAmount: new Prisma.Decimal(10),
       totalCount: 2,
       totalChargedAmount: new Prisma.Decimal(260),
+      totalVarianceAmount: new Prisma.Decimal(10),
     });
 
     const result = await service.summarizeCurrentUserTodos('user-1', {});
@@ -130,11 +199,51 @@ describe('TodosService', () => {
       plannedTotal: 1000,
       openPlannedTotal: 800,
       remainingRecurringBudgetTotal: 550,
+      totalRemainingAmount: 650,
       recordedCount: 2,
+      recordedBaseTotalAmount: 250,
+      recordedFeeTotalAmount: 10,
       recordedTotalAmount: 260,
+      recordedVarianceTotalAmount: 10,
+      feeBearingRecordingCount: 1,
       overdueCount: 2,
-      next7DaysScheduledAmount: 150,
-      next30DaysScheduledAmount: 350,
+      overdueOccurrenceCount: 2,
+      dueNext7DaysCount: 1,
+      dueNext7DaysAmount: 150,
+      dueNext30DaysCount: 2,
+      dueNext30DaysAmount: 350,
+      recurringBudgetBurnDown: {
+        targetAmount: 900,
+        usedAmount: 350,
+        remainingAmount: 550,
+        usagePercentage: 39,
+      },
+      completionByFrequency: [
+        {
+          frequency: 'ONCE',
+          totalCount: 1,
+          completedCount: 0,
+          completionPercentage: 0,
+        },
+        {
+          frequency: 'WEEKLY',
+          totalCount: 1,
+          completedCount: 1,
+          completionPercentage: 100,
+        },
+        {
+          frequency: 'MONTHLY',
+          totalCount: 2,
+          completedCount: 0,
+          completionPercentage: 0,
+        },
+        {
+          frequency: 'YEARLY',
+          totalCount: 0,
+          completedCount: 0,
+          completionPercentage: 0,
+        },
+      ],
       latestTodo: {
         id: 'todo-1',
         name: 'Insurance renewal',
@@ -209,6 +318,80 @@ describe('TodosService', () => {
     });
   });
 
+  it('audits todo planning against recorded charges and remaining exposure', async () => {
+    usersService.findActiveByIdOrThrow.mockResolvedValue(undefined);
+    partnershipsService.getVisibleUserIds.mockResolvedValue(['user-1']);
+    todosRepository.findSummaryRowsByUserIds.mockResolvedValue(
+      buildSummaryRows(),
+    );
+    todosRepository.aggregateRecordingsByTodoIds.mockResolvedValue({
+      feeBearingCount: 1,
+      totalPlannedAmount: new Prisma.Decimal(250),
+      totalBaseAmount: new Prisma.Decimal(250),
+      totalFeeAmount: new Prisma.Decimal(10),
+      totalCount: 2,
+      totalChargedAmount: new Prisma.Decimal(260),
+      totalVarianceAmount: new Prisma.Decimal(10),
+    });
+
+    const result = await service.auditCurrentUserTodos('user-1', {});
+
+    expect(result).toEqual({
+      periodStartDate: null,
+      periodEndDate: null,
+      todoCount: 4,
+      openTodoCount: 3,
+      recurringTodoCount: 3,
+      totalPlannedAmount: 1000,
+      totalRemainingAmount: 650,
+      recordingCount: 2,
+      totalRecordedBaseAmount: 250,
+      totalRecordedFeeAmount: 10,
+      totalRecordedChargedAmount: 260,
+      totalRecordedVarianceAmount: 10,
+      feeBearingRecordingCount: 1,
+      overdueTodoCount: 2,
+      overdueOccurrenceCount: 2,
+      dueThisWeekCount: 1,
+      dueThisWeekAmount: 150,
+      dueThisMonthCount: 2,
+      dueThisMonthAmount: 350,
+      completionPercentage: 25,
+      recurringBudgetBurnDown: {
+        targetAmount: 900,
+        usedAmount: 350,
+        remainingAmount: 550,
+        usagePercentage: 39,
+      },
+      completionByFrequency: [
+        {
+          frequency: 'ONCE',
+          totalCount: 1,
+          completedCount: 0,
+          completionPercentage: 0,
+        },
+        {
+          frequency: 'WEEKLY',
+          totalCount: 1,
+          completedCount: 1,
+          completionPercentage: 100,
+        },
+        {
+          frequency: 'MONTHLY',
+          totalCount: 2,
+          completedCount: 0,
+          completionPercentage: 0,
+        },
+        {
+          frequency: 'YEARLY',
+          totalCount: 0,
+          completedCount: 0,
+          completionPercentage: 0,
+        },
+      ],
+    });
+  });
+
   it('creates the expense and todo recording in one transaction', async () => {
     const tx = { transaction: true };
     const todo = {
@@ -220,6 +403,27 @@ describe('TodosService', () => {
       frequency: 'MONTHLY',
       occurrenceDates: ['2026-04-15', '2026-04-24'],
       recordedOccurrenceDates: ['2026-04-15'],
+      occurrences: [
+        {
+          id: 'occ-2',
+          occurrenceDate: new Date('2026-04-15T00:00:00.000Z'),
+          status: 'RECORDED',
+          active: true,
+          resolvedAt: new Date('2026-04-15T00:00:00.000Z'),
+          recording: {
+            id: 'recording-1',
+            expenseId: 'expense-0',
+          },
+        },
+        {
+          id: 'occ-3',
+          occurrenceDate: new Date('2026-04-24T00:00:00.000Z'),
+          status: 'SCHEDULED',
+          active: true,
+          resolvedAt: null,
+          recording: null,
+        },
+      ],
       remainingAmount: new Prisma.Decimal(150),
       _count: { recordings: 1 },
     };
@@ -245,6 +449,7 @@ describe('TodosService', () => {
     todosRepository.findActiveByIdAndUserIds.mockResolvedValue(todo);
     expensesRepository.create.mockResolvedValue({ id: 'expense-1' });
     todosRepository.update.mockResolvedValue(todo);
+    todosRepository.updateOccurrence.mockResolvedValue(undefined);
     todosRepository.createRecording.mockResolvedValue({ id: 'recording-1' });
 
     await expect(

@@ -93,28 +93,80 @@ type PreparedOccurrenceSync = {
   }>;
 };
 
-export type TodoSummarySnapshot = {
+type TodoFrequencyCompletionSnapshot = {
   completedCount: number;
   completionPercentage: number;
+  frequency: TodoFrequency;
+  totalCount: number;
+};
+
+type TodoRecurringBudgetBurnDownSnapshot = {
+  remainingAmount: number;
+  targetAmount: number;
+  usagePercentage: number;
+  usedAmount: number;
+};
+
+type TodoReportingSnapshot = {
+  completedCount: number;
+  completionByFrequency: TodoFrequencyCompletionSnapshot[];
+  completionPercentage: number;
+  dueNext30DaysCount: number;
+  dueNext30DaysAmount: number;
+  dueNext7DaysCount: number;
+  dueNext7DaysAmount: number;
+  feeBearingRecordingCount: number;
   imageCoveragePercentage: number;
+  openCount: number;
+  openPlannedTotal: number;
+  overdueCount: number;
+  overdueOccurrenceCount: number;
+  plannedTotal: number;
+  recordedBaseTotalAmount: number;
+  recordedCount: number;
+  recordedFeeTotalAmount: number;
+  recordedTotalAmount: number;
+  recordedVarianceTotalAmount: number;
+  recurringBudgetBurnDown: TodoRecurringBudgetBurnDownSnapshot;
+  recurringCount: number;
+  remainingRecurringBudgetTotal: number;
+  topPriorityCount: number;
+  totalCount: number;
+  totalRemainingAmount: number;
+  withImagesCount: number;
+};
+
+export type TodoSummarySnapshot = {
   latestTodo: {
     createdAt: Date;
     id: string;
     name: string;
   } | null;
-  next30DaysScheduledAmount: number;
-  next7DaysScheduledAmount: number;
-  openCount: number;
-  openPlannedTotal: number;
-  overdueCount: number;
-  plannedTotal: number;
-  recordedCount: number;
-  recordedTotalAmount: number;
-  recurringCount: number;
-  remainingRecurringBudgetTotal: number;
-  topPriorityCount: number;
-  totalCount: number;
-  withImagesCount: number;
+} & TodoReportingSnapshot;
+
+export type TodoAuditSnapshot = {
+  completionByFrequency: TodoFrequencyCompletionSnapshot[];
+  completionPercentage: number;
+  dueThisMonthAmount: number;
+  dueThisMonthCount: number;
+  dueThisWeekAmount: number;
+  dueThisWeekCount: number;
+  feeBearingRecordingCount: number;
+  openTodoCount: number;
+  overdueOccurrenceCount: number;
+  overdueTodoCount: number;
+  periodEndDate: string | null;
+  periodStartDate: string | null;
+  recordingCount: number;
+  recurringBudgetBurnDown: TodoRecurringBudgetBurnDownSnapshot;
+  recurringTodoCount: number;
+  todoCount: number;
+  totalPlannedAmount: number;
+  totalRecordedBaseAmount: number;
+  totalRecordedChargedAmount: number;
+  totalRecordedFeeAmount: number;
+  totalRecordedVarianceAmount: number;
+  totalRemainingAmount: number;
 };
 
 export type TodoUpcomingSnapshot = {
@@ -189,81 +241,15 @@ export class TodosService {
     userId: string,
     query: TodoSummaryQueryDto,
   ): Promise<TodoSummarySnapshot> {
+    const dateRange = resolveListDateRange(query);
     const rows = await this.listSummaryRowsForUser(userId, query);
-    const recordingAggregate =
-      await this.todosRepository.aggregateRecordingsByTodoIds(
-        rows.map((row) => row.id),
-      );
-
-    let completedCount = 0;
-    let openCount = 0;
-    let recurringCount = 0;
-    let topPriorityCount = 0;
-    let withImagesCount = 0;
-    let plannedTotal = 0;
-    let openPlannedTotal = 0;
-    let remainingRecurringBudgetTotal = 0;
-    let overdueCount = 0;
-
-    for (const row of rows) {
-      const price = Number(row.price);
-
-      plannedTotal += price;
-
-      if (this.isTodoClosed(row.status)) {
-        if (row.status === 'COMPLETED') {
-          completedCount += 1;
-        }
-      } else {
-        openCount += 1;
-        openPlannedTotal += price;
-
-        if (this.hasOverdueOccurrence(row)) {
-          overdueCount += 1;
-        }
-      }
-
-      if (row.frequency !== 'ONCE') {
-        recurringCount += 1;
-        remainingRecurringBudgetTotal += Number(row.remainingAmount ?? 0);
-      }
-
-      if (row.priority === 'TOP_PRIORITY') {
-        topPriorityCount += 1;
-      }
-
-      if (row.hasActiveImage) {
-        withImagesCount += 1;
-      }
-    }
+    const report = await this.buildTodoReportingSnapshot(rows, {
+      occurrenceDateFrom: dateRange?.dateFrom,
+      occurrenceDateTo: dateRange?.dateTo,
+    });
 
     return {
-      totalCount: rows.length,
-      openCount,
-      completedCount,
-      recurringCount,
-      topPriorityCount,
-      withImagesCount,
-      completionPercentage:
-        rows.length === 0
-          ? 0
-          : Math.round((completedCount / rows.length) * 100),
-      imageCoveragePercentage:
-        rows.length === 0
-          ? 0
-          : Math.round((withImagesCount / rows.length) * 100),
-      plannedTotal: this.roundCurrency(plannedTotal),
-      openPlannedTotal: this.roundCurrency(openPlannedTotal),
-      remainingRecurringBudgetTotal: this.roundCurrency(
-        remainingRecurringBudgetTotal,
-      ),
-      recordedCount: recordingAggregate.totalCount,
-      recordedTotalAmount: this.roundCurrency(
-        Number(recordingAggregate.totalChargedAmount),
-      ),
-      overdueCount,
-      next7DaysScheduledAmount: this.computeScheduledWindowTotal(rows, 7),
-      next30DaysScheduledAmount: this.computeScheduledWindowTotal(rows, 30),
+      ...report,
       latestTodo:
         rows[0] !== undefined
           ? {
@@ -272,6 +258,46 @@ export class TodosService {
               createdAt: rows[0].createdAt,
             }
           : null,
+    };
+  }
+
+  async auditCurrentUserTodos(
+    userId: string,
+    query: TodoSummaryQueryDto,
+  ): Promise<TodoAuditSnapshot> {
+    const dateRange = resolveListDateRange(query);
+    const rows = await this.listSummaryRowsForUser(userId, query);
+    const report = await this.buildTodoReportingSnapshot(rows, {
+      occurrenceDateFrom: dateRange?.dateFrom,
+      occurrenceDateTo: dateRange?.dateTo,
+    });
+
+    return {
+      periodStartDate: dateRange?.dateFrom?.toISOString().slice(0, 10) ?? null,
+      periodEndDate:
+        dateRange?.dateTo === undefined
+          ? null
+          : new Date(dateRange.dateTo.getTime() - 1).toISOString().slice(0, 10),
+      todoCount: report.totalCount,
+      openTodoCount: report.openCount,
+      recurringTodoCount: report.recurringCount,
+      totalPlannedAmount: report.plannedTotal,
+      totalRemainingAmount: report.totalRemainingAmount,
+      recordingCount: report.recordedCount,
+      totalRecordedBaseAmount: report.recordedBaseTotalAmount,
+      totalRecordedFeeAmount: report.recordedFeeTotalAmount,
+      totalRecordedChargedAmount: report.recordedTotalAmount,
+      totalRecordedVarianceAmount: report.recordedVarianceTotalAmount,
+      feeBearingRecordingCount: report.feeBearingRecordingCount,
+      overdueTodoCount: report.overdueCount,
+      overdueOccurrenceCount: report.overdueOccurrenceCount,
+      dueThisWeekCount: report.dueNext7DaysCount,
+      dueThisWeekAmount: report.dueNext7DaysAmount,
+      dueThisMonthCount: report.dueNext30DaysCount,
+      dueThisMonthAmount: report.dueNext30DaysAmount,
+      completionPercentage: report.completionPercentage,
+      recurringBudgetBurnDown: report.recurringBudgetBurnDown,
+      completionByFrequency: report.completionByFrequency,
     };
   }
 
@@ -407,6 +433,22 @@ export class TodosService {
         ),
       },
     };
+  }
+
+  async listCurrentUserTodoRecordingIndex(
+    userId: string,
+    query: TodoSummaryQueryDto,
+  ): Promise<TodoRecordingWithRelations[]> {
+    const dateRange = resolveListDateRange(query);
+    const rows = await this.listSummaryRowsForUser(userId, query);
+
+    return this.todosRepository.findRecordingsByTodoIds(
+      rows.map((row) => row.id),
+      {
+        occurrenceDateFrom: dateRange?.dateFrom,
+        occurrenceDateTo: dateRange?.dateTo,
+      },
+    );
   }
 
   async getCurrentUserTodo(
@@ -1510,16 +1552,6 @@ export class TodosService {
     );
   }
 
-  private hasOverdueActiveOccurrence(
-    occurrences: TodoOccurrenceStateLike[],
-  ): boolean {
-    return occurrences.some(
-      (occurrence) =>
-        this.resolveEffectiveOccurrenceStatus(occurrence) ===
-        TodoOccurrenceStatus.OVERDUE,
-    );
-  }
-
   private prepareOccurrenceSync(input: {
     currentOccurrences: TodoOccurrenceWithRecording[];
     explicitStatus?: TodoStatus;
@@ -1722,14 +1754,177 @@ export class TodosService {
     });
   }
 
-  private computeScheduledWindowTotal(
+  private async buildTodoReportingSnapshot(
+    rows: TodoSummaryRow[],
+    options?: {
+      occurrenceDateFrom?: Date;
+      occurrenceDateTo?: Date;
+    },
+  ): Promise<TodoReportingSnapshot> {
+    const recordingAggregate =
+      await this.todosRepository.aggregateRecordingsByTodoIds(
+        rows.map((row) => row.id),
+        options,
+      );
+
+    let completedCount = 0;
+    let openCount = 0;
+    let recurringCount = 0;
+    let topPriorityCount = 0;
+    let withImagesCount = 0;
+    let plannedTotal = 0;
+    let openPlannedTotal = 0;
+    let totalRemainingAmount = 0;
+    let remainingRecurringBudgetTotal = 0;
+    let overdueCount = 0;
+    let overdueOccurrenceCount = 0;
+    let recurringBudgetTargetAmount = 0;
+    let recurringBudgetUsedAmount = 0;
+    const completionByFrequency = new Map<
+      TodoFrequency,
+      { completedCount: number; totalCount: number }
+    >(
+      Object.values(TodoFrequency).map((frequency) => [
+        frequency,
+        {
+          totalCount: 0,
+          completedCount: 0,
+        },
+      ]),
+    );
+
+    for (const row of rows) {
+      const price = Number(row.price);
+      const isClosed = this.isTodoClosed(row.status);
+      const overdueOccurrencesForRow = row.occurrences.filter(
+        (occurrence) =>
+          this.resolveEffectiveOccurrenceStatus(occurrence) ===
+          TodoOccurrenceStatus.OVERDUE,
+      ).length;
+      const frequencyMetrics = completionByFrequency.get(row.frequency)!;
+
+      frequencyMetrics.totalCount += 1;
+      plannedTotal += price;
+
+      if (row.status === TodoStatus.COMPLETED) {
+        completedCount += 1;
+        frequencyMetrics.completedCount += 1;
+      }
+
+      if (!isClosed) {
+        openCount += 1;
+        openPlannedTotal += price;
+        totalRemainingAmount += this.resolveTodoRemainingAmount(row);
+
+        if (overdueOccurrencesForRow > 0) {
+          overdueCount += 1;
+        }
+      }
+
+      overdueOccurrenceCount += overdueOccurrencesForRow;
+
+      if (row.frequency !== TodoFrequency.ONCE) {
+        const targetAmount = price;
+        const remainingAmount = Number(row.remainingAmount ?? row.price);
+        const usedAmount = Math.max(targetAmount - remainingAmount, 0);
+
+        recurringCount += 1;
+        recurringBudgetTargetAmount += targetAmount;
+        recurringBudgetUsedAmount += usedAmount;
+        remainingRecurringBudgetTotal += remainingAmount;
+      }
+
+      if (row.priority === 'TOP_PRIORITY') {
+        topPriorityCount += 1;
+      }
+
+      if (row.hasActiveImage) {
+        withImagesCount += 1;
+      }
+    }
+
+    const dueNext7Days = this.computeScheduledWindowSnapshot(rows, 7);
+    const dueNext30Days = this.computeScheduledWindowSnapshot(rows, 30);
+    const recurringBudgetRemainingAmount = this.roundCurrency(
+      remainingRecurringBudgetTotal,
+    );
+    const recurringBudgetUsagePercentage =
+      recurringBudgetTargetAmount <= 0
+        ? 0
+        : Math.round(
+            (recurringBudgetUsedAmount / recurringBudgetTargetAmount) * 100,
+          );
+
+    return {
+      totalCount: rows.length,
+      openCount,
+      completedCount,
+      recurringCount,
+      topPriorityCount,
+      withImagesCount,
+      completionPercentage:
+        rows.length === 0
+          ? 0
+          : Math.round((completedCount / rows.length) * 100),
+      imageCoveragePercentage:
+        rows.length === 0
+          ? 0
+          : Math.round((withImagesCount / rows.length) * 100),
+      plannedTotal: this.roundCurrency(plannedTotal),
+      openPlannedTotal: this.roundCurrency(openPlannedTotal),
+      totalRemainingAmount: this.roundCurrency(totalRemainingAmount),
+      remainingRecurringBudgetTotal: recurringBudgetRemainingAmount,
+      recordedCount: recordingAggregate.totalCount,
+      recordedBaseTotalAmount: this.roundCurrency(
+        Number(recordingAggregate.totalBaseAmount),
+      ),
+      recordedFeeTotalAmount: this.roundCurrency(
+        Number(recordingAggregate.totalFeeAmount),
+      ),
+      recordedTotalAmount: this.roundCurrency(
+        Number(recordingAggregate.totalChargedAmount),
+      ),
+      recordedVarianceTotalAmount: this.roundCurrency(
+        Number(recordingAggregate.totalVarianceAmount),
+      ),
+      feeBearingRecordingCount: recordingAggregate.feeBearingCount,
+      overdueCount,
+      overdueOccurrenceCount,
+      dueNext7DaysCount: dueNext7Days.count,
+      dueNext7DaysAmount: dueNext7Days.amount,
+      dueNext30DaysCount: dueNext30Days.count,
+      dueNext30DaysAmount: dueNext30Days.amount,
+      recurringBudgetBurnDown: {
+        targetAmount: this.roundCurrency(recurringBudgetTargetAmount),
+        usedAmount: this.roundCurrency(recurringBudgetUsedAmount),
+        remainingAmount: recurringBudgetRemainingAmount,
+        usagePercentage: recurringBudgetUsagePercentage,
+      },
+      completionByFrequency: Object.values(TodoFrequency).map((frequency) => {
+        const metrics = completionByFrequency.get(frequency)!;
+
+        return {
+          frequency,
+          totalCount: metrics.totalCount,
+          completedCount: metrics.completedCount,
+          completionPercentage:
+            metrics.totalCount === 0
+              ? 0
+              : Math.round((metrics.completedCount / metrics.totalCount) * 100),
+        };
+      }),
+    };
+  }
+
+  private computeScheduledWindowSnapshot(
     rows: TodoSummaryRow[],
     windowDays: number,
-  ): number {
+  ): { amount: number; count: number } {
     const today = this.parseDateOnly(this.getTodayDateString());
     const windowEnd = this.toIsoDate(this.addDays(today, windowDays - 1));
     const todayIsoDate = this.toIsoDate(today);
     let total = 0;
+    let count = 0;
 
     for (const row of rows) {
       if (this.isTodoClosed(row.status)) {
@@ -1749,12 +1944,16 @@ export class TodosService {
         continue;
       }
 
+      count += matchingOccurrenceCount;
       total +=
         this.resolveUpcomingOccurrenceAmount(row, remainingDates) *
         matchingOccurrenceCount;
     }
 
-    return this.roundCurrency(total);
+    return {
+      count,
+      amount: this.roundCurrency(total),
+    };
   }
 
   private getRemainingOccurrenceDates(row: TodoSummaryRow): string[] {
@@ -1777,8 +1976,16 @@ export class TodosService {
     return this.roundCurrency(remainingAmount / remainingDates.length);
   }
 
-  private hasOverdueOccurrence(row: TodoSummaryRow): boolean {
-    return this.hasOverdueActiveOccurrence(row.occurrences);
+  private resolveTodoRemainingAmount(row: TodoSummaryRow): number {
+    if (this.isTodoClosed(row.status)) {
+      return 0;
+    }
+
+    if (row.frequency === TodoFrequency.ONCE) {
+      return row.status === TodoStatus.ACTIVE ? Number(row.price) : 0;
+    }
+
+    return Number(row.remainingAmount ?? row.price);
   }
 
   private isTodoClosed(status: TodoStatus): boolean {
