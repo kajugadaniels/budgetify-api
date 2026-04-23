@@ -396,6 +396,12 @@ export class ExpensesService {
 
     const expense = await this.findOwnedExpenseOrThrow(userId, expenseId);
 
+    if (expense.todoRecording && expense.todoRecording.reversedAt === null) {
+      throw new BadRequestException(
+        'Reverse the linked todo recording before deleting this expense directly.',
+      );
+    }
+
     await this.expensesRepository.update(expense.id, {
       deletedAt: new Date(),
     });
