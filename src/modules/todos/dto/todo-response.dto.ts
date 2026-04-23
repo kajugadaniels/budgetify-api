@@ -1,5 +1,9 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  ExpenseCategory,
+  ExpenseMobileMoneyChannel,
+  ExpenseMobileMoneyNetwork,
+  ExpensePaymentMethod,
   TodoFrequency,
   TodoPriority,
   TodoStatus,
@@ -47,6 +51,57 @@ export class TodoResponseDto {
     description: 'How often this todo recurs.',
   })
   frequency!: TodoFrequency;
+
+  @ApiPropertyOptional({
+    enum: ExpenseCategory,
+    example: ExpenseCategory.SCHOOL_FEES,
+    nullable: true,
+    description:
+      'Default expense category to prefill when this todo is recorded as an expense.',
+  })
+  defaultExpenseCategory!: ExpenseCategory | null;
+
+  @ApiPropertyOptional({
+    enum: ExpensePaymentMethod,
+    example: ExpensePaymentMethod.MOBILE_MONEY,
+    nullable: true,
+    description:
+      'Default payment method to prefill when this todo is recorded as an expense.',
+  })
+  defaultPaymentMethod!: ExpensePaymentMethod | null;
+
+  @ApiPropertyOptional({
+    enum: ExpenseMobileMoneyChannel,
+    example: ExpenseMobileMoneyChannel.P2P_TRANSFER,
+    nullable: true,
+    description:
+      'Default mobile money transfer type when the default payment method is mobile money.',
+  })
+  defaultMobileMoneyChannel!: ExpenseMobileMoneyChannel | null;
+
+  @ApiPropertyOptional({
+    enum: ExpenseMobileMoneyNetwork,
+    example: ExpenseMobileMoneyNetwork.ON_NET,
+    nullable: true,
+    description:
+      'Default mobile money network when the default channel is a P2P transfer.',
+  })
+  defaultMobileMoneyNetwork!: ExpenseMobileMoneyNetwork | null;
+
+  @ApiPropertyOptional({
+    example: 'GS Kagarama',
+    nullable: true,
+    description: 'Merchant, vendor, payee, or destination label for the plan.',
+  })
+  payee!: string | null;
+
+  @ApiPropertyOptional({
+    example: 'Second-term fees for May intake.',
+    nullable: true,
+    description:
+      'Reusable note or rationale that prefills expense recording for this todo.',
+  })
+  expenseNote!: string | null;
 
   @ApiPropertyOptional({
     example: '2026-04-02',
@@ -139,4 +194,11 @@ export class TodoResponseDto {
 
   @ApiProperty({ type: CreatedByResponseDto })
   createdBy!: CreatedByResponseDto;
+
+  @ApiProperty({
+    type: CreatedByResponseDto,
+    description:
+      'User currently responsible for this plan inside the shared workspace.',
+  })
+  responsibleUser!: CreatedByResponseDto;
 }
