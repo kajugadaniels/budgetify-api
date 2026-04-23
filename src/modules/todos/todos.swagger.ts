@@ -17,6 +17,10 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import {
+  ExpenseCategory,
+  ExpenseMobileMoneyChannel,
+  ExpenseMobileMoneyNetwork,
+  ExpensePaymentMethod,
   TodoFrequency,
   TodoPriority,
   TodoStatus,
@@ -74,6 +78,48 @@ function createTodoMultipartSchema(
         enum: Object.values(TodoFrequency),
         example: TodoFrequency.WEEKLY,
         default: TodoFrequency.ONCE,
+      },
+      defaultExpenseCategory: {
+        type: 'string',
+        enum: Object.values(ExpenseCategory),
+        example: ExpenseCategory.SCHOOL_FEES,
+        nullable: true,
+      },
+      defaultPaymentMethod: {
+        type: 'string',
+        enum: Object.values(ExpensePaymentMethod),
+        example: ExpensePaymentMethod.MOBILE_MONEY,
+        nullable: true,
+      },
+      defaultMobileMoneyChannel: {
+        type: 'string',
+        enum: Object.values(ExpenseMobileMoneyChannel),
+        example: ExpenseMobileMoneyChannel.P2P_TRANSFER,
+        nullable: true,
+      },
+      defaultMobileMoneyNetwork: {
+        type: 'string',
+        enum: Object.values(ExpenseMobileMoneyNetwork),
+        example: ExpenseMobileMoneyNetwork.ON_NET,
+        nullable: true,
+      },
+      payee: {
+        type: 'string',
+        maxLength: 120,
+        example: 'GS Kagarama',
+        nullable: true,
+      },
+      expenseNote: {
+        type: 'string',
+        maxLength: 500,
+        example: 'Second-term fees for May intake.',
+        nullable: true,
+      },
+      responsibleUserId: {
+        type: 'string',
+        format: 'uuid',
+        example: '8d65c09f-e7fa-4ee1-9428-3b1ebc80a918',
+        nullable: true,
       },
       startDate: {
         type: 'string',
