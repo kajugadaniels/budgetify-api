@@ -3,7 +3,12 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, TodoFrequency, TodoStatus } from '@prisma/client';
+import {
+  Prisma,
+  TodoFrequency,
+  TodoOccurrenceStatus,
+  TodoStatus,
+} from '@prisma/client';
 
 import {
   PaginatedResponse,
@@ -32,6 +37,7 @@ import {
   TodoUploadFile,
 } from './services/todo-image-storage.service';
 import {
+  TodoOccurrenceWithRecording,
   TodoSummaryRow,
   TodoRecordingWithRelations,
   TodoWithImages,
@@ -49,12 +55,42 @@ type ResolvedRecurringSchedule = {
 };
 
 type PreparedTodoRecordingMutation = {
+  occurrence: TodoOccurrenceWithRecording;
   nextRecordedOccurrenceDates: string[];
   nextRemainingAmount: Prisma.Decimal | null;
   nextStatus: TodoStatus;
   occurrenceDate: Date;
   plannedAmount: Prisma.Decimal;
   varianceAmount: Prisma.Decimal;
+};
+
+type TodoOccurrenceStateLike = {
+  id: string | null;
+  occurrenceDate: Date | string;
+  resolvedAt?: Date | null;
+  status: TodoOccurrenceStatus;
+  recording: {
+    expenseId: string | null;
+    id: string;
+  } | null;
+};
+
+type PreparedOccurrenceSync = {
+  activeOccurrences: TodoOccurrenceStateLike[];
+  createdOccurrences: Array<{
+    occurrenceDate: Date;
+    resolvedAt: Date | null;
+    status: TodoOccurrenceStatus;
+  }>;
+  deactivatedOccurrenceIds: string[];
+  recordedOccurrenceDates: string[];
+  openOccurrenceDates: string[];
+  occurrenceDates: string[];
+  updatedOccurrences: Array<{
+    id: string;
+    resolvedAt: Date | null;
+    status: TodoOccurrenceStatus;
+  }>;
 };
 
 export type TodoSummarySnapshot = {
@@ -158,7 +194,6 @@ export class TodosService {
       await this.todosRepository.aggregateRecordingsByTodoIds(
         rows.map((row) => row.id),
       );
-    const todayIsoDate = this.getTodayDateString();
 
     let completedCount = 0;
     let openCount = 0;
@@ -183,7 +218,7 @@ export class TodosService {
         openCount += 1;
         openPlannedTotal += price;
 
-        if (this.hasOverdueOccurrence(row, todayIsoDate)) {
+        if (this.hasOverdueOccurrence(row)) {
           overdueCount += 1;
         }
       }
@@ -405,19 +440,34 @@ export class TodosService {
     const remainingAmount =
       schedule.frequency === TodoFrequency.ONCE ? null : price;
 
-    const todo = await this.todosRepository.create({
-      userId,
-      name: payload.name,
-      price,
-      priority: payload.priority,
-      status: this.resolveInitialTodoStatus(payload.status),
-      frequency: schedule.frequency,
-      startDate: schedule.startDate,
-      endDate: schedule.endDate,
-      frequencyDays: schedule.frequencyDays,
-      occurrenceDates: schedule.occurrenceDates,
-      recordedOccurrenceDates: [],
-      remainingAmount,
+    const todo = await this.prisma.$transaction(async (tx) => {
+      const createdTodo = await this.todosRepository.create(
+        {
+          userId,
+          name: payload.name,
+          price,
+          priority: payload.priority,
+          status: this.resolveInitialTodoStatus(payload.status),
+          frequency: schedule.frequency,
+          startDate: schedule.startDate,
+          endDate: schedule.endDate,
+          frequencyDays: schedule.frequencyDays,
+          occurrenceDates: schedule.occurrenceDates,
+          recordedOccurrenceDates: [],
+          remainingAmount,
+        },
+        tx,
+      );
+
+      await this.todosRepository.createOccurrences(
+        this.buildTodoOccurrenceCreateInputs(
+          createdTodo.id,
+          schedule.occurrenceDates,
+        ),
+        tx,
+      );
+
+      return createdTodo;
     });
 
     const uploadedImages = await this.uploadTodoImages(
@@ -505,14 +555,15 @@ export class TodosService {
     );
 
     return this.prisma.$transaction(async (tx) => {
+      const recordedAt = new Date();
+
       await this.todosRepository.update(
         todo.id,
         {
           status: preparedRecording.nextStatus,
-          recordedOccurrenceDates:
-            todo.frequency === TodoFrequency.ONCE
-              ? undefined
-              : { set: preparedRecording.nextRecordedOccurrenceDates },
+          recordedOccurrenceDates: {
+            set: preparedRecording.nextRecordedOccurrenceDates,
+          },
           remainingAmount:
             todo.frequency === TodoFrequency.ONCE
               ? undefined
@@ -521,10 +572,20 @@ export class TodosService {
         tx,
       );
 
+      await this.todosRepository.updateOccurrence(
+        preparedRecording.occurrence.id,
+        {
+          status: TodoOccurrenceStatus.RECORDED,
+          resolvedAt: recordedAt,
+        },
+        tx,
+      );
+
       return this.todosRepository.createRecording(
         {
           todoId: todo.id,
           expenseId: expense.id,
+          todoOccurrenceId: preparedRecording.occurrence.id,
           occurrenceDate: preparedRecording.occurrenceDate,
           plannedAmount: preparedRecording.plannedAmount,
           baseAmount: expense.amountRwf,
@@ -534,7 +595,7 @@ export class TodosService {
           paymentMethod: expense.paymentMethod,
           mobileMoneyChannel: expense.mobileMoneyChannel,
           mobileMoneyNetwork: expense.mobileMoneyNetwork,
-          recordedAt: new Date(),
+          recordedAt,
           recordedByUserId: userId,
         },
         tx,
@@ -592,6 +653,7 @@ export class TodosService {
         occurrenceIsoDate,
         charges.totalAmountRwf,
       );
+      const recordedAt = new Date();
       const expense = await this.expensesRepository.create(
         {
           userId,
@@ -617,10 +679,9 @@ export class TodosService {
         todo.id,
         {
           status: preparedRecording.nextStatus,
-          recordedOccurrenceDates:
-            todo.frequency === TodoFrequency.ONCE
-              ? undefined
-              : { set: preparedRecording.nextRecordedOccurrenceDates },
+          recordedOccurrenceDates: {
+            set: preparedRecording.nextRecordedOccurrenceDates,
+          },
           remainingAmount:
             todo.frequency === TodoFrequency.ONCE
               ? undefined
@@ -629,10 +690,20 @@ export class TodosService {
         tx,
       );
 
+      await this.todosRepository.updateOccurrence(
+        preparedRecording.occurrence.id,
+        {
+          status: TodoOccurrenceStatus.RECORDED,
+          resolvedAt: recordedAt,
+        },
+        tx,
+      );
+
       return this.todosRepository.createRecording(
         {
           todoId: todo.id,
           expenseId: expense.id,
+          todoOccurrenceId: preparedRecording.occurrence.id,
           occurrenceDate: preparedRecording.occurrenceDate,
           plannedAmount: preparedRecording.plannedAmount,
           baseAmount: charges.amountRwf,
@@ -642,7 +713,7 @@ export class TodosService {
           paymentMethod: charges.paymentMethod,
           mobileMoneyChannel: charges.mobileMoneyChannel,
           mobileMoneyNetwork: charges.mobileMoneyNetwork,
-          recordedAt: new Date(),
+          recordedAt,
           recordedByUserId: userId,
         },
         tx,
@@ -742,14 +813,6 @@ export class TodosService {
         ? new Prisma.Decimal(payload.price)
         : todo.price;
     const spentSoFar = this.resolveSpentAmount(todo);
-    let nextRecordedOccurrenceDates =
-      scheduleHasChanged && nextSchedule.frequency !== TodoFrequency.ONCE
-        ? this.filterRecordedOccurrenceDates(
-            todo.recordedOccurrenceDates,
-            nextSchedule.occurrenceDates,
-          )
-        : [...todo.recordedOccurrenceDates];
-
     let nextRemainingAmount =
       nextSchedule.frequency === TodoFrequency.ONCE
         ? null
@@ -792,34 +855,25 @@ export class TodosService {
         );
       }
 
-      this.assertOccurrenceDateAvailable(
-        payload.recordedOccurrenceDate,
-        nextSchedule.occurrenceDates,
-        nextRecordedOccurrenceDates,
-      );
-
-      nextRecordedOccurrenceDates = this.sortIsoDates([
-        ...nextRecordedOccurrenceDates,
-        payload.recordedOccurrenceDate,
-      ]);
       nextRemainingAmount = this.clampDecimalToZero(
         nextRemainingAmount.minus(deduction),
       );
     }
 
+    const occurrenceSync = this.prepareOccurrenceSync({
+      currentOccurrences: todo.occurrences,
+      nextOccurrenceDates: nextSchedule.occurrenceDates,
+      explicitStatus: payload.status,
+      recordedOccurrenceDate: payload.recordedOccurrenceDate,
+    });
+
     const nextStatus = this.resolveNextTodoStatus({
       currentStatus: todo.status,
       explicitStatus: payload.status,
       frequency: nextSchedule.frequency,
+      hasRecordedOccurrences: occurrenceSync.recordedOccurrenceDates.length > 0,
+      openOccurrenceCount: occurrenceSync.openOccurrenceDates.length,
       remainingAmount: nextRemainingAmount,
-      recordedOccurrenceDates:
-        nextSchedule.frequency === TodoFrequency.ONCE
-          ? []
-          : nextRecordedOccurrenceDates,
-      occurrenceDates:
-        nextSchedule.frequency === TodoFrequency.ONCE
-          ? []
-          : nextSchedule.occurrenceDates,
       wasRecordingMutation: hadRecordingMutation,
     });
 
@@ -839,15 +893,46 @@ export class TodosService {
             startDate: nextSchedule.startDate,
             endDate: nextSchedule.endDate,
             frequencyDays: { set: nextSchedule.frequencyDays },
-            occurrenceDates: { set: nextSchedule.occurrenceDates },
+            occurrenceDates: { set: occurrenceSync.occurrenceDates },
             recordedOccurrenceDates: {
-              set:
-                nextSchedule.frequency === TodoFrequency.ONCE
-                  ? []
-                  : nextRecordedOccurrenceDates,
+              set: occurrenceSync.recordedOccurrenceDates,
             },
             remainingAmount: nextRemainingAmount,
           },
+          tx,
+        );
+
+        if (occurrenceSync.deactivatedOccurrenceIds.length > 0) {
+          await this.todosRepository.updateManyOccurrences(
+            {
+              id: { in: occurrenceSync.deactivatedOccurrenceIds },
+            },
+            {
+              active: false,
+            },
+            tx,
+          );
+        }
+
+        for (const occurrence of occurrenceSync.updatedOccurrences) {
+          await this.todosRepository.updateOccurrence(
+            occurrence.id,
+            {
+              status: occurrence.status,
+              resolvedAt: occurrence.resolvedAt,
+            },
+            tx,
+          );
+        }
+
+        await this.todosRepository.createOccurrences(
+          occurrenceSync.createdOccurrences.map((occurrence) => ({
+            todoId: todo.id,
+            occurrenceDate: occurrence.occurrenceDate,
+            status: occurrence.status,
+            active: true,
+            resolvedAt: occurrence.resolvedAt,
+          })),
           tx,
         );
 
@@ -1092,15 +1177,6 @@ export class TodosService {
     return dates;
   }
 
-  private filterRecordedOccurrenceDates(
-    recordedOccurrenceDates: string[],
-    occurrenceDates: string[],
-  ): string[] {
-    return this.sortIsoDates(
-      recordedOccurrenceDates.filter((date) => occurrenceDates.includes(date)),
-    );
-  }
-
   private prepareTodoRecordingMutation(
     todo: TodoWithImages,
     occurrenceIsoDate: string,
@@ -1115,6 +1191,15 @@ export class TodosService {
     const plannedAmount = this.resolvePlannedRecordingAmount(todo);
     let nextRecordedOccurrenceDates = [...todo.recordedOccurrenceDates];
     let nextRemainingAmount = todo.remainingAmount;
+    const occurrence = todo.occurrences.find(
+      (entry) => this.toIsoDate(entry.occurrenceDate) === occurrenceIsoDate,
+    );
+
+    if (!occurrence) {
+      throw new BadRequestException(
+        'The selected occurrence date is not part of this todo schedule.',
+      );
+    }
 
     if (todo.frequency !== TodoFrequency.ONCE) {
       if (nextRemainingAmount === null) {
@@ -1123,11 +1208,16 @@ export class TodosService {
         );
       }
 
-      this.assertOccurrenceDateAvailable(
-        occurrenceIsoDate,
-        todo.occurrenceDates,
-        nextRecordedOccurrenceDates,
-      );
+      const currentStatus = this.resolveEffectiveOccurrenceStatus(occurrence);
+
+      if (
+        currentStatus !== TodoOccurrenceStatus.SCHEDULED &&
+        currentStatus !== TodoOccurrenceStatus.OVERDUE
+      ) {
+        throw new BadRequestException(
+          'This occurrence date has already been resolved.',
+        );
+      }
 
       if (chargedAmount.greaterThan(nextRemainingAmount)) {
         throw new BadRequestException(
@@ -1135,23 +1225,34 @@ export class TodosService {
         );
       }
 
-      nextRecordedOccurrenceDates = this.sortIsoDates([
-        ...nextRecordedOccurrenceDates,
-        occurrenceIsoDate,
-      ]);
+      nextRecordedOccurrenceDates = this.prepareOccurrenceSync({
+        currentOccurrences: todo.occurrences,
+        nextOccurrenceDates: todo.occurrenceDates,
+        recordedOccurrenceDate: occurrenceIsoDate,
+      }).recordedOccurrenceDates;
       nextRemainingAmount = this.clampDecimalToZero(
         nextRemainingAmount.minus(chargedAmount),
       );
+    } else {
+      nextRecordedOccurrenceDates = [occurrenceIsoDate];
     }
 
     return {
+      occurrence,
       nextRecordedOccurrenceDates,
       nextRemainingAmount,
       nextStatus: this.resolveRecordedTodoStatus({
         frequency: todo.frequency,
         remainingAmount: nextRemainingAmount,
-        recordedOccurrenceDates: nextRecordedOccurrenceDates,
-        occurrenceDates: todo.occurrenceDates,
+        hasRecordedOccurrences: true,
+        openOccurrenceCount:
+          todo.frequency === TodoFrequency.ONCE
+            ? 0
+            : this.prepareOccurrenceSync({
+                currentOccurrences: todo.occurrences,
+                nextOccurrenceDates: todo.occurrenceDates,
+                recordedOccurrenceDate: occurrenceIsoDate,
+              }).openOccurrenceDates.length,
       }),
       occurrenceDate: this.parseDateOnly(occurrenceIsoDate),
       plannedAmount,
@@ -1164,8 +1265,8 @@ export class TodosService {
       return todo.price.toDecimalPlaces(2);
     }
 
-    const remainingDates = todo.occurrenceDates.filter(
-      (date) => !todo.recordedOccurrenceDates.includes(date),
+    const remainingDates = this.getOpenOccurrenceDatesFromStates(
+      todo.occurrences,
     );
     const remainingAmount = todo.remainingAmount ?? todo.price;
 
@@ -1174,24 +1275,6 @@ export class TodosService {
     }
 
     return remainingAmount.dividedBy(remainingDates.length).toDecimalPlaces(2);
-  }
-
-  private assertOccurrenceDateAvailable(
-    recordedOccurrenceDate: string,
-    occurrenceDates: string[],
-    recordedOccurrenceDates: string[],
-  ): void {
-    if (!occurrenceDates.includes(recordedOccurrenceDate)) {
-      throw new BadRequestException(
-        'The selected occurrence date is not part of this todo schedule.',
-      );
-    }
-
-    if (recordedOccurrenceDates.includes(recordedOccurrenceDate)) {
-      throw new BadRequestException(
-        'This occurrence date has already been recorded to expenses.',
-      );
-    }
   }
 
   private resolveSpentAmount(todo: TodoWithImages): Prisma.Decimal {
@@ -1215,43 +1298,41 @@ export class TodosService {
 
   private resolveRecordedTodoStatus(input: {
     frequency: TodoFrequency;
+    hasRecordedOccurrences: boolean;
+    openOccurrenceCount: number;
     remainingAmount: Prisma.Decimal | null;
-    recordedOccurrenceDates: string[];
-    occurrenceDates: string[];
   }): TodoStatus {
     if (input.frequency === TodoFrequency.ONCE) {
       return TodoStatus.RECORDED;
     }
 
-    const remainingOccurrencesCount = input.occurrenceDates.filter(
-      (date) => !input.recordedOccurrenceDates.includes(date),
-    ).length;
-
     if (
       input.remainingAmount?.lessThanOrEqualTo(0) === true ||
-      remainingOccurrencesCount === 0
+      input.openOccurrenceCount === 0
     ) {
       return TodoStatus.COMPLETED;
     }
 
-    return TodoStatus.RECORDED;
+    return input.hasRecordedOccurrences
+      ? TodoStatus.RECORDED
+      : TodoStatus.ACTIVE;
   }
 
   private resolveNextTodoStatus(input: {
     currentStatus: TodoStatus;
     explicitStatus?: TodoStatus;
     frequency: TodoFrequency;
+    hasRecordedOccurrences: boolean;
+    openOccurrenceCount: number;
     remainingAmount: Prisma.Decimal | null;
-    recordedOccurrenceDates: string[];
-    occurrenceDates: string[];
     wasRecordingMutation: boolean;
   }): TodoStatus {
     if (input.wasRecordingMutation) {
       return this.resolveRecordedTodoStatus({
         frequency: input.frequency,
+        hasRecordedOccurrences: input.hasRecordedOccurrences,
+        openOccurrenceCount: input.openOccurrenceCount,
         remainingAmount: input.remainingAmount,
-        recordedOccurrenceDates: input.recordedOccurrenceDates,
-        occurrenceDates: input.occurrenceDates,
       });
     }
 
@@ -1268,13 +1349,9 @@ export class TodosService {
       return nextBaseStatus;
     }
 
-    const hasRecordedOccurrences = input.recordedOccurrenceDates.length > 0;
-    const remainingOccurrencesCount = input.occurrenceDates.filter(
-      (date) => !input.recordedOccurrenceDates.includes(date),
-    ).length;
     const isAutoCompleted =
       input.remainingAmount?.lessThanOrEqualTo(0) === true ||
-      remainingOccurrencesCount === 0;
+      input.openOccurrenceCount === 0;
 
     if (isAutoCompleted) {
       return TodoStatus.COMPLETED;
@@ -1289,10 +1366,14 @@ export class TodosService {
     }
 
     if (input.explicitStatus === TodoStatus.RECORDED) {
-      return hasRecordedOccurrences ? TodoStatus.RECORDED : TodoStatus.ACTIVE;
+      return input.hasRecordedOccurrences
+        ? TodoStatus.RECORDED
+        : TodoStatus.ACTIVE;
     }
 
-    return hasRecordedOccurrences ? TodoStatus.RECORDED : TodoStatus.ACTIVE;
+    return input.hasRecordedOccurrences
+      ? TodoStatus.RECORDED
+      : TodoStatus.ACTIVE;
   }
 
   private computeEndDate(startDate: Date, frequency: TodoFrequency): Date {
@@ -1356,6 +1437,259 @@ export class TodosService {
 
   private sortIsoDates(values: string[]): string[] {
     return [...values].sort((left, right) => left.localeCompare(right, 'en'));
+  }
+
+  private buildTodoOccurrenceCreateInputs(
+    todoId: string,
+    occurrenceDates: string[],
+  ): Prisma.TodoOccurrenceUncheckedCreateInput[] {
+    return this.sortIsoDates(occurrenceDates).map((occurrenceDate) => ({
+      todoId,
+      occurrenceDate: this.parseDateOnly(occurrenceDate),
+      status: TodoOccurrenceStatus.SCHEDULED,
+      active: true,
+      resolvedAt: null,
+    }));
+  }
+
+  private toOccurrenceIsoDate(
+    occurrence: Pick<TodoOccurrenceStateLike, 'occurrenceDate'>,
+  ): string {
+    return typeof occurrence.occurrenceDate === 'string'
+      ? occurrence.occurrenceDate
+      : this.toIsoDate(occurrence.occurrenceDate);
+  }
+
+  private resolveEffectiveOccurrenceStatus(
+    occurrence: Pick<TodoOccurrenceStateLike, 'occurrenceDate' | 'status'>,
+  ): TodoOccurrenceStatus {
+    if (occurrence.status !== TodoOccurrenceStatus.SCHEDULED) {
+      return occurrence.status;
+    }
+
+    return this.toOccurrenceIsoDate(occurrence) < this.getTodayDateString()
+      ? TodoOccurrenceStatus.OVERDUE
+      : TodoOccurrenceStatus.SCHEDULED;
+  }
+
+  private getOccurrenceDatesFromStates(
+    occurrences: TodoOccurrenceStateLike[],
+  ): string[] {
+    return this.sortIsoDates(
+      occurrences.map((occurrence) => this.toOccurrenceIsoDate(occurrence)),
+    );
+  }
+
+  private getRecordedOccurrenceDatesFromStates(
+    occurrences: TodoOccurrenceStateLike[],
+  ): string[] {
+    return this.sortIsoDates(
+      occurrences
+        .filter(
+          (occurrence) =>
+            this.resolveEffectiveOccurrenceStatus(occurrence) ===
+            TodoOccurrenceStatus.RECORDED,
+        )
+        .map((occurrence) => this.toOccurrenceIsoDate(occurrence)),
+    );
+  }
+
+  private getOpenOccurrenceDatesFromStates(
+    occurrences: TodoOccurrenceStateLike[],
+  ): string[] {
+    return this.sortIsoDates(
+      occurrences
+        .filter((occurrence) => {
+          const status = this.resolveEffectiveOccurrenceStatus(occurrence);
+          return (
+            status === TodoOccurrenceStatus.SCHEDULED ||
+            status === TodoOccurrenceStatus.OVERDUE
+          );
+        })
+        .map((occurrence) => this.toOccurrenceIsoDate(occurrence)),
+    );
+  }
+
+  private hasOverdueActiveOccurrence(
+    occurrences: TodoOccurrenceStateLike[],
+  ): boolean {
+    return occurrences.some(
+      (occurrence) =>
+        this.resolveEffectiveOccurrenceStatus(occurrence) ===
+        TodoOccurrenceStatus.OVERDUE,
+    );
+  }
+
+  private prepareOccurrenceSync(input: {
+    currentOccurrences: TodoOccurrenceWithRecording[];
+    explicitStatus?: TodoStatus;
+    nextOccurrenceDates: string[];
+    recordedOccurrenceDate?: string;
+  }): PreparedOccurrenceSync {
+    const desiredDates = this.sortIsoDates(input.nextOccurrenceDates);
+    const desiredDateSet = new Set(desiredDates);
+    const retainedOccurrenceIds = new Set<string>();
+    const currentOccurrenceById = new Map(
+      input.currentOccurrences.map((occurrence) => [occurrence.id, occurrence]),
+    );
+    const currentOccurrenceByDate = new Map<
+      string,
+      TodoOccurrenceWithRecording
+    >();
+
+    for (const occurrence of input.currentOccurrences) {
+      const isoDate = this.toIsoDate(occurrence.occurrenceDate);
+
+      if (
+        desiredDateSet.has(isoDate) &&
+        !currentOccurrenceByDate.has(isoDate)
+      ) {
+        currentOccurrenceByDate.set(isoDate, occurrence);
+        retainedOccurrenceIds.add(occurrence.id);
+      }
+    }
+
+    const preparedOccurrences: TodoOccurrenceStateLike[] = desiredDates.map(
+      (occurrenceDate) => {
+        const current = currentOccurrenceByDate.get(occurrenceDate);
+
+        return current
+          ? {
+              id: current.id,
+              occurrenceDate: current.occurrenceDate,
+              resolvedAt: current.resolvedAt ?? null,
+              status: current.status,
+              recording: current.recording
+                ? {
+                    id: current.recording.id,
+                    expenseId: current.recording.expenseId,
+                  }
+                : null,
+            }
+          : {
+              id: null,
+              occurrenceDate,
+              resolvedAt: null,
+              status: TodoOccurrenceStatus.SCHEDULED,
+              recording: null,
+            };
+      },
+    );
+
+    const resolvedAt = new Date();
+
+    if (input.explicitStatus === TodoStatus.ACTIVE) {
+      for (const occurrence of preparedOccurrences) {
+        if (
+          occurrence.recording === null &&
+          (occurrence.status === TodoOccurrenceStatus.SKIPPED ||
+            occurrence.status === TodoOccurrenceStatus.COMPLETED)
+        ) {
+          occurrence.status = TodoOccurrenceStatus.SCHEDULED;
+          occurrence.resolvedAt = null;
+        }
+      }
+    }
+
+    if (
+      input.explicitStatus === TodoStatus.COMPLETED ||
+      input.explicitStatus === TodoStatus.SKIPPED
+    ) {
+      const targetStatus =
+        input.explicitStatus === TodoStatus.COMPLETED
+          ? TodoOccurrenceStatus.COMPLETED
+          : TodoOccurrenceStatus.SKIPPED;
+
+      for (const occurrence of preparedOccurrences) {
+        const currentStatus = this.resolveEffectiveOccurrenceStatus(occurrence);
+
+        if (
+          occurrence.recording === null &&
+          (currentStatus === TodoOccurrenceStatus.SCHEDULED ||
+            currentStatus === TodoOccurrenceStatus.OVERDUE)
+        ) {
+          occurrence.status = targetStatus;
+          occurrence.resolvedAt = resolvedAt;
+        }
+      }
+    }
+
+    if (input.recordedOccurrenceDate !== undefined) {
+      const occurrence = preparedOccurrences.find(
+        (entry) =>
+          this.toOccurrenceIsoDate(entry) === input.recordedOccurrenceDate,
+      );
+
+      if (!occurrence) {
+        throw new BadRequestException(
+          'The selected occurrence date is not part of this todo schedule.',
+        );
+      }
+
+      const currentStatus = this.resolveEffectiveOccurrenceStatus(occurrence);
+
+      if (
+        occurrence.recording !== null ||
+        (currentStatus !== TodoOccurrenceStatus.SCHEDULED &&
+          currentStatus !== TodoOccurrenceStatus.OVERDUE)
+      ) {
+        throw new BadRequestException(
+          'This occurrence date has already been resolved.',
+        );
+      }
+
+      occurrence.status = TodoOccurrenceStatus.RECORDED;
+      occurrence.resolvedAt = resolvedAt;
+    }
+
+    const updatedOccurrences = preparedOccurrences
+      .filter((occurrence) => {
+        if (occurrence.id === null) {
+          return false;
+        }
+
+        const current = currentOccurrenceById.get(occurrence.id);
+        if (!current) {
+          return false;
+        }
+
+        const currentResolvedAt = current.resolvedAt?.getTime() ?? null;
+        const nextResolvedAt = occurrence.resolvedAt?.getTime() ?? null;
+
+        return (
+          current.status !== occurrence.status ||
+          currentResolvedAt !== nextResolvedAt
+        );
+      })
+      .map((occurrence) => ({
+        id: occurrence.id!,
+        status: occurrence.status,
+        resolvedAt: occurrence.resolvedAt ?? null,
+      }));
+
+    const createdOccurrences = preparedOccurrences
+      .filter((occurrence) => occurrence.id === null)
+      .map((occurrence) => ({
+        occurrenceDate: this.parseDateOnly(
+          this.toOccurrenceIsoDate(occurrence),
+        ),
+        status: occurrence.status,
+        resolvedAt: occurrence.resolvedAt ?? null,
+      }));
+
+    return {
+      activeOccurrences: preparedOccurrences,
+      createdOccurrences,
+      deactivatedOccurrenceIds: input.currentOccurrences
+        .filter((occurrence) => !retainedOccurrenceIds.has(occurrence.id))
+        .map((occurrence) => occurrence.id),
+      occurrenceDates: this.getOccurrenceDatesFromStates(preparedOccurrences),
+      recordedOccurrenceDates:
+        this.getRecordedOccurrenceDatesFromStates(preparedOccurrences),
+      openOccurrenceDates:
+        this.getOpenOccurrenceDatesFromStates(preparedOccurrences),
+      updatedOccurrences,
+    };
   }
 
   private getTodayDateString(): string {
@@ -1424,9 +1758,7 @@ export class TodosService {
   }
 
   private getRemainingOccurrenceDates(row: TodoSummaryRow): string[] {
-    return row.occurrenceDates.filter(
-      (date) => !row.recordedOccurrenceDates.includes(date),
-    );
+    return this.getOpenOccurrenceDatesFromStates(row.occurrences);
   }
 
   private resolveUpcomingOccurrenceAmount(
@@ -1445,13 +1777,8 @@ export class TodosService {
     return this.roundCurrency(remainingAmount / remainingDates.length);
   }
 
-  private hasOverdueOccurrence(
-    row: TodoSummaryRow,
-    todayIsoDate: string,
-  ): boolean {
-    return this.getRemainingOccurrenceDates(row).some(
-      (date) => date < todayIsoDate,
-    );
+  private hasOverdueOccurrence(row: TodoSummaryRow): boolean {
+    return this.hasOverdueActiveOccurrence(row.occurrences);
   }
 
   private isTodoClosed(status: TodoStatus): boolean {
