@@ -57,6 +57,7 @@ const TODO_OCCURRENCE_SELECT = {
 
 const TODO_RECORDING_INCLUDE = {
   recordedBy: { select: USER_SELECT },
+  reversedBy: { select: USER_SELECT },
   todo: { select: TODO_RECORDING_TODO_SELECT },
   expense: { select: TODO_RECORDING_EXPENSE_SELECT },
 } satisfies Prisma.TodoRecordingInclude;
@@ -104,7 +105,11 @@ export const activeTodoInclude = {
   },
   _count: {
     select: {
-      recordings: true,
+      recordings: {
+        where: {
+          reversedAt: null,
+        },
+      },
     },
   },
 } satisfies Prisma.TodoInclude;
@@ -227,6 +232,7 @@ export class TodosRepository {
 
     const where: Prisma.TodoRecordingWhereInput = {
       todoId: { in: todoIds },
+      reversedAt: null,
       occurrenceDate: {
         gte: options?.occurrenceDateFrom,
         lt: options?.occurrenceDateTo,
@@ -355,10 +361,28 @@ export class TodosRepository {
 
   async findRecordingByExpenseId(
     expenseId: string,
+    options?: { activeOnly?: boolean },
     db: PrismaExecutor = this.prisma,
   ): Promise<TodoRecordingWithRelations | null> {
-    return db.todoRecording.findUnique({
-      where: { expenseId },
+    return db.todoRecording.findFirst({
+      where: {
+        expenseId,
+        ...(options?.activeOnly ? { reversedAt: null } : {}),
+      },
+      include: TODO_RECORDING_INCLUDE,
+    });
+  }
+
+  async findRecordingByIdAndTodoId(
+    recordingId: string,
+    todoId: string,
+    db: PrismaExecutor = this.prisma,
+  ): Promise<TodoRecordingWithRelations | null> {
+    return db.todoRecording.findFirst({
+      where: {
+        id: recordingId,
+        todoId,
+      },
       include: TODO_RECORDING_INCLUDE,
     });
   }
@@ -379,6 +403,18 @@ export class TodosRepository {
     db: PrismaExecutor = this.prisma,
   ): Promise<TodoRecordingWithRelations> {
     return db.todoRecording.create({
+      data,
+      include: TODO_RECORDING_INCLUDE,
+    });
+  }
+
+  async updateRecording(
+    id: string,
+    data: Prisma.TodoRecordingUpdateInput,
+    db: PrismaExecutor = this.prisma,
+  ): Promise<TodoRecordingWithRelations> {
+    return db.todoRecording.update({
+      where: { id },
       data,
       include: TODO_RECORDING_INCLUDE,
     });
