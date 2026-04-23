@@ -11,12 +11,16 @@ describe('TodosService', () => {
     aggregateRecordingsByTodoIds: jest.fn(),
     findRecordingsByTodoIds: jest.fn(),
     findActiveByIdAndUserIds: jest.fn(),
+    findRecordingByIdAndTodoId: jest.fn(),
     update: jest.fn(),
     updateOccurrence: jest.fn(),
     createRecording: jest.fn(),
+    updateRecording: jest.fn(),
   };
   const expensesRepository = {
     create: jest.fn(),
+    findActiveByIdAndUserIds: jest.fn(),
+    update: jest.fn(),
   };
   const mobileMoneyTariffService = {
     resolveExpenseCharges: jest.fn(),
@@ -546,6 +550,156 @@ describe('TodosService', () => {
         feeAmount: new Prisma.Decimal(10),
         totalChargedAmount: new Prisma.Decimal(150),
         varianceAmount: new Prisma.Decimal(0),
+      }),
+      tx,
+    );
+  });
+
+  it('reverses a generated todo recording and restores the recurring budget', async () => {
+    const tx = { transaction: true };
+    const reversedAt = new Date('2026-04-22T09:00:00.000Z');
+    const todo = {
+      id: 'todo-2',
+      name: 'School fees reserve',
+      price: new Prisma.Decimal(110),
+      type: 'RECURRING_OBLIGATION',
+      priority: 'PRIORITY',
+      status: 'COMPLETED',
+      frequency: 'MONTHLY',
+      occurrenceDates: ['2026-04-22'],
+      recordedOccurrenceDates: ['2026-04-22'],
+      occurrences: [
+        {
+          id: 'occ-2',
+          occurrenceDate: new Date('2026-04-22T00:00:00.000Z'),
+          status: 'RECORDED',
+          active: true,
+          resolvedAt: new Date('2026-04-22T00:00:00.000Z'),
+          recording: {
+            id: 'recording-1',
+            expenseId: 'expense-9',
+          },
+        },
+      ],
+      remainingAmount: new Prisma.Decimal(0),
+      _count: { recordings: 1 },
+    };
+    const recording = {
+      id: 'recording-1',
+      todoId: 'todo-2',
+      expenseId: 'expense-9',
+      todoOccurrenceId: 'occ-2',
+      occurrenceDate: new Date('2026-04-22T00:00:00.000Z'),
+      plannedAmount: new Prisma.Decimal(100),
+      baseAmount: new Prisma.Decimal(100),
+      feeAmount: new Prisma.Decimal(10),
+      totalChargedAmount: new Prisma.Decimal(110),
+      varianceAmount: new Prisma.Decimal(10),
+      expenseSource: 'GENERATED',
+      paymentMethod: 'MOBILE_MONEY',
+      mobileMoneyChannel: 'P2P_TRANSFER',
+      mobileMoneyNetwork: 'ON_NET',
+      recordedAt: new Date('2026-04-22T00:00:00.000Z'),
+      recordedByUserId: 'user-1',
+      reversedAt: null,
+      reversalReason: null,
+      reversedByUserId: null,
+      todo: {
+        id: 'todo-2',
+        name: 'School fees reserve',
+        type: 'RECURRING_OBLIGATION',
+        frequency: 'MONTHLY',
+        status: 'COMPLETED',
+      },
+      expense: {
+        id: 'expense-9',
+        label: 'School fees',
+        category: 'SCHOOL_FEES',
+        date: new Date('2026-04-22T00:00:00.000Z'),
+        totalAmountRwf: new Prisma.Decimal(110),
+        feeAmountRwf: new Prisma.Decimal(10),
+      },
+      recordedBy: {
+        id: 'user-1',
+        firstName: 'Jane',
+        lastName: 'Doe',
+        avatarUrl: null,
+      },
+      reversedBy: null,
+    };
+    const runTransaction = async <T>(
+      callback: (client: typeof tx) => Promise<T> | T,
+    ): Promise<T> => callback(tx);
+
+    usersService.findActiveByIdOrThrow.mockResolvedValue(undefined);
+    partnershipsService.getVisibleUserIds.mockResolvedValue(['user-1']);
+    prisma.$transaction.mockImplementation(runTransaction);
+    todosRepository.findActiveByIdAndUserIds.mockResolvedValue(todo);
+    todosRepository.findRecordingByIdAndTodoId.mockResolvedValue(recording);
+    expensesRepository.findActiveByIdAndUserIds.mockResolvedValue({
+      id: 'expense-9',
+    });
+    expensesRepository.update.mockResolvedValue({ id: 'expense-9' });
+    todosRepository.update.mockResolvedValue(todo);
+    todosRepository.updateOccurrence.mockResolvedValue(undefined);
+    todosRepository.updateRecording.mockResolvedValue({
+      ...recording,
+      reversedAt,
+      reversalReason: 'Wrong occurrence date.',
+      reversedBy: {
+        id: 'user-1',
+        firstName: 'Jane',
+        lastName: 'Doe',
+        avatarUrl: null,
+      },
+    });
+
+    await expect(
+      service.reverseCurrentUserTodoRecording(
+        'user-1',
+        'todo-2',
+        'recording-1',
+        { reason: 'Wrong occurrence date.' },
+      ),
+    ).resolves.toMatchObject({
+      id: 'recording-1',
+      reversedAt,
+      reversalReason: 'Wrong occurrence date.',
+    });
+
+    expect(expensesRepository.update).toHaveBeenCalledWith(
+      'expense-9',
+      { deletedAt: reversedAt },
+      tx,
+    );
+    expect(todosRepository.update).toHaveBeenCalledWith(
+      'todo-2',
+      expect.objectContaining({
+        status: 'ACTIVE',
+        recordedOccurrenceDates: { set: [] },
+        remainingAmount: new Prisma.Decimal(110),
+      }),
+      tx,
+    );
+    expect(todosRepository.updateOccurrence).toHaveBeenCalledWith(
+      'occ-2',
+      {
+        status: 'SCHEDULED',
+        resolvedAt: null,
+      },
+      tx,
+    );
+    expect(todosRepository.updateRecording).toHaveBeenCalledWith(
+      'recording-1',
+      expect.objectContaining({
+        reversedAt,
+        reversalReason: 'Wrong occurrence date.',
+        reversedBy: {
+          connect: { id: 'user-1' },
+        },
+        occurrence: {
+          disconnect: true,
+        },
       }),
       tx,
     );
