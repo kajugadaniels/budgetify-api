@@ -22,19 +22,22 @@ const USER_SELECT = {
   avatarUrl: true,
 } as const;
 
-const EXPENSE_TODO_RECORDING_INCLUDE = {
+const EXPENSE_TODO_RECORDING_SELECT = {
+  id: true,
+  occurrenceDate: true,
+  reversedAt: true,
   todo: {
     select: {
       id: true,
       name: true,
     },
   },
-} satisfies Prisma.TodoRecordingInclude;
+} as const;
 
 export type ExpenseWithCreator = Prisma.ExpenseGetPayload<{
   include: {
     user: { select: typeof USER_SELECT };
-    todoRecording: { include: typeof EXPENSE_TODO_RECORDING_INCLUDE };
+    todoRecording: { select: typeof EXPENSE_TODO_RECORDING_SELECT };
   };
 }>;
 
@@ -118,7 +121,7 @@ export class ExpensesRepository {
         include: {
           user: { select: USER_SELECT },
           todoRecording: {
-            include: EXPENSE_TODO_RECORDING_INCLUDE,
+            select: EXPENSE_TODO_RECORDING_SELECT,
           },
         },
         orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
@@ -156,7 +159,7 @@ export class ExpensesRepository {
       include: {
         user: { select: USER_SELECT },
         todoRecording: {
-          include: EXPENSE_TODO_RECORDING_INCLUDE,
+          select: EXPENSE_TODO_RECORDING_SELECT,
         },
       },
     });
@@ -171,7 +174,7 @@ export class ExpensesRepository {
       include: {
         user: { select: USER_SELECT },
         todoRecording: {
-          include: EXPENSE_TODO_RECORDING_INCLUDE,
+          select: EXPENSE_TODO_RECORDING_SELECT,
         },
       },
     });
@@ -188,7 +191,7 @@ export class ExpensesRepository {
       include: {
         user: { select: USER_SELECT },
         todoRecording: {
-          include: EXPENSE_TODO_RECORDING_INCLUDE,
+          select: EXPENSE_TODO_RECORDING_SELECT,
         },
       },
     });
