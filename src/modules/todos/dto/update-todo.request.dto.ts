@@ -1,5 +1,9 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  ExpenseCategory,
+  ExpenseMobileMoneyChannel,
+  ExpenseMobileMoneyNetwork,
+  ExpensePaymentMethod,
   TodoFrequency,
   TodoPriority,
   TodoStatus,
@@ -109,6 +113,15 @@ function normalizeDateArray(value: unknown): unknown {
   return undefined;
 }
 
+function normalizeNullableString(value: unknown): unknown {
+  if (typeof value !== 'string') {
+    return value;
+  }
+
+  const normalized = value.trim();
+  return normalized.length === 0 ? null : normalized;
+}
+
 export class UpdateTodoRequestDto {
   @ApiPropertyOptional({
     description: 'Updated human-readable name of the todo item.',
@@ -184,6 +197,92 @@ export class UpdateTodoRequestDto {
     message: 'Frequency must be a valid todo frequency.',
   })
   frequency?: TodoFrequency;
+
+  @ApiPropertyOptional({
+    description: 'Updated default expense category for this todo.',
+    enum: ExpenseCategory,
+    enumName: 'ExpenseCategory',
+    example: ExpenseCategory.SCHOOL_FEES,
+  })
+  @Transform(({ value }) => normalizeNullableString(value))
+  @IsOptional()
+  @IsEnum(ExpenseCategory, {
+    message: 'defaultExpenseCategory must be a valid expense category.',
+  })
+  defaultExpenseCategory?: ExpenseCategory | null;
+
+  @ApiPropertyOptional({
+    description: 'Updated default payment method for this todo.',
+    enum: ExpensePaymentMethod,
+    enumName: 'ExpensePaymentMethod',
+    example: ExpensePaymentMethod.MOBILE_MONEY,
+  })
+  @Transform(({ value }) => normalizeNullableString(value))
+  @IsOptional()
+  @IsEnum(ExpensePaymentMethod, {
+    message: 'defaultPaymentMethod must be a valid payment method.',
+  })
+  defaultPaymentMethod?: ExpensePaymentMethod | null;
+
+  @ApiPropertyOptional({
+    description: 'Updated default mobile money transfer type for this todo.',
+    enum: ExpenseMobileMoneyChannel,
+    enumName: 'ExpenseMobileMoneyChannel',
+    example: ExpenseMobileMoneyChannel.P2P_TRANSFER,
+  })
+  @Transform(({ value }) => normalizeNullableString(value))
+  @IsOptional()
+  @IsEnum(ExpenseMobileMoneyChannel, {
+    message: 'defaultMobileMoneyChannel must be a valid mobile money channel.',
+  })
+  defaultMobileMoneyChannel?: ExpenseMobileMoneyChannel | null;
+
+  @ApiPropertyOptional({
+    description: 'Updated default mobile money network for this todo.',
+    enum: ExpenseMobileMoneyNetwork,
+    enumName: 'ExpenseMobileMoneyNetwork',
+    example: ExpenseMobileMoneyNetwork.ON_NET,
+  })
+  @Transform(({ value }) => normalizeNullableString(value))
+  @IsOptional()
+  @IsEnum(ExpenseMobileMoneyNetwork, {
+    message: 'defaultMobileMoneyNetwork must be a valid mobile money network.',
+  })
+  defaultMobileMoneyNetwork?: ExpenseMobileMoneyNetwork | null;
+
+  @ApiPropertyOptional({
+    description: 'Updated merchant, vendor, payee, or destination label.',
+    example: 'GS Kagarama',
+    maxLength: 120,
+  })
+  @Transform(({ value }) => normalizeNullableString(value))
+  @IsOptional()
+  @IsString()
+  @MaxLength(120, { message: 'Payee must not exceed 120 characters.' })
+  payee?: string | null;
+
+  @ApiPropertyOptional({
+    description:
+      'Updated reusable note or rationale for expense recording defaults.',
+    example: 'Second-term fees for May intake.',
+    maxLength: 500,
+  })
+  @Transform(({ value }) => normalizeNullableString(value))
+  @IsOptional()
+  @IsString()
+  @MaxLength(500, { message: 'expenseNote must not exceed 500 characters.' })
+  expenseNote?: string | null;
+
+  @ApiPropertyOptional({
+    description: 'Updated visible user responsible for this todo.',
+    example: '8d65c09f-e7fa-4ee1-9428-3b1ebc80a918',
+  })
+  @Transform(({ value }) => normalizeNullableString(value))
+  @IsOptional()
+  @IsUUID('4', {
+    message: 'responsibleUserId must be a valid UUID.',
+  })
+  responsibleUserId?: string | null;
 
   @ApiPropertyOptional({
     description: 'Updated start date of the schedule (ISO 8601 date).',
