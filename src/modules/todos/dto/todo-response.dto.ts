@@ -3,6 +3,7 @@ import { TodoFrequency, TodoPriority, TodoStatus } from '@prisma/client';
 
 import { CreatedByResponseDto } from '../../../common/dto/created-by.response.dto';
 import { TodoImageResponseDto } from './todo-image-response.dto';
+import { TodoOccurrenceResponseDto } from './todo-occurrence.response.dto';
 import { TodoRecordingResponseDto } from './todo-recording.response.dto';
 
 export class TodoResponseDto {
@@ -69,9 +70,17 @@ export class TodoResponseDto {
     type: [String],
     example: ['2026-04-04', '2026-04-11'],
     description:
-      'Occurrence dates that have already been recorded to expenses.',
+      'Active schedule occurrence dates that have already been recorded to expenses.',
   })
   recordedOccurrenceDates!: string[];
+
+  @ApiProperty({
+    type: TodoOccurrenceResponseDto,
+    isArray: true,
+    description:
+      'Current schedule occurrences for this todo, including their resolved tracking state.',
+  })
+  occurrences!: TodoOccurrenceResponseDto[];
 
   @ApiPropertyOptional({
     example: 6000,
