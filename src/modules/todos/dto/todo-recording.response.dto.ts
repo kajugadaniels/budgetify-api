@@ -5,6 +5,7 @@ import {
   ExpenseMobileMoneyNetwork,
   ExpensePaymentMethod,
   TodoFrequency,
+  TodoRecordingExpenseSource,
   TodoStatus,
   TodoType,
 } from '@prisma/client';
@@ -112,6 +113,14 @@ export class TodoRecordingResponseDto {
   varianceAmount!: number;
 
   @ApiProperty({
+    enum: TodoRecordingExpenseSource,
+    example: TodoRecordingExpenseSource.GENERATED,
+    description:
+      'Whether the linked expense was created directly from the todo flow or attached from an existing expense record.',
+  })
+  expenseSource!: TodoRecordingExpenseSource;
+
+  @ApiProperty({
     enum: ExpensePaymentMethod,
     example: ExpensePaymentMethod.MOBILE_MONEY,
   })
@@ -138,6 +147,26 @@ export class TodoRecordingResponseDto {
 
   @ApiProperty({ type: CreatedByResponseDto })
   recordedBy!: CreatedByResponseDto;
+
+  @ApiPropertyOptional({
+    example: '2026-04-22T11:10:00.000Z',
+    nullable: true,
+    description:
+      'When present, this recording has been reversed and no longer counts against the todo budget.',
+  })
+  reversedAt!: Date | null;
+
+  @ApiPropertyOptional({
+    example: 'Recorded the wrong occurrence date and reopened the plan.',
+    nullable: true,
+  })
+  reversalReason!: string | null;
+
+  @ApiPropertyOptional({
+    type: CreatedByResponseDto,
+    nullable: true,
+  })
+  reversedBy!: CreatedByResponseDto | null;
 
   @ApiProperty({ type: TodoRecordingTodoSummaryDto })
   todo!: TodoRecordingTodoSummaryDto;
