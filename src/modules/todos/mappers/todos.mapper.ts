@@ -33,6 +33,12 @@ export class TodosMapper {
       priority: todo.priority,
       status: todo.status,
       frequency: todo.frequency,
+      defaultExpenseCategory: todo.defaultExpenseCategory,
+      defaultPaymentMethod: todo.defaultPaymentMethod,
+      defaultMobileMoneyChannel: todo.defaultMobileMoneyChannel,
+      defaultMobileMoneyNetwork: todo.defaultMobileMoneyNetwork,
+      payee: todo.payee,
+      expenseNote: todo.expenseNote,
       startDate: todo.startDate
         ? todo.startDate.toISOString().slice(0, 10)
         : null,
@@ -73,6 +79,12 @@ export class TodosMapper {
         firstName: todo.user.firstName,
         lastName: todo.user.lastName,
         avatarUrl: todo.user.avatarUrl,
+      },
+      responsibleUser: {
+        id: todo.responsibleUser.id,
+        firstName: todo.responsibleUser.firstName,
+        lastName: todo.responsibleUser.lastName,
+        avatarUrl: todo.responsibleUser.avatarUrl,
       },
     };
   }
