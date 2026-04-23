@@ -102,6 +102,7 @@ export class TodosMapper {
       feeAmount: Number(recording.feeAmount),
       totalChargedAmount: Number(recording.totalChargedAmount),
       varianceAmount: Number(recording.varianceAmount),
+      expenseSource: recording.expenseSource,
       paymentMethod: recording.paymentMethod,
       mobileMoneyChannel: recording.mobileMoneyChannel,
       mobileMoneyNetwork: recording.mobileMoneyNetwork,
@@ -112,6 +113,16 @@ export class TodosMapper {
         lastName: recording.recordedBy.lastName,
         avatarUrl: recording.recordedBy.avatarUrl,
       },
+      reversedAt: recording.reversedAt,
+      reversalReason: recording.reversalReason,
+      reversedBy: recording.reversedBy
+        ? {
+            id: recording.reversedBy.id,
+            firstName: recording.reversedBy.firstName,
+            lastName: recording.reversedBy.lastName,
+            avatarUrl: recording.reversedBy.avatarUrl,
+          }
+        : null,
       todo: {
         id: recording.todo.id,
         name: recording.todo.name,
