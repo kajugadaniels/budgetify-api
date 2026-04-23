@@ -91,6 +91,7 @@ export const activeTodoInclude = {
     orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
   },
   user: { select: USER_SELECT },
+  responsibleUser: { select: USER_SELECT },
   recordings: {
     orderBy: [{ recordedAt: 'desc' }],
     take: 5,
