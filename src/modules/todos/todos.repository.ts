@@ -25,6 +25,22 @@ const TODO_RECORDING_EXPENSE_SELECT = {
   feeAmountRwf: true,
 } as const;
 
+const TODO_OCCURRENCE_RECORDING_SELECT = {
+  id: true,
+  expenseId: true,
+} as const;
+
+const TODO_OCCURRENCE_SELECT = {
+  id: true,
+  occurrenceDate: true,
+  status: true,
+  active: true,
+  resolvedAt: true,
+  recording: {
+    select: TODO_OCCURRENCE_RECORDING_SELECT,
+  },
+} as const;
+
 const TODO_RECORDING_INCLUDE = {
   recordedBy: { select: USER_SELECT },
   expense: { select: TODO_RECORDING_EXPENSE_SELECT },
@@ -39,6 +55,11 @@ const TODO_SUMMARY_ROW_SELECT = {
   frequency: true,
   occurrenceDates: true,
   recordedOccurrenceDates: true,
+  occurrences: {
+    where: { active: true },
+    orderBy: [{ occurrenceDate: 'asc' }],
+    select: TODO_OCCURRENCE_SELECT,
+  },
   remainingAmount: true,
   createdAt: true,
   images: {
@@ -59,6 +80,11 @@ export const activeTodoInclude = {
     take: 5,
     include: TODO_RECORDING_INCLUDE,
   },
+  occurrences: {
+    where: { active: true },
+    orderBy: [{ occurrenceDate: 'asc' }, { createdAt: 'asc' }],
+    select: TODO_OCCURRENCE_SELECT,
+  },
   _count: {
     select: {
       recordings: true,
@@ -75,6 +101,10 @@ export type TodoWithImages = Prisma.TodoGetPayload<{
 
 export type TodoRecordingWithRelations = Prisma.TodoRecordingGetPayload<{
   include: typeof TODO_RECORDING_INCLUDE;
+}>;
+
+export type TodoOccurrenceWithRecording = Prisma.TodoOccurrenceGetPayload<{
+  select: typeof TODO_OCCURRENCE_SELECT;
 }>;
 
 type TodoSummaryRowRaw = Prisma.TodoGetPayload<{
@@ -264,6 +294,57 @@ export class TodosRepository {
     return db.todoRecording.create({
       data,
       include: TODO_RECORDING_INCLUDE,
+    });
+  }
+
+  async findOccurrencesByTodoId(
+    todoId: string,
+    options?: { active?: boolean },
+    db: PrismaExecutor = this.prisma,
+  ): Promise<TodoOccurrenceWithRecording[]> {
+    return db.todoOccurrence.findMany({
+      where: {
+        todoId,
+        ...(options?.active === undefined ? {} : { active: options.active }),
+      },
+      orderBy: [{ occurrenceDate: 'asc' }, { createdAt: 'asc' }],
+      select: TODO_OCCURRENCE_SELECT,
+    });
+  }
+
+  async createOccurrences(
+    data: Prisma.TodoOccurrenceUncheckedCreateInput[],
+    db: PrismaExecutor = this.prisma,
+  ): Promise<Prisma.BatchPayload> {
+    if (data.length === 0) {
+      return { count: 0 };
+    }
+
+    return db.todoOccurrence.createMany({
+      data,
+    });
+  }
+
+  async updateOccurrence(
+    id: string,
+    data: Prisma.TodoOccurrenceUpdateInput,
+    db: PrismaExecutor = this.prisma,
+  ): Promise<TodoOccurrenceWithRecording> {
+    return db.todoOccurrence.update({
+      where: { id },
+      data,
+      select: TODO_OCCURRENCE_SELECT,
+    });
+  }
+
+  async updateManyOccurrences(
+    where: Prisma.TodoOccurrenceWhereInput,
+    data: Prisma.TodoOccurrenceUpdateManyMutationInput,
+    db: PrismaExecutor = this.prisma,
+  ): Promise<Prisma.BatchPayload> {
+    return db.todoOccurrence.updateMany({
+      where,
+      data,
     });
   }
 
