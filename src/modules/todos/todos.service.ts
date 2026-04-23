@@ -8,6 +8,7 @@ import {
   TodoFrequency,
   TodoOccurrenceStatus,
   TodoStatus,
+  TodoType,
 } from '@prisma/client';
 
 import {
@@ -107,6 +108,14 @@ type TodoRecurringBudgetBurnDownSnapshot = {
   usedAmount: number;
 };
 
+type TodoTypeBreakdownSnapshot = {
+  openCount: number;
+  plannedTotal: number;
+  remainingTotal: number;
+  totalCount: number;
+  type: TodoType;
+};
+
 type TodoReportingSnapshot = {
   completedCount: number;
   completionByFrequency: TodoFrequencyCompletionSnapshot[];
@@ -133,6 +142,7 @@ type TodoReportingSnapshot = {
   topPriorityCount: number;
   totalCount: number;
   totalRemainingAmount: number;
+  typeBreakdown: TodoTypeBreakdownSnapshot[];
   withImagesCount: number;
 };
 
@@ -167,6 +177,7 @@ export type TodoAuditSnapshot = {
   totalRecordedFeeAmount: number;
   totalRecordedVarianceAmount: number;
   totalRemainingAmount: number;
+  typeBreakdown: TodoTypeBreakdownSnapshot[];
 };
 
 export type TodoUpcomingSnapshot = {
@@ -228,6 +239,7 @@ export class TodosService {
       frequency: query.frequency,
       priority: query.priority,
       status: query.status,
+      type: query.type,
       search: normalizeListSearch(query.search),
       occurrenceDates: dateRange?.isoDates,
       page: pagination.page,
@@ -298,6 +310,7 @@ export class TodosService {
       completionPercentage: report.completionPercentage,
       recurringBudgetBurnDown: report.recurringBudgetBurnDown,
       completionByFrequency: report.completionByFrequency,
+      typeBreakdown: report.typeBreakdown,
     };
   }
 
@@ -328,6 +341,10 @@ export class TodosService {
     let overdueCount = 0;
 
     for (const row of rows) {
+      if (!this.isOperationalTodoType(row.type)) {
+        continue;
+      }
+
       const remainingDates = this.getRemainingOccurrenceDates(row);
 
       if (
@@ -477,6 +494,11 @@ export class TodosService {
       frequencyDays: payload.frequencyDays,
       occurrenceDates: payload.occurrenceDates,
     });
+    const todoType = this.resolveTodoType(
+      payload.type,
+      schedule.frequency,
+      'create',
+    );
 
     const price = new Prisma.Decimal(payload.price);
     const remainingAmount =
@@ -488,6 +510,7 @@ export class TodosService {
           userId,
           name: payload.name,
           price,
+          type: todoType,
           priority: payload.priority,
           status: this.resolveInitialTodoStatus(payload.status),
           frequency: schedule.frequency,
@@ -772,6 +795,7 @@ export class TodosService {
     if (
       payload.name === undefined &&
       payload.price === undefined &&
+      payload.type === undefined &&
       payload.priority === undefined &&
       payload.status === undefined &&
       payload.frequency === undefined &&
@@ -849,6 +873,22 @@ export class TodosService {
           frequencyDays: todo.frequencyDays,
           occurrenceDates: todo.occurrenceDates,
         };
+    const requestedType =
+      payload.type ??
+      (payload.frequency !== undefined && payload.frequency !== todo.frequency
+        ? undefined
+        : todo.type);
+    const nextType = this.resolveTodoType(
+      requestedType,
+      nextSchedule.frequency,
+      'update',
+    );
+
+    if (nextType !== todo.type && todo._count.recordings > 0) {
+      throw new BadRequestException(
+        'Todo type cannot change after expense recordings already exist.',
+      );
+    }
 
     const nextPrice =
       payload.price !== undefined
@@ -929,6 +969,7 @@ export class TodosService {
               payload.price === undefined
                 ? undefined
                 : new Prisma.Decimal(payload.price),
+            type: nextType,
             priority: payload.priority,
             status: nextStatus,
             frequency: nextSchedule.frequency,
@@ -1737,7 +1778,13 @@ export class TodosService {
     userId: string,
     query: Pick<
       ListTodosQueryDto,
-      'frequency' | 'priority' | 'status' | 'search' | 'dateFrom' | 'dateTo'
+      | 'frequency'
+      | 'priority'
+      | 'status'
+      | 'type'
+      | 'search'
+      | 'dateFrom'
+      | 'dateTo'
     >,
   ): Promise<TodoSummaryRow[]> {
     await this.usersService.findActiveByIdOrThrow(userId);
@@ -1749,6 +1796,7 @@ export class TodosService {
       frequency: query.frequency,
       priority: query.priority,
       status: query.status,
+      type: query.type,
       search: normalizeListSearch(query.search),
       occurrenceDates: dateRange?.isoDates,
     });
@@ -1780,6 +1828,20 @@ export class TodosService {
     let overdueOccurrenceCount = 0;
     let recurringBudgetTargetAmount = 0;
     let recurringBudgetUsedAmount = 0;
+    const typeBreakdown = new Map<
+      TodoType,
+      Omit<TodoTypeBreakdownSnapshot, 'type'>
+    >(
+      Object.values(TodoType).map((type) => [
+        type,
+        {
+          totalCount: 0,
+          openCount: 0,
+          plannedTotal: 0,
+          remainingTotal: 0,
+        },
+      ]),
+    );
     const completionByFrequency = new Map<
       TodoFrequency,
       { completedCount: number; totalCount: number }
@@ -1802,9 +1864,12 @@ export class TodosService {
           TodoOccurrenceStatus.OVERDUE,
       ).length;
       const frequencyMetrics = completionByFrequency.get(row.frequency)!;
+      const typeMetrics = typeBreakdown.get(row.type)!;
 
       frequencyMetrics.totalCount += 1;
       plannedTotal += price;
+      typeMetrics.totalCount += 1;
+      typeMetrics.plannedTotal += price;
 
       if (row.status === TodoStatus.COMPLETED) {
         completedCount += 1;
@@ -1814,14 +1879,22 @@ export class TodosService {
       if (!isClosed) {
         openCount += 1;
         openPlannedTotal += price;
-        totalRemainingAmount += this.resolveTodoRemainingAmount(row);
+        const remainingAmount = this.resolveTodoRemainingAmount(row);
+        totalRemainingAmount += remainingAmount;
+        typeMetrics.openCount += 1;
+        typeMetrics.remainingTotal += remainingAmount;
 
-        if (overdueOccurrencesForRow > 0) {
+        if (
+          this.isOperationalTodoType(row.type) &&
+          overdueOccurrencesForRow > 0
+        ) {
           overdueCount += 1;
         }
       }
 
-      overdueOccurrenceCount += overdueOccurrencesForRow;
+      if (this.isOperationalTodoType(row.type)) {
+        overdueOccurrenceCount += overdueOccurrencesForRow;
+      }
 
       if (row.frequency !== TodoFrequency.ONCE) {
         const targetAmount = price;
@@ -1913,6 +1986,17 @@ export class TodosService {
               : Math.round((metrics.completedCount / metrics.totalCount) * 100),
         };
       }),
+      typeBreakdown: Object.values(TodoType).map((type) => {
+        const metrics = typeBreakdown.get(type)!;
+
+        return {
+          type,
+          totalCount: metrics.totalCount,
+          openCount: metrics.openCount,
+          plannedTotal: this.roundCurrency(metrics.plannedTotal),
+          remainingTotal: this.roundCurrency(metrics.remainingTotal),
+        };
+      }),
     };
   }
 
@@ -1927,6 +2011,10 @@ export class TodosService {
     let count = 0;
 
     for (const row of rows) {
+      if (!this.isOperationalTodoType(row.type)) {
+        continue;
+      }
+
       if (this.isTodoClosed(row.status)) {
         continue;
       }
@@ -1986,6 +2074,45 @@ export class TodosService {
     }
 
     return Number(row.remainingAmount ?? row.price);
+  }
+
+  private resolveTodoType(
+    requestedType: TodoType | undefined,
+    frequency: TodoFrequency,
+    mode: 'create' | 'update',
+  ): TodoType {
+    const resolvedType =
+      requestedType ??
+      (frequency === TodoFrequency.ONCE
+        ? TodoType.WISHLIST
+        : TodoType.RECURRING_OBLIGATION);
+
+    if (
+      resolvedType === TodoType.RECURRING_OBLIGATION &&
+      frequency === TodoFrequency.ONCE
+    ) {
+      throw new BadRequestException(
+        `${mode === 'create' ? 'Recurring obligations' : 'A recurring obligation'} must use WEEKLY, MONTHLY, or YEARLY frequency.`,
+      );
+    }
+
+    if (
+      (resolvedType === TodoType.WISHLIST ||
+        resolvedType === TodoType.PLANNED_SPEND) &&
+      frequency !== TodoFrequency.ONCE
+    ) {
+      throw new BadRequestException(
+        `${resolvedType === TodoType.WISHLIST ? 'Wishlist items' : 'Planned one-off spends'} must use ONCE frequency.`,
+      );
+    }
+
+    return resolvedType;
+  }
+
+  private isOperationalTodoType(type: TodoType): boolean {
+    return (
+      type === TodoType.PLANNED_SPEND || type === TodoType.RECURRING_OBLIGATION
+    );
   }
 
   private isTodoClosed(status: TodoStatus): boolean {
