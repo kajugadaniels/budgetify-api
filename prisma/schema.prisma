@@ -52,6 +52,12 @@ enum TodoPriority {
   NOT_PRIORITY
 }
 
+enum TodoType {
+  WISHLIST
+  PLANNED_SPEND
+  RECURRING_OBLIGATION
+}
+
 enum TodoFrequency {
   ONCE
   WEEKLY
@@ -427,6 +433,7 @@ model Todo {
   userId                 String        @db.Uuid
   name                   String
   price                  Decimal       @db.Decimal(15, 2)
+  type                   TodoType      @default(WISHLIST)
   priority               TodoPriority
   status                 TodoStatus    @default(ACTIVE)
   frequency              TodoFrequency @default(ONCE)
@@ -450,6 +457,7 @@ model Todo {
   @@index([userId, priority])
   @@index([userId, status])
   @@index([userId, frequency])
+  @@index([userId, type])
 }
 
 model TodoRecording {
