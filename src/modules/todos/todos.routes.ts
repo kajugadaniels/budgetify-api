@@ -6,6 +6,7 @@ export const TODOS_ROUTES = {
   recordingsIndex: 'recordings',
   byId: ':todoId',
   recordings: ':todoId/recordings',
+  reverseRecording: ':todoId/recordings/:recordingId/reverse',
   recordExpense: ':todoId/record-expense',
   images: ':todoId/images',
   imageById: ':todoId/images/:imageId',
