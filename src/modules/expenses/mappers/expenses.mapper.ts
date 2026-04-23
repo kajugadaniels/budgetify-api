@@ -29,16 +29,17 @@ export class ExpensesMapper {
         lastName: expense.user.lastName,
         avatarUrl: expense.user.avatarUrl,
       },
-      linkedTodo: expense.todoRecording
-        ? {
-            todoId: expense.todoRecording.todo.id,
-            todoName: expense.todoRecording.todo.name,
-            recordingId: expense.todoRecording.id,
-            occurrenceDate: expense.todoRecording.occurrenceDate
-              .toISOString()
-              .slice(0, 10),
-          }
-        : null,
+      linkedTodo:
+        expense.todoRecording && expense.todoRecording.reversedAt === null
+          ? {
+              todoId: expense.todoRecording.todo.id,
+              todoName: expense.todoRecording.todo.name,
+              recordingId: expense.todoRecording.id,
+              occurrenceDate: expense.todoRecording.occurrenceDate
+                .toISOString()
+                .slice(0, 10),
+            }
+          : null,
     };
   }
 
