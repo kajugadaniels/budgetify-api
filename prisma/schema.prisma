@@ -151,7 +151,8 @@ model User {
   authIdentities    AuthIdentity[]
   sessions          Session[]
   incomes           Income[]
-  todos             Todo[]
+  todos             Todo[]              @relation("TodoOwner")
+  responsibleTodos  Todo[]              @relation("TodoResponsibleUser")
   expenses          Expense[]
   todoRecordings    TodoRecording[]
   loans             Loan[]
@@ -431,12 +432,19 @@ model AppSetting {
 model Todo {
   id                     String        @id @default(uuid()) @db.Uuid
   userId                 String        @db.Uuid
+  responsibleUserId      String        @db.Uuid
   name                   String
   price                  Decimal       @db.Decimal(15, 2)
   type                   TodoType      @default(WISHLIST)
   priority               TodoPriority
   status                 TodoStatus    @default(ACTIVE)
   frequency              TodoFrequency @default(ONCE)
+  defaultExpenseCategory ExpenseCategory?
+  defaultPaymentMethod   ExpensePaymentMethod?
+  defaultMobileMoneyChannel ExpenseMobileMoneyChannel?
+  defaultMobileMoneyNetwork ExpenseMobileMoneyNetwork?
+  payee                  String?
+  expenseNote            String?
   startDate              DateTime?     @db.Date
   endDate                DateTime?     @db.Date
   frequencyDays          Int[]         @default([])
@@ -446,18 +454,21 @@ model Todo {
   createdAt              DateTime      @default(now())
   updatedAt              DateTime      @updatedAt
   deletedAt              DateTime?
-  user                   User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user                   User          @relation("TodoOwner", fields: [userId], references: [id], onDelete: Cascade)
+  responsibleUser        User          @relation("TodoResponsibleUser", fields: [responsibleUserId], references: [id], onDelete: Restrict)
   images                 TodoImage[]
   occurrences            TodoOccurrence[]
   recordings             TodoRecording[]
 
   @@index([userId])
+  @@index([responsibleUserId])
   @@index([deletedAt])
   @@index([createdAt])
   @@index([userId, priority])
   @@index([userId, status])
   @@index([userId, frequency])
   @@index([userId, type])
+  @@index([userId, responsibleUserId])
 }
 
 model TodoRecording {
