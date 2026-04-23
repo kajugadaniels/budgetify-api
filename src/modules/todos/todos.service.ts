@@ -11,6 +11,7 @@ import {
   Prisma,
   TodoFrequency,
   TodoOccurrenceStatus,
+  TodoRecordingExpenseSource,
   TodoStatus,
   TodoType,
 } from '@prisma/client';
@@ -32,6 +33,7 @@ import { CreateTodoRequestDto } from './dto/create-todo.request.dto';
 import { CreateTodoExpenseRequestDto } from './dto/create-todo-expense.request.dto';
 import { CreateTodoRecordingRequestDto } from './dto/create-todo-recording.request.dto';
 import { ListTodosQueryDto } from './dto/list-todos.query.dto';
+import { ReverseTodoRecordingRequestDto } from './dto/reverse-todo-recording.request.dto';
 import { TodoSummaryQueryDto } from './dto/todo-summary.query.dto';
 import { TodoUpcomingQueryDto } from './dto/todo-upcoming.query.dto';
 import { UpdateTodoRequestDto } from './dto/update-todo.request.dto';
@@ -613,7 +615,9 @@ export class TodosService {
         payload.expenseId,
         visibleUserIds,
       ),
-      this.todosRepository.findRecordingByExpenseId(payload.expenseId),
+      this.todosRepository.findRecordingByExpenseId(payload.expenseId, {
+        activeOnly: true,
+      }),
     ]);
 
     if (!expense) {
@@ -682,6 +686,7 @@ export class TodosService {
           feeAmount: expense.feeAmountRwf,
           totalChargedAmount: expense.totalAmountRwf,
           varianceAmount: preparedRecording.varianceAmount,
+          expenseSource: TodoRecordingExpenseSource.LINKED_EXISTING,
           paymentMethod: expense.paymentMethod,
           mobileMoneyChannel: expense.mobileMoneyChannel,
           mobileMoneyNetwork: expense.mobileMoneyNetwork,
@@ -805,11 +810,129 @@ export class TodosService {
           feeAmount: charges.feeAmountRwf,
           totalChargedAmount: charges.totalAmountRwf,
           varianceAmount: preparedRecording.varianceAmount,
+          expenseSource: TodoRecordingExpenseSource.GENERATED,
           paymentMethod: charges.paymentMethod,
           mobileMoneyChannel: charges.mobileMoneyChannel,
           mobileMoneyNetwork: charges.mobileMoneyNetwork,
           recordedAt,
           recordedByUserId: userId,
+        },
+        tx,
+      );
+    });
+  }
+
+  async reverseCurrentUserTodoRecording(
+    userId: string,
+    todoId: string,
+    recordingId: string,
+    payload: ReverseTodoRecordingRequestDto,
+  ): Promise<TodoRecordingWithRelations> {
+    await this.usersService.findActiveByIdOrThrow(userId);
+
+    const visibleUserIds =
+      await this.partnershipsService.getVisibleUserIds(userId);
+    const [todo, recording] = await Promise.all([
+      this.findVisibleTodoOrThrow(userId, todoId),
+      this.todosRepository.findRecordingByIdAndTodoId(recordingId, todoId),
+    ]);
+
+    if (!recording) {
+      throw new NotFoundException('Todo recording was not found.');
+    }
+
+    if (recording.reversedAt !== null) {
+      throw new BadRequestException(
+        'This todo recording has already been reversed.',
+      );
+    }
+
+    const occurrence = todo.occurrences.find(
+      (entry) => entry.id === recording.todoOccurrenceId,
+    );
+
+    if (!occurrence) {
+      throw new BadRequestException(
+        'The linked todo occurrence could not be found for reversal.',
+      );
+    }
+
+    const reversedAt = new Date();
+    const nextRecordedOccurrenceDates = this.sortIsoDates(
+      todo.recordedOccurrenceDates.filter(
+        (date) => date !== recording.occurrenceDate.toISOString().slice(0, 10),
+      ),
+    );
+    const nextRemainingAmount = this.resolveRemainingAmountAfterReversal(
+      todo,
+      recording,
+    );
+    const nextStatus = this.resolveTodoStatusAfterRecordingReversal({
+      activeRecordingCountAfterReversal: Math.max(
+        todo._count.recordings - 1,
+        0,
+      ),
+      frequency: todo.frequency,
+      remainingAmount: nextRemainingAmount,
+      totalOpenOccurrenceCountAfterReversal:
+        this.resolveOpenOccurrenceCountAfterReversal(todo, occurrence.id),
+    });
+
+    return this.prisma.$transaction(async (tx) => {
+      if (recording.expenseSource === TodoRecordingExpenseSource.GENERATED) {
+        const linkedExpense =
+          recording.expenseId === null
+            ? null
+            : await this.expensesRepository.findActiveByIdAndUserIds(
+                recording.expenseId,
+                visibleUserIds,
+                tx,
+              );
+
+        if (linkedExpense) {
+          await this.expensesRepository.update(
+            linkedExpense.id,
+            { deletedAt: reversedAt },
+            tx,
+          );
+        }
+      }
+
+      await this.todosRepository.update(
+        todo.id,
+        {
+          status: nextStatus,
+          recordedOccurrenceDates: {
+            set: nextRecordedOccurrenceDates,
+          },
+          remainingAmount:
+            todo.frequency === TodoFrequency.ONCE
+              ? undefined
+              : nextRemainingAmount,
+        },
+        tx,
+      );
+
+      await this.todosRepository.updateOccurrence(
+        occurrence.id,
+        {
+          status: TodoOccurrenceStatus.SCHEDULED,
+          resolvedAt: null,
+        },
+        tx,
+      );
+
+      return this.todosRepository.updateRecording(
+        recording.id,
+        {
+          reversedAt,
+          reversalReason: this.normalizeRecordingReversalReason(payload.reason),
+          reversedBy: {
+            connect: { id: userId },
+          },
+          occurrence: {
+            disconnect: true,
+          },
         },
         tx,
       );
@@ -1454,6 +1577,47 @@ export class TodosService {
     return value.lessThanOrEqualTo(0) ? new Prisma.Decimal(0) : value;
   }
 
+  private resolveRemainingAmountAfterReversal(
+    todo: TodoWithImages,
+    recording: Pick<TodoRecordingWithRelations, 'totalChargedAmount'>,
+  ): Prisma.Decimal | null {
+    if (todo.frequency === TodoFrequency.ONCE) {
+      return null;
+    }
+
+    const currentRemainingAmount =
+      todo.remainingAmount ?? new Prisma.Decimal(0);
+    const restoredAmount = currentRemainingAmount
+      .plus(recording.totalChargedAmount)
+      .toDecimalPlaces(2);
+
+    return restoredAmount.greaterThan(todo.price)
+      ? todo.price.toDecimalPlaces(2)
+      : restoredAmount;
+  }
+
+  private resolveOpenOccurrenceCountAfterReversal(
+    todo: TodoWithImages,
+    reversedOccurrenceId: string,
+  ): number {
+    return todo.occurrences.reduce((count, occurrence) => {
+      if (occurrence.id === reversedOccurrenceId) {
+        return count + 1;
+      }
+
+      const status = this.resolveEffectiveOccurrenceStatus(occurrence);
+      return status === TodoOccurrenceStatus.SCHEDULED ||
+        status === TodoOccurrenceStatus.OVERDUE
+        ? count + 1
+        : count;
+    }, 0);
+  }
+
+  private normalizeRecordingReversalReason(reason?: string): string | null {
+    const normalized = reason?.trim();
+    return normalized && normalized.length > 0 ? normalized : null;
+  }
+
   private resolveInitialTodoStatus(status?: TodoStatus): TodoStatus {
     return status ?? TodoStatus.ACTIVE;
   }
@@ -1476,6 +1640,28 @@ export class TodosService {
     }
 
     return input.hasRecordedOccurrences
+      ? TodoStatus.RECORDED
+      : TodoStatus.ACTIVE;
+  }
+
+  private resolveTodoStatusAfterRecordingReversal(input: {
+    activeRecordingCountAfterReversal: number;
+    frequency: TodoFrequency;
+    remainingAmount: Prisma.Decimal | null;
+    totalOpenOccurrenceCountAfterReversal: number;
+  }): TodoStatus {
+    if (input.frequency === TodoFrequency.ONCE) {
+      return TodoStatus.ACTIVE;
+    }
+
+    if (
+      input.remainingAmount?.lessThanOrEqualTo(0) === true ||
+      input.totalOpenOccurrenceCountAfterReversal === 0
+    ) {
+      return TodoStatus.COMPLETED;
+    }
+
+    return input.activeRecordingCountAfterReversal > 0
       ? TodoStatus.RECORDED
       : TodoStatus.ACTIVE;
   }
