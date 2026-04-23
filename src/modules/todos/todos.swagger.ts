@@ -21,6 +21,7 @@ import { TodoFrequency, TodoPriority, TodoStatus } from '@prisma/client';
 import { ApiErrorResponseDto } from '../../common/dto/api-error-response.dto';
 import { CreateTodoExpenseRequestDto } from './dto/create-todo-expense.request.dto';
 import { PaginatedTodoResponseDto } from './dto/paginated-todo.response.dto';
+import { TodoAuditResponseDto } from './dto/todo-audit.response.dto';
 import { TodoRecordingResponseDto } from './dto/todo-recording.response.dto';
 import { TodoResponseDto } from './dto/todo-response.dto';
 import { TodoSummaryResponseDto } from './dto/todo-summary.response.dto';
@@ -309,6 +310,75 @@ export function ApiSummarizeCurrentUserTodosEndpoint(): MethodDecorator {
   );
 }
 
+export function ApiAuditCurrentUserTodosEndpoint(): MethodDecorator {
+  return applyDecorators(
+    ApiBearerAuth('access-token'),
+    ApiOperation({
+      summary: 'Audit current user todo planning',
+      description:
+        'Returns audit-grade todo planning totals for the authenticated user, including planned-versus-recorded amounts, fee-bearing recordings, overdue occurrences, due-this-week and due-this-month exposure, recurring budget burn-down, and completion rates by frequency. The audit respects the same frequency, priority, status, search, and occurrence date filters as the main todo listing.',
+    }),
+    ApiQuery({
+      name: 'frequency',
+      required: false,
+      enum: TodoFrequency,
+      example: TodoFrequency.MONTHLY,
+      description: 'Optional todo frequency filter.',
+    }),
+    ApiQuery({
+      name: 'priority',
+      required: false,
+      type: String,
+      example: 'TOP_PRIORITY',
+      description: 'Optional todo priority filter.',
+    }),
+    ApiQuery({
+      name: 'status',
+      required: false,
+      enum: TodoStatus,
+      example: TodoStatus.ACTIVE,
+      description: 'Optional lifecycle status filter.',
+    }),
+    ApiQuery({
+      name: 'search',
+      required: false,
+      type: String,
+      example: 'fees',
+      description:
+        'Optional text search applied when at least 3 characters are provided. Matches the todo name.',
+    }),
+    ApiQuery({
+      name: 'dateFrom',
+      required: false,
+      type: String,
+      example: '2026-04-01',
+      description:
+        'Optional inclusive start date filter applied against scheduled occurrence dates.',
+    }),
+    ApiQuery({
+      name: 'dateTo',
+      required: false,
+      type: String,
+      example: '2026-04-30',
+      description:
+        'Optional inclusive end date filter applied against scheduled occurrence dates.',
+    }),
+    ApiOkResponse({
+      description: 'Todo audit metrics retrieved successfully.',
+      type: TodoAuditResponseDto,
+    }),
+    ApiUnauthorizedResponse({
+      description: 'Access token is missing, invalid, or expired.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiForbiddenResponse({
+      description:
+        'Authenticated user account is not allowed to access todo items.',
+      type: ApiErrorResponseDto,
+    }),
+  );
+}
+
 export function ApiListCurrentUserTodoUpcomingEndpoint(): MethodDecorator {
   return applyDecorators(
     ApiBearerAuth('access-token'),
@@ -373,6 +443,76 @@ export function ApiListCurrentUserTodoUpcomingEndpoint(): MethodDecorator {
     ApiOkResponse({
       description: 'Upcoming todo planning data retrieved successfully.',
       type: TodoUpcomingResponseDto,
+    }),
+    ApiUnauthorizedResponse({
+      description: 'Access token is missing, invalid, or expired.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiForbiddenResponse({
+      description:
+        'Authenticated user account is not allowed to access todo items.',
+      type: ApiErrorResponseDto,
+    }),
+  );
+}
+
+export function ApiListCurrentUserTodoRecordingsEndpoint(): MethodDecorator {
+  return applyDecorators(
+    ApiBearerAuth('access-token'),
+    ApiOperation({
+      summary: 'List current user todo recordings',
+      description:
+        'Returns the todo recording ledger across the currently visible todo set. The recording index respects the same frequency, priority, status, search, and occurrence date filters as the main todo listing and is sorted by most recently recorded first.',
+    }),
+    ApiQuery({
+      name: 'frequency',
+      required: false,
+      enum: TodoFrequency,
+      example: TodoFrequency.MONTHLY,
+      description: 'Optional todo frequency filter.',
+    }),
+    ApiQuery({
+      name: 'priority',
+      required: false,
+      type: String,
+      example: 'TOP_PRIORITY',
+      description: 'Optional todo priority filter.',
+    }),
+    ApiQuery({
+      name: 'status',
+      required: false,
+      enum: TodoStatus,
+      example: TodoStatus.RECORDED,
+      description: 'Optional lifecycle status filter.',
+    }),
+    ApiQuery({
+      name: 'search',
+      required: false,
+      type: String,
+      example: 'transport',
+      description:
+        'Optional text search applied when at least 3 characters are provided. Matches the todo name.',
+    }),
+    ApiQuery({
+      name: 'dateFrom',
+      required: false,
+      type: String,
+      example: '2026-04-01',
+      description:
+        'Optional inclusive start occurrence date filter applied against recording occurrence dates.',
+    }),
+    ApiQuery({
+      name: 'dateTo',
+      required: false,
+      type: String,
+      example: '2026-04-30',
+      description:
+        'Optional inclusive end occurrence date filter applied against recording occurrence dates.',
+    }),
+    ApiOkResponse({
+      description: 'Todo recordings retrieved successfully.',
+      type: TodoRecordingResponseDto,
+      isArray: true,
     }),
     ApiUnauthorizedResponse({
       description: 'Access token is missing, invalid, or expired.',

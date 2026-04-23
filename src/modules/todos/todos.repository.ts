@@ -25,6 +25,13 @@ const TODO_RECORDING_EXPENSE_SELECT = {
   feeAmountRwf: true,
 } as const;
 
+const TODO_RECORDING_TODO_SELECT = {
+  id: true,
+  name: true,
+  frequency: true,
+  status: true,
+} as const;
+
 const TODO_OCCURRENCE_RECORDING_SELECT = {
   id: true,
   expenseId: true,
@@ -43,6 +50,7 @@ const TODO_OCCURRENCE_SELECT = {
 
 const TODO_RECORDING_INCLUDE = {
   recordedBy: { select: USER_SELECT },
+  todo: { select: TODO_RECORDING_TODO_SELECT },
   expense: { select: TODO_RECORDING_EXPENSE_SELECT },
 } satisfies Prisma.TodoRecordingInclude;
 
@@ -116,8 +124,13 @@ export type TodoSummaryRow = Omit<TodoSummaryRowRaw, 'images'> & {
 };
 
 export type TodoRecordingAggregate = {
+  feeBearingCount: number;
+  totalBaseAmount: Prisma.Decimal;
   totalCount: number;
   totalChargedAmount: Prisma.Decimal;
+  totalFeeAmount: Prisma.Decimal;
+  totalPlannedAmount: Prisma.Decimal;
+  totalVarianceAmount: Prisma.Decimal;
 };
 
 @Injectable()
@@ -183,26 +196,89 @@ export class TodosRepository {
 
   async aggregateRecordingsByTodoIds(
     todoIds: string[],
+    options?: {
+      occurrenceDateFrom?: Date;
+      occurrenceDateTo?: Date;
+    },
     db: PrismaExecutor = this.prisma,
   ): Promise<TodoRecordingAggregate> {
     if (todoIds.length === 0) {
       return {
+        feeBearingCount: 0,
+        totalBaseAmount: new Prisma.Decimal(0),
         totalCount: 0,
         totalChargedAmount: new Prisma.Decimal(0),
+        totalFeeAmount: new Prisma.Decimal(0),
+        totalPlannedAmount: new Prisma.Decimal(0),
+        totalVarianceAmount: new Prisma.Decimal(0),
       };
     }
 
-    const result = await db.todoRecording.aggregate({
-      where: { todoId: { in: todoIds } },
-      _count: { _all: true },
-      _sum: { totalChargedAmount: true },
-    });
+    const where: Prisma.TodoRecordingWhereInput = {
+      todoId: { in: todoIds },
+      occurrenceDate: {
+        gte: options?.occurrenceDateFrom,
+        lt: options?.occurrenceDateTo,
+      },
+    };
+
+    const [result, feeBearingCount] = await Promise.all([
+      db.todoRecording.aggregate({
+        where,
+        _count: { _all: true },
+        _sum: {
+          plannedAmount: true,
+          baseAmount: true,
+          feeAmount: true,
+          totalChargedAmount: true,
+          varianceAmount: true,
+        },
+      }),
+      db.todoRecording.count({
+        where: {
+          ...where,
+          feeAmount: {
+            gt: new Prisma.Decimal(0),
+          },
+        },
+      }),
+    ]);
 
     return {
+      feeBearingCount,
+      totalPlannedAmount: result._sum.plannedAmount ?? new Prisma.Decimal(0),
+      totalBaseAmount: result._sum.baseAmount ?? new Prisma.Decimal(0),
+      totalFeeAmount: result._sum.feeAmount ?? new Prisma.Decimal(0),
       totalCount: result._count._all,
       totalChargedAmount:
         result._sum.totalChargedAmount ?? new Prisma.Decimal(0),
+      totalVarianceAmount: result._sum.varianceAmount ?? new Prisma.Decimal(0),
     };
+  }
+
+  async findRecordingsByTodoIds(
+    todoIds: string[],
+    options?: {
+      occurrenceDateFrom?: Date;
+      occurrenceDateTo?: Date;
+    },
+    db: PrismaExecutor = this.prisma,
+  ): Promise<TodoRecordingWithRelations[]> {
+    if (todoIds.length === 0) {
+      return [];
+    }
+
+    return db.todoRecording.findMany({
+      where: {
+        todoId: { in: todoIds },
+        occurrenceDate: {
+          gte: options?.occurrenceDateFrom,
+          lt: options?.occurrenceDateTo,
+        },
+      },
+      include: TODO_RECORDING_INCLUDE,
+      orderBy: [{ recordedAt: 'desc' }, { occurrenceDate: 'desc' }],
+    });
   }
 
   async findActiveByIdAndUserId(

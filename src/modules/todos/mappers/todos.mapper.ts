@@ -2,6 +2,7 @@ import { TodoImage, TodoOccurrenceStatus } from '@prisma/client';
 
 import { PaginatedResponse } from '../../../common/interfaces/paginated-response.interface';
 import { PaginatedTodoResponseDto } from '../dto/paginated-todo.response.dto';
+import { TodoAuditResponseDto } from '../dto/todo-audit.response.dto';
 import { TodoImageResponseDto } from '../dto/todo-image-response.dto';
 import { TodoOccurrenceResponseDto } from '../dto/todo-occurrence.response.dto';
 import { TodoRecordingResponseDto } from '../dto/todo-recording.response.dto';
@@ -13,7 +14,11 @@ import {
   TodoOccurrenceWithRecording,
   TodoWithImages,
 } from '../todos.repository';
-import { TodoSummarySnapshot, TodoUpcomingSnapshot } from '../todos.service';
+import {
+  TodoAuditSnapshot,
+  TodoSummarySnapshot,
+  TodoUpcomingSnapshot,
+} from '../todos.service';
 
 export class TodosMapper {
   static toTodoResponse(todo: TodoWithImages): TodoResponseDto {
@@ -94,6 +99,12 @@ export class TodosMapper {
         lastName: recording.recordedBy.lastName,
         avatarUrl: recording.recordedBy.avatarUrl,
       },
+      todo: {
+        id: recording.todo.id,
+        name: recording.todo.name,
+        frequency: recording.todo.frequency,
+        status: recording.todo.status,
+      },
       expense: recording.expense
         ? {
             id: recording.expense.id,
@@ -150,12 +161,49 @@ export class TodosMapper {
       plannedTotal: summary.plannedTotal,
       openPlannedTotal: summary.openPlannedTotal,
       remainingRecurringBudgetTotal: summary.remainingRecurringBudgetTotal,
+      totalRemainingAmount: summary.totalRemainingAmount,
       recordedCount: summary.recordedCount,
+      recordedBaseTotalAmount: summary.recordedBaseTotalAmount,
+      recordedFeeTotalAmount: summary.recordedFeeTotalAmount,
       recordedTotalAmount: summary.recordedTotalAmount,
+      recordedVarianceTotalAmount: summary.recordedVarianceTotalAmount,
+      feeBearingRecordingCount: summary.feeBearingRecordingCount,
       overdueCount: summary.overdueCount,
-      next7DaysScheduledAmount: summary.next7DaysScheduledAmount,
-      next30DaysScheduledAmount: summary.next30DaysScheduledAmount,
+      overdueOccurrenceCount: summary.overdueOccurrenceCount,
+      dueNext7DaysCount: summary.dueNext7DaysCount,
+      next7DaysScheduledAmount: summary.dueNext7DaysAmount,
+      dueNext30DaysCount: summary.dueNext30DaysCount,
+      next30DaysScheduledAmount: summary.dueNext30DaysAmount,
+      recurringBudgetBurnDown: summary.recurringBudgetBurnDown,
+      completionByFrequency: summary.completionByFrequency,
       latestTodo: summary.latestTodo,
+    };
+  }
+
+  static toTodoAuditResponse(audit: TodoAuditSnapshot): TodoAuditResponseDto {
+    return {
+      periodStartDate: audit.periodStartDate,
+      periodEndDate: audit.periodEndDate,
+      todoCount: audit.todoCount,
+      openTodoCount: audit.openTodoCount,
+      recurringTodoCount: audit.recurringTodoCount,
+      totalPlannedAmount: audit.totalPlannedAmount,
+      totalRemainingAmount: audit.totalRemainingAmount,
+      recordingCount: audit.recordingCount,
+      totalRecordedBaseAmount: audit.totalRecordedBaseAmount,
+      totalRecordedFeeAmount: audit.totalRecordedFeeAmount,
+      totalRecordedChargedAmount: audit.totalRecordedChargedAmount,
+      totalRecordedVarianceAmount: audit.totalRecordedVarianceAmount,
+      feeBearingRecordingCount: audit.feeBearingRecordingCount,
+      overdueTodoCount: audit.overdueTodoCount,
+      overdueOccurrenceCount: audit.overdueOccurrenceCount,
+      dueThisWeekCount: audit.dueThisWeekCount,
+      dueThisWeekAmount: audit.dueThisWeekAmount,
+      dueThisMonthCount: audit.dueThisMonthCount,
+      dueThisMonthAmount: audit.dueThisMonthAmount,
+      completionPercentage: audit.completionPercentage,
+      recurringBudgetBurnDown: audit.recurringBudgetBurnDown,
+      completionByFrequency: audit.completionByFrequency,
     };
   }
 

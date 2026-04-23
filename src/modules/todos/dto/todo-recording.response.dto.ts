@@ -4,6 +4,8 @@ import {
   ExpenseMobileMoneyChannel,
   ExpenseMobileMoneyNetwork,
   ExpensePaymentMethod,
+  TodoFrequency,
+  TodoStatus,
 } from '@prisma/client';
 
 import { CreatedByResponseDto } from '../../../common/dto/created-by.response.dto';
@@ -29,6 +31,26 @@ export class TodoRecordingExpenseSummaryDto {
 
   @ApiProperty({ example: 210 })
   feeAmountRwf!: number;
+}
+
+export class TodoRecordingTodoSummaryDto {
+  @ApiProperty({ example: 'dcb2b33f-c0bc-4897-aee2-d34de8fa4f7f' })
+  id!: string;
+
+  @ApiProperty({ example: 'School transport top up' })
+  name!: string;
+
+  @ApiProperty({
+    enum: TodoFrequency,
+    example: TodoFrequency.MONTHLY,
+  })
+  frequency!: TodoFrequency;
+
+  @ApiProperty({
+    enum: TodoStatus,
+    example: TodoStatus.RECORDED,
+  })
+  status!: TodoStatus;
 }
 
 export class TodoRecordingResponseDto {
@@ -109,6 +131,9 @@ export class TodoRecordingResponseDto {
 
   @ApiProperty({ type: CreatedByResponseDto })
   recordedBy!: CreatedByResponseDto;
+
+  @ApiProperty({ type: TodoRecordingTodoSummaryDto })
+  todo!: TodoRecordingTodoSummaryDto;
 
   @ApiPropertyOptional({
     type: TodoRecordingExpenseSummaryDto,

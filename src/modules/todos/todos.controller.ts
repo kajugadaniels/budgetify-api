@@ -26,6 +26,7 @@ import { CreateTodoExpenseRequestDto } from './dto/create-todo-expense.request.d
 import { CreateTodoRecordingRequestDto } from './dto/create-todo-recording.request.dto';
 import { ListTodosQueryDto } from './dto/list-todos.query.dto';
 import { PaginatedTodoResponseDto } from './dto/paginated-todo.response.dto';
+import { TodoAuditResponseDto } from './dto/todo-audit.response.dto';
 import { TodoRecordingResponseDto } from './dto/todo-recording.response.dto';
 import { TodoResponseDto } from './dto/todo-response.dto';
 import { TodoSummaryQueryDto } from './dto/todo-summary.query.dto';
@@ -48,7 +49,9 @@ import {
   ApiDeleteCurrentUserTodoEndpoint,
   ApiDeleteCurrentUserTodoImageEndpoint,
   ApiGetCurrentUserTodoEndpoint,
+  ApiListCurrentUserTodoRecordingsEndpoint,
   ApiListCurrentUserTodosEndpoint,
+  ApiAuditCurrentUserTodosEndpoint,
   ApiListCurrentUserTodoUpcomingEndpoint,
   ApiSummarizeCurrentUserTodosEndpoint,
   ApiUpdateCurrentUserTodoEndpoint,
@@ -108,6 +111,20 @@ export class TodosController {
     return TodosMapper.toTodoSummaryResponse(summary);
   }
 
+  @Get(TODOS_ROUTES.audit)
+  @ApiAuditCurrentUserTodosEndpoint()
+  async auditCurrentUserTodos(
+    @CurrentUser() user: AuthenticatedRequestUser,
+    @Query() query: TodoSummaryQueryDto,
+  ): Promise<TodoAuditResponseDto> {
+    const audit = await this.todosService.auditCurrentUserTodos(
+      user.userId,
+      query,
+    );
+
+    return TodosMapper.toTodoAuditResponse(audit);
+  }
+
   @Get(TODOS_ROUTES.upcoming)
   @ApiListCurrentUserTodoUpcomingEndpoint()
   async listCurrentUserUpcomingTodos(
@@ -120,6 +137,23 @@ export class TodosController {
     );
 
     return TodosMapper.toTodoUpcomingResponse(upcoming);
+  }
+
+  @Get(TODOS_ROUTES.recordingsIndex)
+  @ApiListCurrentUserTodoRecordingsEndpoint()
+  async listCurrentUserTodoRecordingIndex(
+    @CurrentUser() user: AuthenticatedRequestUser,
+    @Query() query: TodoSummaryQueryDto,
+  ): Promise<TodoRecordingResponseDto[]> {
+    const recordings =
+      await this.todosService.listCurrentUserTodoRecordingIndex(
+        user.userId,
+        query,
+      );
+
+    return recordings.map((recording) =>
+      TodosMapper.toTodoRecordingResponse(recording),
+    );
   }
 
   @Get(TODOS_ROUTES.byId)
