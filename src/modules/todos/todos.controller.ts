@@ -26,6 +26,7 @@ import { CreateTodoExpenseRequestDto } from './dto/create-todo-expense.request.d
 import { CreateTodoRecordingRequestDto } from './dto/create-todo-recording.request.dto';
 import { ListTodosQueryDto } from './dto/list-todos.query.dto';
 import { PaginatedTodoResponseDto } from './dto/paginated-todo.response.dto';
+import { ReverseTodoRecordingRequestDto } from './dto/reverse-todo-recording.request.dto';
 import { TodoAuditResponseDto } from './dto/todo-audit.response.dto';
 import { TodoRecordingResponseDto } from './dto/todo-recording.response.dto';
 import { TodoResponseDto } from './dto/todo-response.dto';
@@ -49,6 +50,7 @@ import {
   ApiDeleteCurrentUserTodoEndpoint,
   ApiDeleteCurrentUserTodoImageEndpoint,
   ApiGetCurrentUserTodoEndpoint,
+  ApiReverseCurrentUserTodoRecordingEndpoint,
   ApiListCurrentUserTodoRecordingsEndpoint,
   ApiListCurrentUserTodosEndpoint,
   ApiAuditCurrentUserTodosEndpoint,
@@ -230,6 +232,24 @@ export class TodosController {
         todoId,
         body,
       );
+
+    return TodosMapper.toTodoRecordingResponse(recording);
+  }
+
+  @Post(TODOS_ROUTES.reverseRecording)
+  @ApiReverseCurrentUserTodoRecordingEndpoint()
+  async reverseCurrentUserTodoRecording(
+    @CurrentUser() user: AuthenticatedRequestUser,
+    @Param('todoId', ParseUUIDPipe) todoId: string,
+    @Param('recordingId', ParseUUIDPipe) recordingId: string,
+    @Body() body: ReverseTodoRecordingRequestDto,
+  ): Promise<TodoRecordingResponseDto> {
+    const recording = await this.todosService.reverseCurrentUserTodoRecording(
+      user.userId,
+      todoId,
+      recordingId,
+      body,
+    );
 
     return TodosMapper.toTodoRecordingResponse(recording);
   }
