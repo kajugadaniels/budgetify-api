@@ -30,6 +30,7 @@ import {
 import { ApiErrorResponseDto } from '../../common/dto/api-error-response.dto';
 import { CreateTodoExpenseRequestDto } from './dto/create-todo-expense.request.dto';
 import { PaginatedTodoResponseDto } from './dto/paginated-todo.response.dto';
+import { ReverseTodoRecordingRequestDto } from './dto/reverse-todo-recording.request.dto';
 import { TodoAuditResponseDto } from './dto/todo-audit.response.dto';
 import { TodoRecordingResponseDto } from './dto/todo-recording.response.dto';
 import { TodoResponseDto } from './dto/todo-response.dto';
@@ -697,6 +698,50 @@ export function ApiCreateCurrentUserTodoExpenseEndpoint(): MethodDecorator {
     }),
     ApiNotFoundResponse({
       description: 'The requested todo item does not exist.',
+      type: ApiErrorResponseDto,
+    }),
+  );
+}
+
+export function ApiReverseCurrentUserTodoRecordingEndpoint(): MethodDecorator {
+  return applyDecorators(
+    ApiBearerAuth('access-token'),
+    ApiOperation({
+      summary: 'Reverse one todo recording',
+      description:
+        'Reopens a previously recorded todo occurrence as a correction workflow. The todo budget is restored, the occurrence becomes schedulable again, generated expenses are soft-deleted from the ledger, and the original recording stays in the audit trail with reversal metadata.',
+    }),
+    ApiParam({
+      name: 'todoId',
+      description: 'UUID of the todo item that owns the recording.',
+      format: 'uuid',
+    }),
+    ApiParam({
+      name: 'recordingId',
+      description: 'UUID of the todo recording being reversed.',
+      format: 'uuid',
+    }),
+    ApiBody({ type: ReverseTodoRecordingRequestDto }),
+    ApiOkResponse({
+      description: 'Todo recording reversed successfully.',
+      type: TodoRecordingResponseDto,
+    }),
+    ApiBadRequestResponse({
+      description:
+        'The recording was already reversed or cannot be safely corrected.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiUnauthorizedResponse({
+      description: 'Access token is missing, invalid, or expired.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiForbiddenResponse({
+      description:
+        'Authenticated user account is not allowed to reverse this todo recording.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiNotFoundResponse({
+      description: 'The requested todo or recording does not exist.',
       type: ApiErrorResponseDto,
     }),
   );
