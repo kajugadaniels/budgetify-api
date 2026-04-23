@@ -1,14 +1,16 @@
-import { TodoImage } from '@prisma/client';
+import { TodoImage, TodoOccurrenceStatus } from '@prisma/client';
 
 import { PaginatedResponse } from '../../../common/interfaces/paginated-response.interface';
 import { PaginatedTodoResponseDto } from '../dto/paginated-todo.response.dto';
 import { TodoImageResponseDto } from '../dto/todo-image-response.dto';
+import { TodoOccurrenceResponseDto } from '../dto/todo-occurrence.response.dto';
 import { TodoRecordingResponseDto } from '../dto/todo-recording.response.dto';
 import { TodoResponseDto } from '../dto/todo-response.dto';
 import { TodoSummaryResponseDto } from '../dto/todo-summary.response.dto';
 import { TodoUpcomingResponseDto } from '../dto/todo-upcoming.response.dto';
 import {
   TodoRecordingWithRelations,
+  TodoOccurrenceWithRecording,
   TodoWithImages,
 } from '../todos.repository';
 import { TodoSummarySnapshot, TodoUpcomingSnapshot } from '../todos.service';
@@ -30,8 +32,23 @@ export class TodosMapper {
         : null,
       endDate: todo.endDate ? todo.endDate.toISOString().slice(0, 10) : null,
       frequencyDays: todo.frequencyDays,
-      occurrenceDates: todo.occurrenceDates,
-      recordedOccurrenceDates: todo.recordedOccurrenceDates,
+      occurrenceDates: todo.occurrences.map((occurrence) =>
+        occurrence.occurrenceDate.toISOString().slice(0, 10),
+      ),
+      recordedOccurrenceDates: todo.occurrences
+        .filter(
+          (occurrence) =>
+            TodosMapper.resolveOccurrenceStatus(
+              occurrence.occurrenceDate,
+              occurrence.status,
+            ) === TodoOccurrenceStatus.RECORDED,
+        )
+        .map((occurrence) =>
+          occurrence.occurrenceDate.toISOString().slice(0, 10),
+        ),
+      occurrences: todo.occurrences.map((occurrence) =>
+        TodosMapper.toTodoOccurrenceResponse(occurrence),
+      ),
       remainingAmount:
         todo.remainingAmount !== null ? Number(todo.remainingAmount) : null,
       recordingCount: todo._count.recordings,
@@ -87,6 +104,21 @@ export class TodosMapper {
             feeAmountRwf: Number(recording.expense.feeAmountRwf),
           }
         : null,
+    };
+  }
+
+  static toTodoOccurrenceResponse(
+    occurrence: TodoOccurrenceWithRecording,
+  ): TodoOccurrenceResponseDto {
+    return {
+      id: occurrence.id,
+      occurrenceDate: occurrence.occurrenceDate.toISOString().slice(0, 10),
+      status: TodosMapper.resolveOccurrenceStatus(
+        occurrence.occurrenceDate,
+        occurrence.status,
+      ),
+      recordingId: occurrence.recording?.id ?? null,
+      expenseId: occurrence.recording?.expenseId ?? null,
     };
   }
 
@@ -177,5 +209,23 @@ export class TodosMapper {
       createdAt: image.createdAt,
       updatedAt: image.updatedAt,
     };
+  }
+
+  private static resolveOccurrenceStatus(
+    occurrenceDate: Date,
+    status: TodoOccurrenceStatus,
+  ): TodoOccurrenceStatus {
+    if (status !== TodoOccurrenceStatus.SCHEDULED) {
+      return status;
+    }
+
+    const today = new Date();
+    const todayStart = new Date(
+      Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()),
+    );
+
+    return occurrenceDate.getTime() < todayStart.getTime()
+      ? TodoOccurrenceStatus.OVERDUE
+      : TodoOccurrenceStatus.SCHEDULED;
   }
 }
