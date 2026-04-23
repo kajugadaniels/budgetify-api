@@ -1,5 +1,9 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  ExpenseCategory,
+  ExpenseMobileMoneyChannel,
+  ExpenseMobileMoneyNetwork,
+  ExpensePaymentMethod,
   TodoFrequency,
   TodoPriority,
   TodoStatus,
@@ -17,6 +21,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  IsUUID,
   Max,
   MaxLength,
   Min,
@@ -88,6 +93,15 @@ function normalizeDateArray(value: unknown): unknown {
   }
   if (Array.isArray(value)) return value;
   return undefined;
+}
+
+function normalizeOptionalText(value: unknown): unknown {
+  if (typeof value !== 'string') {
+    return value;
+  }
+
+  const normalized = value.trim().replace(/\s+/g, ' ');
+  return normalized.length === 0 ? undefined : normalized;
 }
 
 export class CreateTodoRequestDto {
@@ -164,6 +178,92 @@ export class CreateTodoRequestDto {
     message: 'Frequency must be a valid todo frequency.',
   })
   frequency: TodoFrequency = TodoFrequency.ONCE;
+
+  @ApiPropertyOptional({
+    description:
+      'Default expense category to prefill when recording this todo.',
+    enum: ExpenseCategory,
+    enumName: 'ExpenseCategory',
+    example: ExpenseCategory.SCHOOL_FEES,
+  })
+  @IsOptional()
+  @IsEnum(ExpenseCategory, {
+    message: 'defaultExpenseCategory must be a valid expense category.',
+  })
+  defaultExpenseCategory?: ExpenseCategory;
+
+  @ApiPropertyOptional({
+    description: 'Default payment method to prefill when recording this todo.',
+    enum: ExpensePaymentMethod,
+    enumName: 'ExpensePaymentMethod',
+    example: ExpensePaymentMethod.MOBILE_MONEY,
+  })
+  @IsOptional()
+  @IsEnum(ExpensePaymentMethod, {
+    message: 'defaultPaymentMethod must be a valid payment method.',
+  })
+  defaultPaymentMethod?: ExpensePaymentMethod;
+
+  @ApiPropertyOptional({
+    description:
+      'Default mobile money transfer type when defaultPaymentMethod is MOBILE_MONEY.',
+    enum: ExpenseMobileMoneyChannel,
+    enumName: 'ExpenseMobileMoneyChannel',
+    example: ExpenseMobileMoneyChannel.P2P_TRANSFER,
+  })
+  @IsOptional()
+  @IsEnum(ExpenseMobileMoneyChannel, {
+    message: 'defaultMobileMoneyChannel must be a valid mobile money channel.',
+  })
+  defaultMobileMoneyChannel?: ExpenseMobileMoneyChannel;
+
+  @ApiPropertyOptional({
+    description:
+      'Default mobile money network when the default channel is P2P_TRANSFER.',
+    enum: ExpenseMobileMoneyNetwork,
+    enumName: 'ExpenseMobileMoneyNetwork',
+    example: ExpenseMobileMoneyNetwork.ON_NET,
+  })
+  @IsOptional()
+  @IsEnum(ExpenseMobileMoneyNetwork, {
+    message: 'defaultMobileMoneyNetwork must be a valid mobile money network.',
+  })
+  defaultMobileMoneyNetwork?: ExpenseMobileMoneyNetwork;
+
+  @ApiPropertyOptional({
+    description: 'Merchant, vendor, payee, or destination label for this todo.',
+    example: 'GS Kagarama',
+    maxLength: 120,
+  })
+  @Transform(({ value }) => normalizeOptionalText(value))
+  @IsOptional()
+  @IsString()
+  @MaxLength(120, { message: 'Payee must not exceed 120 characters.' })
+  payee?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Reusable note or rationale that should prefill when recording this todo as an expense.',
+    example: 'Second-term fees for May intake.',
+    maxLength: 500,
+  })
+  @Transform(({ value }) => normalizeOptionalText(value))
+  @IsOptional()
+  @IsString()
+  @MaxLength(500, { message: 'expenseNote must not exceed 500 characters.' })
+  expenseNote?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Visible user responsible for this plan. Defaults to the creator when omitted.',
+    example: '8d65c09f-e7fa-4ee1-9428-3b1ebc80a918',
+  })
+  @Transform(({ value }) => normalizeOptionalText(value))
+  @IsOptional()
+  @IsUUID('4', {
+    message: 'responsibleUserId must be a valid UUID.',
+  })
+  responsibleUserId?: string;
 
   @ApiPropertyOptional({
     description:
