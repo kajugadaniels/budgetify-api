@@ -134,6 +134,19 @@ enum ExpenseMobileMoneyNetwork {
   OFF_NET
 }
 
+enum LoanDirection {
+  BORROWED
+  LENT
+}
+
+enum LoanType {
+  PERSONAL
+  BUSINESS
+  FAMILY
+  FRIEND
+  OTHER
+}
+
 // ─────────────────────────────────────────────────────────────
 // Core user models
 // ─────────────────────────────────────────────────────────────
@@ -313,22 +326,32 @@ model MobileMoneyTariff {
 }
 
 model Loan {
-  id        String   @id @default(uuid()) @db.Uuid
-  userId    String   @db.Uuid
-  label     String
-  amount    Decimal  @db.Decimal(15, 2)
-  date      DateTime
-  note      String?
-  paid      Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  deletedAt DateTime?
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                String        @id @default(uuid()) @db.Uuid
+  userId            String        @db.Uuid
+  label             String
+  direction         LoanDirection @default(BORROWED)
+  type              LoanType      @default(OTHER)
+  counterpartyName  String
+  counterpartyContact String?
+  amount            Decimal       @db.Decimal(15, 2)
+  currency          Currency      @default(RWF)
+  amountRwf         Decimal       @default(0) @db.Decimal(15, 2)
+  date              DateTime
+  dueDate           DateTime?     @db.Date
+  note              String?
+  paid              Boolean       @default(false)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  deletedAt         DateTime?
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([deletedAt])
   @@index([date])
   @@index([userId, paid])
+  @@index([userId, direction])
+  @@index([userId, type])
+  @@index([dueDate])
 }
 
 model Saving {
