@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { LoanDirection, LoanType, Prisma } from '@prisma/client';
+import { LoanDirection, LoanStatus, LoanType, Prisma } from '@prisma/client';
 
 import {
   PaginatedResponse,
@@ -30,7 +30,7 @@ export class LoansRepository {
       dateFrom?: Date;
       dateTo?: Date;
       search?: string;
-      paid?: boolean;
+      status?: LoanStatus;
       direction?: LoanDirection;
       type?: LoanType;
       skip?: number;
@@ -61,7 +61,7 @@ export class LoansRepository {
     const where: Prisma.LoanWhereInput = {
       userId: { in: userIds },
       deletedAt: null,
-      paid: options?.paid,
+      status: options?.status,
       direction: options?.direction,
       type: options?.type,
       AND:
