@@ -147,6 +147,16 @@ enum LoanType {
   OTHER
 }
 
+enum LoanStatus {
+  ACTIVE
+  PARTIALLY_REPAID
+  SETTLED
+  OVERDUE
+  WRITTEN_OFF
+  CANCELLED
+  ARCHIVED
+}
+
 // ─────────────────────────────────────────────────────────────
 // Core user models
 // ─────────────────────────────────────────────────────────────
@@ -331,6 +341,7 @@ model Loan {
   label             String
   direction         LoanDirection @default(BORROWED)
   type              LoanType      @default(OTHER)
+  status            LoanStatus    @default(ACTIVE)
   counterpartyName  String
   counterpartyContact String?
   amount            Decimal       @db.Decimal(15, 2)
@@ -339,7 +350,6 @@ model Loan {
   date              DateTime
   dueDate           DateTime?     @db.Date
   note              String?
-  paid              Boolean       @default(false)
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
   deletedAt         DateTime?
@@ -348,7 +358,7 @@ model Loan {
   @@index([userId])
   @@index([deletedAt])
   @@index([date])
-  @@index([userId, paid])
+  @@index([userId, status])
   @@index([userId, direction])
   @@index([userId, type])
   @@index([dueDate])
