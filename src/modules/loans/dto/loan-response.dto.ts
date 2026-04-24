@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Currency, LoanDirection, LoanType } from '@prisma/client';
+import { Currency, LoanDirection, LoanStatus, LoanType } from '@prisma/client';
 
 import { CreatedByResponseDto } from '../../../common/dto/created-by.response.dto';
 
@@ -43,11 +43,8 @@ export class LoanResponseDto {
   })
   dueDate!: Date | null;
 
-  @ApiProperty({
-    example: false,
-    description: 'Whether the loan has already been fully paid.',
-  })
-  paid!: boolean;
+  @ApiProperty({ enum: LoanStatus, example: LoanStatus.ACTIVE })
+  status!: LoanStatus;
 
   @ApiPropertyOptional({
     example: 'To be repaid after the next salary date',
