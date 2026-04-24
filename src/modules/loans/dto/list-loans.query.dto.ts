@@ -1,6 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsInt, IsOptional, Max, Min } from 'class-validator';
+import { LoanDirection, LoanType } from '@prisma/client';
+import { IsEnum, IsInt, IsOptional, Max, Min } from 'class-validator';
 
 import {
   normalizeOptionalBoolean,
@@ -34,6 +35,28 @@ export class ListLoansQueryDto extends PaginationQueryDto {
   @Min(2000, { message: 'Year must be between 2000 and 2100.' })
   @Max(2100, { message: 'Year must be between 2000 and 2100.' })
   year?: number;
+
+  @ApiPropertyOptional({
+    enum: LoanDirection,
+    example: LoanDirection.LENT,
+    description: 'Optional borrowed-versus-lent filter.',
+  })
+  @IsOptional()
+  @IsEnum(LoanDirection, {
+    message: 'Direction must be BORROWED or LENT.',
+  })
+  direction?: LoanDirection;
+
+  @ApiPropertyOptional({
+    enum: LoanType,
+    example: LoanType.FAMILY,
+    description: 'Optional loan purpose or relationship filter.',
+  })
+  @IsOptional()
+  @IsEnum(LoanType, {
+    message: 'Type must be a valid loan type.',
+  })
+  type?: LoanType;
 
   @ApiPropertyOptional({
     description: 'Optional paid-state filter.',
