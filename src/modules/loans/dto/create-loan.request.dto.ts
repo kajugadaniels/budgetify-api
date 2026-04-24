@@ -1,8 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { Currency, LoanDirection, LoanType } from '@prisma/client';
+import { Currency, LoanDirection, LoanStatus, LoanType } from '@prisma/client';
 import {
-  IsBoolean,
   IsEnum,
   IsISO8601,
   IsNotEmpty,
@@ -38,22 +37,6 @@ function normalizeOptionalNote(value: unknown): unknown {
 
   const trimmed = value.trim();
   return trimmed.length === 0 ? undefined : trimmed;
-}
-
-function normalizePaid(value: unknown): unknown {
-  if (typeof value === 'string') {
-    const normalized = value.trim().toLowerCase();
-
-    if (normalized === 'true') {
-      return true;
-    }
-
-    if (normalized === 'false') {
-      return false;
-    }
-  }
-
-  return value;
 }
 
 export class CreateLoanRequestDto {
@@ -153,14 +136,16 @@ export class CreateLoanRequestDto {
   @IsISO8601({}, { message: 'Due date must be a valid ISO 8601 timestamp.' })
   dueDate?: string;
 
-  @ApiProperty({
-    description: 'Whether the loan has already been fully paid.',
-    example: false,
-    default: false,
+  @ApiPropertyOptional({
+    enum: LoanStatus,
+    example: LoanStatus.ACTIVE,
+    description: 'Initial lifecycle status for the loan.',
   })
-  @Transform(({ value }) => normalizePaid(value))
-  @IsBoolean({ message: 'Paid must be a valid boolean value.' })
-  paid: boolean = false;
+  @IsOptional()
+  @IsEnum(LoanStatus, {
+    message: 'Status must be a valid loan lifecycle value.',
+  })
+  status: LoanStatus = LoanStatus.ACTIVE;
 
   @ApiPropertyOptional({
     description: 'Optional free-text note for additional context.',
