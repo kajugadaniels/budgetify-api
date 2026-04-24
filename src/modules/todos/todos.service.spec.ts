@@ -11,14 +11,17 @@ describe('TodosService', () => {
     aggregateRecordingsByTodoIds: jest.fn(),
     findRecordingsByTodoIds: jest.fn(),
     findActiveByIdAndUserIds: jest.fn(),
+    findRecordingTargetByIdAndUserIds: jest.fn(),
     findRecordingByIdAndTodoId: jest.fn(),
     update: jest.fn(),
     updateOccurrence: jest.fn(),
     createRecording: jest.fn(),
+    createRecordingId: jest.fn(),
     updateRecording: jest.fn(),
   };
   const expensesRepository = {
     create: jest.fn(),
+    createRecordingSnapshot: jest.fn(),
     findActiveByIdAndUserIds: jest.fn(),
     update: jest.fn(),
   };
@@ -501,11 +504,22 @@ describe('TodosService', () => {
       mobileMoneyProvider: 'MTN_RWANDA',
       mobileMoneyNetwork: 'ON_NET',
     });
-    todosRepository.findActiveByIdAndUserIds.mockResolvedValue(todo);
-    expensesRepository.create.mockResolvedValue({ id: 'expense-1' });
+    todosRepository.findRecordingTargetByIdAndUserIds.mockResolvedValue(todo);
+    expensesRepository.createRecordingSnapshot.mockResolvedValue({
+      id: 'expense-1',
+      amountRwf: new Prisma.Decimal(140),
+      feeAmountRwf: new Prisma.Decimal(10),
+      totalAmountRwf: new Prisma.Decimal(150),
+      paymentMethod: 'MOBILE_MONEY',
+      mobileMoneyChannel: 'P2P_TRANSFER',
+      mobileMoneyNetwork: 'ON_NET',
+    });
     todosRepository.update.mockResolvedValue(todo);
     todosRepository.updateOccurrence.mockResolvedValue(undefined);
-    todosRepository.createRecording.mockResolvedValue({ id: 'recording-1' });
+    todosRepository.createRecordingId.mockResolvedValue({ id: 'recording-1' });
+    todosRepository.findRecordingByIdAndTodoId.mockResolvedValue({
+      id: 'recording-1',
+    });
 
     await expect(
       service.recordCurrentUserTodoExpenseFromPayload('user-1', 'todo-2', {
@@ -522,7 +536,7 @@ describe('TodosService', () => {
       } as never),
     ).resolves.toEqual({ id: 'recording-1' });
 
-    expect(expensesRepository.create).toHaveBeenCalledWith(
+    expect(expensesRepository.createRecordingSnapshot).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: 'user-1',
         label: 'School fees reserve',
@@ -541,7 +555,7 @@ describe('TodosService', () => {
       }),
       tx,
     );
-    expect(todosRepository.createRecording).toHaveBeenCalledWith(
+    expect(todosRepository.createRecordingId).toHaveBeenCalledWith(
       expect.objectContaining({
         todoId: 'todo-2',
         expenseId: 'expense-1',
