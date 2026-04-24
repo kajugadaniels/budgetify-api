@@ -1,8 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { Currency, LoanDirection, LoanType } from '@prisma/client';
+import { Currency, LoanDirection, LoanStatus, LoanType } from '@prisma/client';
 import {
-  IsBoolean,
   IsEnum,
   IsISO8601,
   IsNumber,
@@ -38,22 +37,6 @@ function normalizeOptionalNote(value: unknown): unknown {
 
   const trimmed = value.trim();
   return trimmed.length === 0 ? undefined : trimmed;
-}
-
-function normalizeOptionalPaid(value: unknown): unknown {
-  if (typeof value === 'string') {
-    const normalized = value.trim().toLowerCase();
-
-    if (normalized === 'true') {
-      return true;
-    }
-
-    if (normalized === 'false') {
-      return false;
-    }
-  }
-
-  return value;
 }
 
 export class UpdateLoanRequestDto {
@@ -159,13 +142,15 @@ export class UpdateLoanRequestDto {
   dueDate?: string;
 
   @ApiPropertyOptional({
-    description: 'Updated paid state for the loan.',
-    example: true,
+    enum: LoanStatus,
+    example: LoanStatus.PARTIALLY_REPAID,
+    description: 'Updated lifecycle status for the loan.',
   })
-  @Transform(({ value }) => normalizeOptionalPaid(value))
   @IsOptional()
-  @IsBoolean({ message: 'Paid must be a valid boolean value.' })
-  paid?: boolean;
+  @IsEnum(LoanStatus, {
+    message: 'Status must be a valid loan lifecycle value.',
+  })
+  status?: LoanStatus;
 
   @ApiPropertyOptional({
     description:
