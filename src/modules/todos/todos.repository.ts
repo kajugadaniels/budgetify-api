@@ -14,6 +14,8 @@ import {
 } from '../../common/interfaces/paginated-response.interface';
 import { PrismaService } from '../../database/prisma/prisma.service';
 import {
+  TODO_CADENCE_FILTER,
+  TODO_OPERATIONAL_STATE_FILTER,
   TodoCadenceFilter,
   TodoOperationalStateFilter,
 } from './dto/list-todos.query.dto';
@@ -674,9 +676,9 @@ export class TodosRepository {
     const cadenceWhere =
       options?.frequency !== undefined
         ? undefined
-        : options?.cadence === TodoCadenceFilter.ONCE
+        : options?.cadence === TODO_CADENCE_FILTER.ONCE
           ? onceFrequencyWhere
-          : options?.cadence === TodoCadenceFilter.RECURRING
+          : options?.cadence === TODO_CADENCE_FILTER.RECURRING
             ? {
                 frequency: {
                   in: [
@@ -688,7 +690,7 @@ export class TodosRepository {
               }
             : undefined;
     const operationalStateWhere =
-      options?.operationalState === TodoOperationalStateFilter.OVERDUE
+      options?.operationalState === TODO_OPERATIONAL_STATE_FILTER.OVERDUE
         ? {
             occurrences: {
               some: {
@@ -703,7 +705,7 @@ export class TodosRepository {
               },
             },
           }
-        : options?.operationalState === TodoOperationalStateFilter.UPCOMING
+        : options?.operationalState === TODO_OPERATIONAL_STATE_FILTER.UPCOMING
           ? {
               occurrences: {
                 some: {
@@ -713,7 +715,7 @@ export class TodosRepository {
                 },
               },
             }
-          : options?.operationalState === TodoOperationalStateFilter.RECORDED
+          : options?.operationalState === TODO_OPERATIONAL_STATE_FILTER.RECORDED
             ? {
                 occurrences: {
                   some: {
@@ -723,7 +725,7 @@ export class TodosRepository {
                 },
               }
             : options?.operationalState ===
-                TodoOperationalStateFilter.UNRECORDED
+                TODO_OPERATIONAL_STATE_FILTER.UNRECORDED
               ? {
                   occurrences: {
                     some: {
