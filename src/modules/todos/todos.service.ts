@@ -18,6 +18,7 @@ import {
 
 import {
   PaginatedResponse,
+  createPaginatedResponse,
   resolvePaginationOptions,
 } from '../../common/interfaces/paginated-response.interface';
 import {
@@ -32,7 +33,7 @@ import { UsersService } from '../users/users.service';
 import { CreateTodoRequestDto } from './dto/create-todo.request.dto';
 import { CreateTodoExpenseRequestDto } from './dto/create-todo-expense.request.dto';
 import { CreateTodoRecordingRequestDto } from './dto/create-todo-recording.request.dto';
-import { ListTodosQueryDto } from './dto/list-todos.query.dto';
+import { ListTodosQueryDto, TodoSortBy } from './dto/list-todos.query.dto';
 import { ReverseTodoRecordingRequestDto } from './dto/reverse-todo-recording.request.dto';
 import { TodoSummaryQueryDto } from './dto/todo-summary.query.dto';
 import { TodoUpcomingQueryDto } from './dto/todo-upcoming.query.dto';
@@ -45,6 +46,7 @@ import {
 } from './services/todo-image-storage.service';
 import {
   TodoOccurrenceWithRecording,
+  TodoRecordingMutationTarget,
   TodoSummaryRow,
   TodoRecordingWithRelations,
   TodoWithImages,
@@ -52,6 +54,7 @@ import {
 } from './todos.repository';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const TODO_RECORDING_TRANSACTION_TIMEOUT_MS = 15000;
 
 type ResolvedRecurringSchedule = {
   endDate: Date;
@@ -240,18 +243,31 @@ export class TodosService {
       await this.partnershipsService.getVisibleUserIds(userId);
     const pagination = resolvePaginationOptions(query);
     const dateRange = resolveListDateRange(query);
-
-    return this.todosRepository.findManyByUserIds(visibleUserIds, {
+    const items = await this.todosRepository.findAllByUserIds(visibleUserIds, {
       frequency: query.frequency,
+      cadence: query.cadence,
       priority: query.priority,
       status: query.status,
       type: query.type,
+      operationalState: query.operationalState,
+      hasLinkedExpense: query.hasLinkedExpense,
+      feeBearingOnly: query.feeBearingOnly,
+      remainingBudgetLte: query.remainingBudgetLte,
       search: normalizeListSearch(query.search),
       occurrenceDates: dateRange?.isoDates,
+    });
+    const sortedItems = this.sortTodoListItems(
+      items,
+      query.sortBy ?? TodoSortBy.NEXT_OCCURRENCE_ASC,
+    );
+    const pagedItems = sortedItems.slice(
+      pagination.skip,
+      pagination.skip + pagination.limit,
+    );
+
+    return createPaginatedResponse(pagedItems, sortedItems.length, {
       page: pagination.page,
       limit: pagination.limit,
-      skip: pagination.skip,
-      take: pagination.limit,
     });
   }
 
@@ -648,54 +664,71 @@ export class TodosService {
       new Prisma.Decimal(expense.totalAmountRwf),
     );
 
-    return this.prisma.$transaction(async (tx) => {
-      const recordedAt = new Date();
+    const recording = await this.prisma.$transaction(
+      async (tx) => {
+        const recordedAt = new Date();
 
-      await this.todosRepository.update(
-        todo.id,
-        {
-          status: preparedRecording.nextStatus,
-          recordedOccurrenceDates: {
-            set: preparedRecording.nextRecordedOccurrenceDates,
+        await this.todosRepository.update(
+          todo.id,
+          {
+            status: preparedRecording.nextStatus,
+            recordedOccurrenceDates: {
+              set: preparedRecording.nextRecordedOccurrenceDates,
+            },
+            remainingAmount:
+              todo.frequency === TodoFrequency.ONCE
+                ? undefined
+                : preparedRecording.nextRemainingAmount,
           },
-          remainingAmount:
-            todo.frequency === TodoFrequency.ONCE
-              ? undefined
-              : preparedRecording.nextRemainingAmount,
-        },
-        tx,
+          tx,
+        );
+
+        await this.todosRepository.updateOccurrence(
+          preparedRecording.occurrence.id,
+          {
+            status: TodoOccurrenceStatus.RECORDED,
+            resolvedAt: recordedAt,
+          },
+          tx,
+        );
+
+        return this.createTodoRecordingInTransaction(
+          {
+            todoId: todo.id,
+            expenseId: expense.id,
+            todoOccurrenceId: preparedRecording.occurrence.id,
+            occurrenceDate: preparedRecording.occurrenceDate,
+            plannedAmount: preparedRecording.plannedAmount,
+            baseAmount: expense.amountRwf,
+            feeAmount: expense.feeAmountRwf,
+            totalChargedAmount: expense.totalAmountRwf,
+            varianceAmount: preparedRecording.varianceAmount,
+            expenseSource: TodoRecordingExpenseSource.LINKED_EXISTING,
+            paymentMethod: expense.paymentMethod,
+            mobileMoneyChannel: expense.mobileMoneyChannel,
+            mobileMoneyNetwork: expense.mobileMoneyNetwork,
+            recordedAt,
+            recordedByUserId: userId,
+          },
+          tx,
+        );
+      },
+      { timeout: TODO_RECORDING_TRANSACTION_TIMEOUT_MS },
+    );
+
+    const hydratedRecording =
+      await this.todosRepository.findRecordingByIdAndTodoId(
+        recording.id,
+        todo.id,
       );
 
-      await this.todosRepository.updateOccurrence(
-        preparedRecording.occurrence.id,
-        {
-          status: TodoOccurrenceStatus.RECORDED,
-          resolvedAt: recordedAt,
-        },
-        tx,
+    if (!hydratedRecording) {
+      throw new NotFoundException(
+        'The todo recording was created but could not be reloaded.',
       );
+    }
 
-      return this.todosRepository.createRecording(
-        {
-          todoId: todo.id,
-          expenseId: expense.id,
-          todoOccurrenceId: preparedRecording.occurrence.id,
-          occurrenceDate: preparedRecording.occurrenceDate,
-          plannedAmount: preparedRecording.plannedAmount,
-          baseAmount: expense.amountRwf,
-          feeAmount: expense.feeAmountRwf,
-          totalChargedAmount: expense.totalAmountRwf,
-          varianceAmount: preparedRecording.varianceAmount,
-          expenseSource: TodoRecordingExpenseSource.LINKED_EXISTING,
-          paymentMethod: expense.paymentMethod,
-          mobileMoneyChannel: expense.mobileMoneyChannel,
-          mobileMoneyNetwork: expense.mobileMoneyNetwork,
-          recordedAt,
-          recordedByUserId: userId,
-        },
-        tx,
-      );
-    });
+    return hydratedRecording;
   }
 
   async recordCurrentUserTodoExpenseFromPayload(
@@ -732,94 +765,110 @@ export class TodosService {
       );
     }
 
-    return this.prisma.$transaction(async (tx) => {
-      const todo = await this.todosRepository.findActiveByIdAndUserIds(
-        todoId,
-        visibleUserIds,
-        tx,
-      );
+    const resolvedExpenseLabel =
+      payload.label.trim().length > 0 ? payload.label.trim() : null;
+    const expenseNote = payload.note ?? null;
 
-      if (!todo) {
-        throw new NotFoundException('Todo item was not found.');
-      }
+    const recording = await this.prisma.$transaction(
+      async (tx) => {
+        const todo = await this.findTodoRecordingTargetByIdAndUserIds(
+          todoId,
+          visibleUserIds,
+          tx,
+        );
 
-      const preparedRecording = this.prepareTodoRecordingMutation(
-        todo,
-        occurrenceIsoDate,
-        charges.totalAmountRwf,
-      );
-      const recordedAt = new Date();
-      const resolvedExpenseLabel =
-        payload.label.trim().length > 0
-          ? payload.label.trim()
-          : todo.payee?.trim() || todo.name;
-      const resolvedExpenseNote = payload.note ?? todo.expenseNote ?? null;
-      const expense = await this.expensesRepository.create(
-        {
-          userId,
-          label: resolvedExpenseLabel,
-          amount: charges.amount,
-          currency: charges.currency,
-          amountRwf: charges.amountRwf,
-          feeAmount: charges.feeAmount,
-          feeAmountRwf: charges.feeAmountRwf,
-          totalAmountRwf: charges.totalAmountRwf,
-          paymentMethod: charges.paymentMethod,
-          mobileMoneyChannel: charges.mobileMoneyChannel,
-          mobileMoneyProvider: charges.mobileMoneyProvider,
-          mobileMoneyNetwork: charges.mobileMoneyNetwork,
-          category: payload.category,
-          date: expenseDate,
-          note: resolvedExpenseNote,
-        },
-        tx,
-      );
+        if (!todo) {
+          throw new NotFoundException('Todo item was not found.');
+        }
 
-      await this.todosRepository.update(
-        todo.id,
-        {
-          status: preparedRecording.nextStatus,
-          recordedOccurrenceDates: {
-            set: preparedRecording.nextRecordedOccurrenceDates,
+        const preparedRecording = this.prepareTodoRecordingMutation(
+          todo,
+          occurrenceIsoDate,
+          charges.totalAmountRwf,
+        );
+        const recordedAt = new Date();
+        const expense = await this.createExpenseRecordingSnapshot(
+          {
+            userId,
+            label: (resolvedExpenseLabel ?? todo.payee?.trim()) || todo.name,
+            amount: charges.amount,
+            currency: charges.currency,
+            amountRwf: charges.amountRwf,
+            feeAmount: charges.feeAmount,
+            feeAmountRwf: charges.feeAmountRwf,
+            totalAmountRwf: charges.totalAmountRwf,
+            paymentMethod: charges.paymentMethod,
+            mobileMoneyChannel: charges.mobileMoneyChannel,
+            mobileMoneyProvider: charges.mobileMoneyProvider,
+            mobileMoneyNetwork: charges.mobileMoneyNetwork,
+            category: payload.category,
+            date: expenseDate,
+            note: expenseNote ?? todo.expenseNote ?? null,
           },
-          remainingAmount:
-            todo.frequency === TodoFrequency.ONCE
-              ? undefined
-              : preparedRecording.nextRemainingAmount,
-        },
-        tx,
+          tx,
+        );
+
+        await this.todosRepository.update(
+          todo.id,
+          {
+            status: preparedRecording.nextStatus,
+            recordedOccurrenceDates: {
+              set: preparedRecording.nextRecordedOccurrenceDates,
+            },
+            remainingAmount:
+              todo.frequency === TodoFrequency.ONCE
+                ? undefined
+                : preparedRecording.nextRemainingAmount,
+          },
+          tx,
+        );
+
+        await this.todosRepository.updateOccurrence(
+          preparedRecording.occurrence.id,
+          {
+            status: TodoOccurrenceStatus.RECORDED,
+            resolvedAt: recordedAt,
+          },
+          tx,
+        );
+
+        return this.createTodoRecordingInTransaction(
+          {
+            todoId: todo.id,
+            expenseId: expense.id,
+            todoOccurrenceId: preparedRecording.occurrence.id,
+            occurrenceDate: preparedRecording.occurrenceDate,
+            plannedAmount: preparedRecording.plannedAmount,
+            baseAmount: charges.amountRwf,
+            feeAmount: charges.feeAmountRwf,
+            totalChargedAmount: charges.totalAmountRwf,
+            varianceAmount: preparedRecording.varianceAmount,
+            expenseSource: TodoRecordingExpenseSource.GENERATED,
+            paymentMethod: charges.paymentMethod,
+            mobileMoneyChannel: charges.mobileMoneyChannel,
+            mobileMoneyNetwork: charges.mobileMoneyNetwork,
+            recordedAt,
+            recordedByUserId: userId,
+          },
+          tx,
+        );
+      },
+      { timeout: TODO_RECORDING_TRANSACTION_TIMEOUT_MS },
+    );
+
+    const hydratedRecording =
+      await this.todosRepository.findRecordingByIdAndTodoId(
+        recording.id,
+        todoId,
       );
 
-      await this.todosRepository.updateOccurrence(
-        preparedRecording.occurrence.id,
-        {
-          status: TodoOccurrenceStatus.RECORDED,
-          resolvedAt: recordedAt,
-        },
-        tx,
+    if (!hydratedRecording) {
+      throw new NotFoundException(
+        'The todo recording was created but could not be reloaded.',
       );
+    }
 
-      return this.todosRepository.createRecording(
-        {
-          todoId: todo.id,
-          expenseId: expense.id,
-          todoOccurrenceId: preparedRecording.occurrence.id,
-          occurrenceDate: preparedRecording.occurrenceDate,
-          plannedAmount: preparedRecording.plannedAmount,
-          baseAmount: charges.amountRwf,
-          feeAmount: charges.feeAmountRwf,
-          totalChargedAmount: charges.totalAmountRwf,
-          varianceAmount: preparedRecording.varianceAmount,
-          expenseSource: TodoRecordingExpenseSource.GENERATED,
-          paymentMethod: charges.paymentMethod,
-          mobileMoneyChannel: charges.mobileMoneyChannel,
-          mobileMoneyNetwork: charges.mobileMoneyNetwork,
-          recordedAt,
-          recordedByUserId: userId,
-        },
-        tx,
-      );
-    });
+    return hydratedRecording;
   }
 
   async reverseCurrentUserTodoRecording(
@@ -1463,7 +1512,7 @@ export class TodosService {
   }
 
   private prepareTodoRecordingMutation(
-    todo: TodoWithImages,
+    todo: TodoRecordingMutationTarget,
     occurrenceIsoDate: string,
     chargedAmount: Prisma.Decimal,
   ): PreparedTodoRecordingMutation {
@@ -1545,7 +1594,9 @@ export class TodosService {
     };
   }
 
-  private resolvePlannedRecordingAmount(todo: TodoWithImages): Prisma.Decimal {
+  private resolvePlannedRecordingAmount(
+    todo: TodoRecordingMutationTarget,
+  ): Prisma.Decimal {
     if (todo.frequency === TodoFrequency.ONCE) {
       return todo.price.toDecimalPlaces(2);
     }
@@ -2030,6 +2081,136 @@ export class TodosService {
     };
   }
 
+  private sortTodoListItems(
+    items: TodoWithImages[],
+    sortBy: TodoSortBy,
+  ): TodoWithImages[] {
+    if (sortBy === TodoSortBy.CREATED_AT_DESC) {
+      return [...items].sort(
+        (left, right) =>
+          right.createdAt.getTime() - left.createdAt.getTime() ||
+          left.name.localeCompare(right.name, 'en'),
+      );
+    }
+
+    return [...items].sort((left, right) => {
+      const leftNextOccurrence = this.resolveNextOpenOccurrenceTimestamp(left);
+      const rightNextOccurrence =
+        this.resolveNextOpenOccurrenceTimestamp(right);
+
+      if (leftNextOccurrence !== rightNextOccurrence) {
+        return leftNextOccurrence - rightNextOccurrence;
+      }
+
+      return (
+        right.createdAt.getTime() - left.createdAt.getTime() ||
+        left.name.localeCompare(right.name, 'en')
+      );
+    });
+  }
+
+  private resolveNextOpenOccurrenceTimestamp(
+    todo: Pick<TodoWithImages, 'occurrences'>,
+  ): number {
+    const nextOpenOccurrence = todo.occurrences.find((occurrence) => {
+      const status = this.resolveEffectiveOccurrenceStatus(occurrence);
+      return (
+        status === TodoOccurrenceStatus.SCHEDULED ||
+        status === TodoOccurrenceStatus.OVERDUE
+      );
+    });
+
+    return nextOpenOccurrence
+      ? nextOpenOccurrence.occurrenceDate.getTime()
+      : Number.POSITIVE_INFINITY;
+  }
+
+  private async findTodoRecordingTargetByIdAndUserIds(
+    todoId: string,
+    visibleUserIds: string[],
+    tx: Prisma.TransactionClient,
+  ): Promise<TodoRecordingMutationTarget | TodoWithImages | null> {
+    const repository = this.todosRepository as TodosRepository & {
+      findRecordingTargetByIdAndUserIds?: (
+        id: string,
+        userIds: string[],
+        db: Prisma.TransactionClient,
+      ) => Promise<TodoRecordingMutationTarget | null>;
+    };
+
+    if (repository.findRecordingTargetByIdAndUserIds) {
+      return repository.findRecordingTargetByIdAndUserIds(
+        todoId,
+        visibleUserIds,
+        tx,
+      );
+    }
+
+    return this.todosRepository.findActiveByIdAndUserIds(
+      todoId,
+      visibleUserIds,
+      tx,
+    );
+  }
+
+  private async createExpenseRecordingSnapshot(
+    data: Prisma.ExpenseUncheckedCreateInput,
+    tx: Prisma.TransactionClient,
+  ): Promise<{
+    amountRwf: Prisma.Decimal;
+    feeAmountRwf: Prisma.Decimal;
+    id: string;
+    mobileMoneyChannel: ExpenseMobileMoneyChannel | null;
+    mobileMoneyNetwork: ExpenseMobileMoneyNetwork | null;
+    paymentMethod: ExpensePaymentMethod;
+    totalAmountRwf: Prisma.Decimal;
+  }> {
+    const repository = this.expensesRepository as ExpensesRepository & {
+      createRecordingSnapshot?: (
+        createData: Prisma.ExpenseUncheckedCreateInput,
+        db: Prisma.TransactionClient,
+      ) => Promise<{
+        amountRwf: Prisma.Decimal;
+        feeAmountRwf: Prisma.Decimal;
+        id: string;
+        mobileMoneyChannel: ExpenseMobileMoneyChannel | null;
+        mobileMoneyNetwork: ExpenseMobileMoneyNetwork | null;
+        paymentMethod: ExpensePaymentMethod;
+        totalAmountRwf: Prisma.Decimal;
+      }>;
+    };
+
+    if (repository.createRecordingSnapshot) {
+      return repository.createRecordingSnapshot(data, tx);
+    }
+
+    return this.expensesRepository.create(data, tx);
+  }
+
+  private async createTodoRecordingInTransaction(
+    data: Prisma.TodoRecordingUncheckedCreateInput,
+    tx: Prisma.TransactionClient,
+  ): Promise<TodoRecordingWithRelations | { id: string }> {
+    const repository = this.todosRepository as TodosRepository & {
+      createRecordingId?: (
+        createData: Prisma.TodoRecordingUncheckedCreateInput,
+        db: Prisma.TransactionClient,
+      ) => Promise<{ id: string }>;
+    };
+
+    if (repository.createRecordingId) {
+      return repository.createRecordingId(data, tx);
+    }
+
+    return this.todosRepository.createRecording(data, tx);
+  }
+
+  private isHydratedTodoRecording(
+    value: TodoRecordingWithRelations | { id: string },
+  ): value is TodoRecordingWithRelations {
+    return 'recordedAt' in value;
+  }
+
   private getTodayDateString(): string {
     const now = new Date();
     const year = now.getFullYear();
@@ -2044,9 +2225,14 @@ export class TodosService {
     query: Pick<
       ListTodosQueryDto,
       | 'frequency'
+      | 'cadence'
       | 'priority'
       | 'status'
       | 'type'
+      | 'operationalState'
+      | 'hasLinkedExpense'
+      | 'feeBearingOnly'
+      | 'remainingBudgetLte'
       | 'search'
       | 'dateFrom'
       | 'dateTo'
@@ -2059,9 +2245,14 @@ export class TodosService {
 
     return this.todosRepository.findSummaryRowsByUserIds(visibleUserIds, {
       frequency: query.frequency,
+      cadence: query.cadence,
       priority: query.priority,
       status: query.status,
       type: query.type,
+      operationalState: query.operationalState,
+      hasLinkedExpense: query.hasLinkedExpense,
+      feeBearingOnly: query.feeBearingOnly,
+      remainingBudgetLte: query.remainingBudgetLte,
       search: normalizeListSearch(query.search),
       occurrenceDates: dateRange?.isoDates,
     });
