@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { ExpenseCategory, Prisma } from '@prisma/client';
+import { ExpenseCategory, LoanStatus, Prisma } from '@prisma/client';
 
 import {
   PaginatedResponse,
@@ -52,7 +52,7 @@ export class LoansService {
       dateFrom: dateRange?.dateFrom,
       dateTo: dateRange?.dateTo,
       search: normalizeListSearch(query.search),
-      paid: query.paid,
+      status: query.status,
       direction: query.direction,
       type: query.type,
       page: pagination.page,
@@ -73,6 +73,7 @@ export class LoansService {
       payload.dueDate === undefined ? null : new Date(payload.dueDate);
 
     this.assertLoanDatesAreValid(issuedDate, dueDate);
+    const status = this.resolveLifecycleStatus(payload.status, dueDate);
     const amountRwf = await this.currencyService.convertToRwf(
       payload.amount,
       payload.currency,
@@ -90,7 +91,7 @@ export class LoansService {
       amountRwf,
       date: issuedDate,
       dueDate,
-      paid: payload.paid,
+      status,
       note: payload.note ?? null,
     });
   }
@@ -110,7 +111,7 @@ export class LoansService {
       payload.currency === undefined &&
       payload.issuedDate === undefined &&
       payload.dueDate === undefined &&
-      payload.paid === undefined &&
+      payload.status === undefined &&
       payload.note === undefined
     ) {
       throw new BadRequestException(
@@ -128,6 +129,10 @@ export class LoansService {
     const nextDueDate =
       payload.dueDate === undefined ? loan.dueDate : new Date(payload.dueDate);
     this.assertLoanDatesAreValid(nextIssuedDate, nextDueDate);
+    const nextStatus = this.resolveLifecycleStatus(
+      payload.status ?? loan.status,
+      nextDueDate,
+    );
     const nextCurrency = payload.currency ?? loan.currency;
     const shouldUpdateAmountRwf =
       payload.amount !== undefined || payload.currency !== undefined;
@@ -152,7 +157,7 @@ export class LoansService {
       amountRwf,
       date: payload.issuedDate === undefined ? undefined : nextIssuedDate,
       dueDate: payload.dueDate === undefined ? undefined : nextDueDate,
-      paid: payload.paid,
+      status: nextStatus,
       note: payload.note,
     });
   }
@@ -166,15 +171,25 @@ export class LoansService {
 
     const loan = await this.findVisibleLoanOrThrow(userId, loanId);
 
-    if (loan.paid) {
+    if (loan.status === LoanStatus.SETTLED) {
       throw new BadRequestException(
-        'This loan is already marked as paid and cannot be sent to expenses again.',
+        'This loan is already settled and cannot be sent to expenses again.',
       );
     }
 
     if (loan.direction !== 'BORROWED') {
       throw new BadRequestException(
         'Only borrowed loans can be settled into expenses.',
+      );
+    }
+
+    if (
+      loan.status === LoanStatus.CANCELLED ||
+      loan.status === LoanStatus.WRITTEN_OFF ||
+      loan.status === LoanStatus.ARCHIVED
+    ) {
+      throw new BadRequestException(
+        'Only active loan lifecycle states can be settled into expenses.',
       );
     }
 
@@ -194,7 +209,7 @@ export class LoansService {
       const updatedLoan = await this.loansRepository.update(
         loan.id,
         {
-          paid: true,
+          status: LoanStatus.SETTLED,
         },
         tx,
       );
@@ -262,5 +277,36 @@ export class LoansService {
         'Due date must be on or after the issued date.',
       );
     }
+  }
+
+  private resolveLifecycleStatus(
+    requestedStatus: LoanStatus | undefined,
+    dueDate: Date | null,
+  ): LoanStatus {
+    const baseStatus = requestedStatus ?? LoanStatus.ACTIVE;
+
+    if (
+      baseStatus === LoanStatus.SETTLED ||
+      baseStatus === LoanStatus.CANCELLED ||
+      baseStatus === LoanStatus.WRITTEN_OFF ||
+      baseStatus === LoanStatus.ARCHIVED
+    ) {
+      return baseStatus;
+    }
+
+    if (dueDate === null) {
+      return baseStatus === LoanStatus.OVERDUE ? LoanStatus.ACTIVE : baseStatus;
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const dueDay = new Date(dueDate);
+    dueDay.setHours(0, 0, 0, 0);
+
+    if (dueDay.getTime() < today.getTime()) {
+      return LoanStatus.OVERDUE;
+    }
+
+    return baseStatus === LoanStatus.OVERDUE ? LoanStatus.ACTIVE : baseStatus;
   }
 }
