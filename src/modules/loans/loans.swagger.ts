@@ -29,7 +29,7 @@ export function ApiListCurrentUserLoansEndpoint(): MethodDecorator {
     ApiOperation({
       summary: 'List current user loan records',
       description:
-        'Returns non-deleted loan records owned by the authenticated user, ordered from newest to oldest by recorded date. Explicit dateFrom/dateTo filters override month and year, and text search matches the loan label and note when at least 3 characters are provided. When no query is provided, all loan records are returned.',
+        'Returns non-deleted loan records visible to the authenticated user, ordered from newest to oldest by issued date. Explicit dateFrom/dateTo filters override month and year, and text search matches the loan label and note when at least 3 characters are provided. Direction, type, and paid-state filters can be combined to narrow the ledger.',
     }),
     ApiQuery({
       name: 'month',
@@ -37,7 +37,7 @@ export function ApiListCurrentUserLoansEndpoint(): MethodDecorator {
       type: Number,
       example: 3,
       description:
-        'Optional 1-based month filter applied against the recorded loan date.',
+        'Optional 1-based month filter applied against the issued date.',
     }),
     ApiQuery({
       name: 'year',
@@ -46,6 +46,20 @@ export function ApiListCurrentUserLoansEndpoint(): MethodDecorator {
       example: 2026,
       description:
         'Optional year filter paired with month. Defaults to the current year.',
+    }),
+    ApiQuery({
+      name: 'direction',
+      required: false,
+      type: String,
+      example: 'BORROWED',
+      description: 'Optional borrowed-versus-lent filter.',
+    }),
+    ApiQuery({
+      name: 'type',
+      required: false,
+      type: String,
+      example: 'FAMILY',
+      description: 'Optional loan purpose or relationship filter.',
     }),
     ApiQuery({
       name: 'paid',
@@ -68,7 +82,7 @@ export function ApiListCurrentUserLoansEndpoint(): MethodDecorator {
       type: String,
       example: '2026-03-10',
       description:
-        'Optional inclusive start date filter applied against the recorded loan date. Overrides month/year filtering when provided.',
+        'Optional inclusive start date filter applied against the issued date. Overrides month/year filtering when provided.',
     }),
     ApiQuery({
       name: 'dateTo',
@@ -76,7 +90,7 @@ export function ApiListCurrentUserLoansEndpoint(): MethodDecorator {
       type: String,
       example: '2026-03-25',
       description:
-        'Optional inclusive end date filter applied against the recorded loan date. Overrides month/year filtering when provided.',
+        'Optional inclusive end date filter applied against the issued date. Overrides month/year filtering when provided.',
     }),
     ApiQuery({
       name: 'page',
@@ -114,7 +128,7 @@ export function ApiCreateCurrentUserLoanEndpoint(): MethodDecorator {
     ApiOperation({
       summary: 'Create a loan record',
       description:
-        'Creates a new loan record for the authenticated user. Captures the loan label, amount in RWF, date, paid state, and an optional note.',
+        'Creates a new loan record for the authenticated user. Captures loan direction, type, counterparty details, amount and currency, issued and due dates, paid state, and an optional note.',
     }),
     ApiBody({ type: CreateLoanRequestDto }),
     ApiCreatedResponse({
@@ -148,7 +162,7 @@ export function ApiUpdateCurrentUserLoanEndpoint(): MethodDecorator {
     ApiOperation({
       summary: 'Update a loan record',
       description:
-        'Updates one existing loan record owned by the authenticated user. Only the editable loan fields are accepted: label, amount, date, paid state, and note.',
+        'Updates one existing loan record owned by the authenticated user. Editable fields include the direction, type, counterparty details, amount and currency, issued and due dates, paid state, and note.',
     }),
     ApiParam({
       name: 'loanId',
@@ -231,7 +245,7 @@ export function ApiSendCurrentUserLoanToExpenseEndpoint(): MethodDecorator {
     ApiOperation({
       summary: 'Send a loan to expenses',
       description:
-        'Creates one expense entry in the LOAN category from an unpaid loan record owned by the authenticated user, then marks that loan as paid inside the same transaction.',
+        'Creates one expense entry in the LOAN category from an unpaid borrowed loan record owned by the authenticated user, then marks that loan as paid inside the same transaction.',
     }),
     ApiParam({
       name: 'loanId',
@@ -245,7 +259,7 @@ export function ApiSendCurrentUserLoanToExpenseEndpoint(): MethodDecorator {
     }),
     ApiBadRequestResponse({
       description:
-        'Request validation failed or the loan is already marked as paid.',
+        'Request validation failed, the loan is already marked as paid, or the loan direction is not BORROWED.',
       type: ApiErrorResponseDto,
     }),
     ApiUnauthorizedResponse({
