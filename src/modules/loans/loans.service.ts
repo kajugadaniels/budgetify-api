@@ -14,6 +14,7 @@ import {
   resolveListDateRange,
 } from '../../common/utils/list-query.utils';
 import { PrismaService } from '../../database/prisma/prisma.service';
+import { CurrencyService } from '../currency/currency.service';
 import {
   ExpenseWithCreator,
   ExpensesRepository,
@@ -34,6 +35,7 @@ export class LoansService {
     private readonly prisma: PrismaService,
     private readonly usersService: UsersService,
     private readonly partnershipsService: PartnershipsService,
+    private readonly currencyService: CurrencyService,
   ) {}
 
   async listCurrentUserLoans(
@@ -51,6 +53,8 @@ export class LoansService {
       dateTo: dateRange?.dateTo,
       search: normalizeListSearch(query.search),
       paid: query.paid,
+      direction: query.direction,
+      type: query.type,
       page: pagination.page,
       limit: pagination.limit,
       skip: pagination.skip,
@@ -64,11 +68,28 @@ export class LoansService {
   ): Promise<LoanWithCreator> {
     await this.usersService.findActiveByIdOrThrow(userId);
 
+    const issuedDate = new Date(payload.issuedDate);
+    const dueDate =
+      payload.dueDate === undefined ? null : new Date(payload.dueDate);
+
+    this.assertLoanDatesAreValid(issuedDate, dueDate);
+    const amountRwf = await this.currencyService.convertToRwf(
+      payload.amount,
+      payload.currency,
+    );
+
     return this.loansRepository.create({
       userId,
       label: payload.label,
+      direction: payload.direction,
+      type: payload.type,
+      counterpartyName: payload.counterpartyName,
+      counterpartyContact: payload.counterpartyContact ?? null,
       amount: new Prisma.Decimal(payload.amount),
-      date: new Date(payload.date),
+      currency: payload.currency,
+      amountRwf,
+      date: issuedDate,
+      dueDate,
       paid: payload.paid,
       note: payload.note ?? null,
     });
@@ -81,8 +102,14 @@ export class LoansService {
   ): Promise<LoanWithCreator> {
     if (
       payload.label === undefined &&
+      payload.direction === undefined &&
+      payload.type === undefined &&
+      payload.counterpartyName === undefined &&
+      payload.counterpartyContact === undefined &&
       payload.amount === undefined &&
-      payload.date === undefined &&
+      payload.currency === undefined &&
+      payload.issuedDate === undefined &&
+      payload.dueDate === undefined &&
       payload.paid === undefined &&
       payload.note === undefined
     ) {
@@ -94,14 +121,37 @@ export class LoansService {
     await this.usersService.findActiveByIdOrThrow(userId);
 
     const loan = await this.findVisibleLoanOrThrow(userId, loanId);
+    const nextIssuedDate =
+      payload.issuedDate === undefined
+        ? loan.date
+        : new Date(payload.issuedDate);
+    const nextDueDate =
+      payload.dueDate === undefined ? loan.dueDate : new Date(payload.dueDate);
+    this.assertLoanDatesAreValid(nextIssuedDate, nextDueDate);
+    const nextCurrency = payload.currency ?? loan.currency;
+    const shouldUpdateAmountRwf =
+      payload.amount !== undefined || payload.currency !== undefined;
+    const amountRwf = shouldUpdateAmountRwf
+      ? await this.currencyService.convertToRwf(
+          payload.amount ?? Number(loan.amount),
+          nextCurrency,
+        )
+      : undefined;
 
     return this.loansRepository.update(loan.id, {
       label: payload.label,
+      direction: payload.direction,
+      type: payload.type,
+      counterpartyName: payload.counterpartyName,
+      counterpartyContact: payload.counterpartyContact,
       amount:
         payload.amount === undefined
           ? undefined
           : new Prisma.Decimal(payload.amount),
-      date: payload.date === undefined ? undefined : new Date(payload.date),
+      currency: payload.currency,
+      amountRwf,
+      date: payload.issuedDate === undefined ? undefined : nextIssuedDate,
+      dueDate: payload.dueDate === undefined ? undefined : nextDueDate,
       paid: payload.paid,
       note: payload.note,
     });
@@ -119,6 +169,12 @@ export class LoansService {
     if (loan.paid) {
       throw new BadRequestException(
         'This loan is already marked as paid and cannot be sent to expenses again.',
+      );
+    }
+
+    if (loan.direction !== 'BORROWED') {
+      throw new BadRequestException(
+        'Only borrowed loans can be settled into expenses.',
       );
     }
 
@@ -183,5 +239,28 @@ export class LoansService {
     }
 
     return loan;
+  }
+
+  private assertLoanDatesAreValid(
+    issuedDate: Date,
+    dueDate: Date | null,
+  ): void {
+    if (Number.isNaN(issuedDate.getTime())) {
+      throw new BadRequestException('Issued date must be valid.');
+    }
+
+    if (dueDate === null) {
+      return;
+    }
+
+    if (Number.isNaN(dueDate.getTime())) {
+      throw new BadRequestException('Due date must be valid.');
+    }
+
+    if (dueDate.getTime() < issuedDate.getTime()) {
+      throw new BadRequestException(
+        'Due date must be on or after the issued date.',
+      );
+    }
   }
 }
