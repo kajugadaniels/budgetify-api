@@ -1,7 +1,9 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
+import { Currency, LoanDirection, LoanType } from '@prisma/client';
 import {
   IsBoolean,
+  IsEnum,
   IsISO8601,
   IsNotEmpty,
   IsNumber,
@@ -67,7 +69,54 @@ export class CreateLoanRequestDto {
   label!: string;
 
   @ApiProperty({
-    description: 'Loan amount in RWF.',
+    enum: LoanDirection,
+    example: LoanDirection.LENT,
+    description:
+      'Whether this record is money you borrowed or money you lent to someone else.',
+  })
+  @IsEnum(LoanDirection, {
+    message: 'Direction must be BORROWED or LENT.',
+  })
+  direction!: LoanDirection;
+
+  @ApiProperty({
+    enum: LoanType,
+    example: LoanType.FAMILY,
+    description: 'Business purpose or relationship context for the loan.',
+  })
+  @IsEnum(LoanType, {
+    message: 'Type must be a valid loan type.',
+  })
+  type!: LoanType;
+
+  @ApiProperty({
+    description: 'Primary counterparty for the loan.',
+    example: 'Alice Uwimana',
+    maxLength: 120,
+  })
+  @Transform(({ value }) => normalizeRequiredLabel(value))
+  @IsString()
+  @IsNotEmpty({ message: 'Counterparty name is required.' })
+  @MaxLength(120, {
+    message: 'Counterparty name must not exceed 120 characters.',
+  })
+  counterpartyName!: string;
+
+  @ApiPropertyOptional({
+    description: 'Optional phone number, email, or other contact reference.',
+    example: '+250788000000',
+    maxLength: 120,
+  })
+  @Transform(({ value }) => normalizeOptionalNote(value))
+  @IsOptional()
+  @IsString()
+  @MaxLength(120, {
+    message: 'Counterparty contact must not exceed 120 characters.',
+  })
+  counterpartyContact?: string;
+
+  @ApiProperty({
+    description: 'Loan amount in the selected currency.',
     example: 250000,
   })
   @Transform(({ value }) => normalizeAmount(value))
@@ -79,11 +128,30 @@ export class CreateLoanRequestDto {
   amount!: number;
 
   @ApiProperty({
-    description: 'Date the loan was issued or recorded.',
+    enum: Currency,
+    example: Currency.RWF,
+    description:
+      'Currency for the loan amount. USD is converted to RWF for reporting.',
+  })
+  @IsEnum(Currency, {
+    message: 'Currency must be a valid currency.',
+  })
+  currency: Currency = Currency.RWF;
+
+  @ApiProperty({
+    description: 'Date the loan was issued.',
     example: '2026-03-31T00:00:00.000Z',
   })
   @IsISO8601({}, { message: 'Date must be a valid ISO 8601 timestamp.' })
-  date!: string;
+  issuedDate!: string;
+
+  @ApiPropertyOptional({
+    description: 'Optional due date for repayment.',
+    example: '2026-04-30T00:00:00.000Z',
+  })
+  @IsOptional()
+  @IsISO8601({}, { message: 'Due date must be a valid ISO 8601 timestamp.' })
+  dueDate?: string;
 
   @ApiProperty({
     description: 'Whether the loan has already been fully paid.',
