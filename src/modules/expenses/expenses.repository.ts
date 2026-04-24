@@ -34,6 +34,17 @@ const EXPENSE_TODO_RECORDING_SELECT = {
   },
 } as const;
 
+const EXPENSE_RECORDING_SNAPSHOT_SELECT = {
+  id: true,
+  date: true,
+  amountRwf: true,
+  feeAmountRwf: true,
+  totalAmountRwf: true,
+  paymentMethod: true,
+  mobileMoneyChannel: true,
+  mobileMoneyNetwork: true,
+} as const;
+
 export type ExpenseWithCreator = Prisma.ExpenseGetPayload<{
   include: {
     user: { select: typeof USER_SELECT };
@@ -49,6 +60,10 @@ export interface ExpenseSummaryAggregate {
   largestChargedAmountRwf: number;
   feeBearingExpenseCount: number;
 }
+
+export type ExpenseRecordingSnapshot = Prisma.ExpenseGetPayload<{
+  select: typeof EXPENSE_RECORDING_SNAPSHOT_SELECT;
+}>;
 
 @Injectable()
 export class ExpensesRepository {
@@ -177,6 +192,16 @@ export class ExpensesRepository {
           select: EXPENSE_TODO_RECORDING_SELECT,
         },
       },
+    });
+  }
+
+  async createRecordingSnapshot(
+    data: Prisma.ExpenseUncheckedCreateInput,
+    db: PrismaExecutor = this.prisma,
+  ): Promise<ExpenseRecordingSnapshot> {
+    return db.expense.create({
+      data,
+      select: EXPENSE_RECORDING_SNAPSHOT_SELECT,
     });
   }
 
