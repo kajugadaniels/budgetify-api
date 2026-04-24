@@ -1,10 +1,9 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { LoanDirection, LoanType } from '@prisma/client';
+import { LoanDirection, LoanStatus, LoanType } from '@prisma/client';
 import { IsEnum, IsInt, IsOptional, Max, Min } from 'class-validator';
 
 import {
-  normalizeOptionalBoolean,
   normalizeOptionalInteger,
   PaginationQueryDto,
 } from '../../../common/dto/pagination-query.dto';
@@ -59,10 +58,13 @@ export class ListLoansQueryDto extends PaginationQueryDto {
   type?: LoanType;
 
   @ApiPropertyOptional({
-    description: 'Optional paid-state filter.',
-    example: false,
+    enum: LoanStatus,
+    example: LoanStatus.OVERDUE,
+    description: 'Optional lifecycle status filter.',
   })
-  @Transform(({ value }) => normalizeOptionalBoolean(value))
   @IsOptional()
-  paid?: boolean;
+  @IsEnum(LoanStatus, {
+    message: 'Status must be a valid loan lifecycle value.',
+  })
+  status?: LoanStatus;
 }
