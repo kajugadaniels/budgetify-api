@@ -33,7 +33,11 @@ import { UsersService } from '../users/users.service';
 import { CreateTodoRequestDto } from './dto/create-todo.request.dto';
 import { CreateTodoExpenseRequestDto } from './dto/create-todo-expense.request.dto';
 import { CreateTodoRecordingRequestDto } from './dto/create-todo-recording.request.dto';
-import { ListTodosQueryDto, TodoSortBy } from './dto/list-todos.query.dto';
+import {
+  ListTodosQueryDto,
+  TODO_SORT_BY,
+  TodoSortBy,
+} from './dto/list-todos.query.dto';
 import { ReverseTodoRecordingRequestDto } from './dto/reverse-todo-recording.request.dto';
 import { TodoSummaryQueryDto } from './dto/todo-summary.query.dto';
 import { TodoUpcomingQueryDto } from './dto/todo-upcoming.query.dto';
@@ -258,7 +262,7 @@ export class TodosService {
     });
     const sortedItems = this.sortTodoListItems(
       items,
-      query.sortBy ?? TodoSortBy.NEXT_OCCURRENCE_ASC,
+      query.sortBy ?? TODO_SORT_BY.NEXT_OCCURRENCE_ASC,
     );
     const pagedItems = sortedItems.slice(
       pagination.skip,
@@ -2085,7 +2089,7 @@ export class TodosService {
     items: TodoWithImages[],
     sortBy: TodoSortBy,
   ): TodoWithImages[] {
-    if (sortBy === TodoSortBy.CREATED_AT_DESC) {
+    if (sortBy === TODO_SORT_BY.CREATED_AT_DESC) {
       return [...items].sort(
         (left, right) =>
           right.createdAt.getTime() - left.createdAt.getTime() ||
