@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Currency, LoanDirection, LoanType } from '@prisma/client';
 
 import { CreatedByResponseDto } from '../../../common/dto/created-by.response.dto';
 
@@ -9,11 +10,38 @@ export class LoanResponseDto {
   @ApiProperty({ example: 'Car repair advance' })
   label!: string;
 
+  @ApiProperty({ enum: LoanDirection, example: LoanDirection.BORROWED })
+  direction!: LoanDirection;
+
+  @ApiProperty({ enum: LoanType, example: LoanType.FAMILY })
+  type!: LoanType;
+
+  @ApiProperty({ example: 'Alice Uwimana' })
+  counterpartyName!: string;
+
+  @ApiPropertyOptional({
+    example: '+250788000000',
+    nullable: true,
+  })
+  counterpartyContact!: string | null;
+
   @ApiProperty({ example: 250000 })
   amount!: number;
 
+  @ApiProperty({ enum: Currency, example: Currency.RWF })
+  currency!: Currency;
+
+  @ApiProperty({ example: 250000 })
+  amountRwf!: number;
+
   @ApiProperty({ example: '2026-03-31T00:00:00.000Z' })
-  date!: Date;
+  issuedDate!: Date;
+
+  @ApiPropertyOptional({
+    example: '2026-04-30T00:00:00.000Z',
+    nullable: true,
+  })
+  dueDate!: Date | null;
 
   @ApiProperty({
     example: false,
