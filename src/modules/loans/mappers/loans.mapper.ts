@@ -20,7 +20,7 @@ export class LoansMapper {
       amountRwf: Number(loan.amountRwf),
       issuedDate: loan.date,
       dueDate: loan.dueDate,
-      paid: loan.paid,
+      status: loan.status,
       note: loan.note,
       createdAt: loan.createdAt,
       updatedAt: loan.updatedAt,
