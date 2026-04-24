@@ -3,6 +3,7 @@ import {
   Prisma,
   TodoFrequency,
   TodoImage,
+  TodoOccurrenceStatus,
   TodoStatus,
   TodoType,
 } from '@prisma/client';
@@ -12,6 +13,10 @@ import {
   createPaginatedResponse,
 } from '../../common/interfaces/paginated-response.interface';
 import { PrismaService } from '../../database/prisma/prisma.service';
+import {
+  TodoCadenceFilter,
+  TodoOperationalStateFilter,
+} from './dto/list-todos.query.dto';
 
 type PrismaExecutor = Prisma.TransactionClient | PrismaService;
 
@@ -86,6 +91,32 @@ const TODO_SUMMARY_ROW_SELECT = {
   },
 } satisfies Prisma.TodoSelect;
 
+const TODO_RECORDING_MUTATION_SELECT = {
+  id: true,
+  name: true,
+  payee: true,
+  expenseNote: true,
+  price: true,
+  frequency: true,
+  occurrenceDates: true,
+  recordedOccurrenceDates: true,
+  remainingAmount: true,
+  occurrences: {
+    where: { active: true },
+    orderBy: [{ occurrenceDate: 'asc' }, { createdAt: 'asc' }],
+    select: TODO_OCCURRENCE_SELECT,
+  },
+  _count: {
+    select: {
+      recordings: {
+        where: {
+          reversedAt: null,
+        },
+      },
+    },
+  },
+} satisfies Prisma.TodoSelect;
+
 export const activeTodoInclude = {
   images: {
     where: { deletedAt: null },
@@ -137,6 +168,10 @@ export type TodoSummaryRow = Omit<TodoSummaryRowRaw, 'images'> & {
   hasActiveImage: boolean;
 };
 
+export type TodoRecordingMutationTarget = Prisma.TodoGetPayload<{
+  select: typeof TODO_RECORDING_MUTATION_SELECT;
+}>;
+
 export type TodoRecordingAggregate = {
   feeBearingCount: number;
   totalBaseAmount: Prisma.Decimal;
@@ -151,13 +186,42 @@ export type TodoRecordingAggregate = {
 export class TodosRepository {
   constructor(private readonly prisma: PrismaService) {}
 
+  async findAllByUserIds(
+    userIds: string[],
+    options?: {
+      frequency?: TodoFrequency;
+      cadence?: TodoCadenceFilter;
+      priority?: Prisma.TodoWhereInput['priority'];
+      status?: TodoStatus;
+      type?: TodoType;
+      operationalState?: TodoOperationalStateFilter;
+      hasLinkedExpense?: boolean;
+      feeBearingOnly?: boolean;
+      remainingBudgetLte?: number;
+      search?: string;
+      occurrenceDates?: string[];
+    },
+    db: PrismaExecutor = this.prisma,
+  ): Promise<TodoWithImages[]> {
+    return db.todo.findMany({
+      where: this.buildWhere(userIds, options),
+      include: activeTodoInclude,
+      orderBy: [{ createdAt: 'desc' }],
+    });
+  }
+
   async findManyByUserIds(
     userIds: string[],
     options?: {
       frequency?: TodoFrequency;
+      cadence?: TodoCadenceFilter;
       priority?: Prisma.TodoWhereInput['priority'];
       status?: TodoStatus;
       type?: TodoType;
+      operationalState?: TodoOperationalStateFilter;
+      hasLinkedExpense?: boolean;
+      feeBearingOnly?: boolean;
+      remainingBudgetLte?: number;
       search?: string;
       occurrenceDates?: string[];
       skip?: number;
@@ -190,9 +254,14 @@ export class TodosRepository {
     userIds: string[],
     options?: {
       frequency?: TodoFrequency;
+      cadence?: TodoCadenceFilter;
       priority?: Prisma.TodoWhereInput['priority'];
       status?: TodoStatus;
       type?: TodoType;
+      operationalState?: TodoOperationalStateFilter;
+      hasLinkedExpense?: boolean;
+      feeBearingOnly?: boolean;
+      remainingBudgetLte?: number;
       search?: string;
       occurrenceDates?: string[];
     },
@@ -321,6 +390,21 @@ export class TodosRepository {
     });
   }
 
+  async findRecordingTargetByIdAndUserIds(
+    id: string,
+    userIds: string[],
+    db: PrismaExecutor = this.prisma,
+  ): Promise<TodoRecordingMutationTarget | null> {
+    return db.todo.findFirst({
+      where: {
+        id,
+        userId: { in: userIds },
+        deletedAt: null,
+      },
+      select: TODO_RECORDING_MUTATION_SELECT,
+    });
+  }
+
   async findActiveImageByIdAndTodoId(
     id: string,
     todoId: string,
@@ -405,6 +489,16 @@ export class TodosRepository {
     return db.todoRecording.create({
       data,
       include: TODO_RECORDING_INCLUDE,
+    });
+  }
+
+  async createRecordingId(
+    data: Prisma.TodoRecordingUncheckedCreateInput,
+    db: PrismaExecutor = this.prisma,
+  ): Promise<{ id: string }> {
+    return db.todoRecording.create({
+      data,
+      select: { id: true },
     });
   }
 
@@ -545,36 +639,143 @@ export class TodosRepository {
       priority?: Prisma.TodoWhereInput['priority'];
       status?: TodoStatus;
       type?: TodoType;
+      cadence?: TodoCadenceFilter;
+      operationalState?: TodoOperationalStateFilter;
+      hasLinkedExpense?: boolean;
+      feeBearingOnly?: boolean;
+      remainingBudgetLte?: number;
       search?: string;
       occurrenceDates?: string[];
     },
   ): Prisma.TodoWhereInput {
+    const today = new Date();
+    const todayUtcDate = new Date(
+      Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()),
+    );
+    const onceFrequencyWhere = {
+      OR: [
+        { frequency: TodoFrequency.ONCE },
+        {
+          AND: [
+            { startDate: null },
+            { endDate: null },
+            { frequencyDays: { isEmpty: true } },
+            { occurrenceDates: { isEmpty: true } },
+          ],
+        },
+      ],
+    } satisfies Prisma.TodoWhereInput;
     const frequencyWhere =
       options?.frequency === TodoFrequency.ONCE
-        ? {
-            OR: [
-              { frequency: TodoFrequency.ONCE },
-              {
-                AND: [
-                  { startDate: null },
-                  { endDate: null },
-                  { frequencyDays: { isEmpty: true } },
-                  { occurrenceDates: { isEmpty: true } },
-                ],
-              },
-            ],
-          }
+        ? onceFrequencyWhere
         : options?.frequency !== undefined
           ? { frequency: options.frequency }
           : undefined;
+    const cadenceWhere =
+      options?.frequency !== undefined
+        ? undefined
+        : options?.cadence === TodoCadenceFilter.ONCE
+          ? onceFrequencyWhere
+          : options?.cadence === TodoCadenceFilter.RECURRING
+            ? {
+                frequency: {
+                  in: [
+                    TodoFrequency.WEEKLY,
+                    TodoFrequency.MONTHLY,
+                    TodoFrequency.YEARLY,
+                  ],
+                },
+              }
+            : undefined;
+    const operationalStateWhere =
+      options?.operationalState === TodoOperationalStateFilter.OVERDUE
+        ? {
+            occurrences: {
+              some: {
+                active: true,
+                OR: [
+                  { status: TodoOccurrenceStatus.OVERDUE },
+                  {
+                    status: TodoOccurrenceStatus.SCHEDULED,
+                    occurrenceDate: { lt: todayUtcDate },
+                  },
+                ],
+              },
+            },
+          }
+        : options?.operationalState === TodoOperationalStateFilter.UPCOMING
+          ? {
+              occurrences: {
+                some: {
+                  active: true,
+                  status: TodoOccurrenceStatus.SCHEDULED,
+                  occurrenceDate: { gte: todayUtcDate },
+                },
+              },
+            }
+          : options?.operationalState === TodoOperationalStateFilter.RECORDED
+            ? {
+                occurrences: {
+                  some: {
+                    active: true,
+                    status: TodoOccurrenceStatus.RECORDED,
+                  },
+                },
+              }
+            : options?.operationalState ===
+                TodoOperationalStateFilter.UNRECORDED
+              ? {
+                  occurrences: {
+                    some: {
+                      active: true,
+                      OR: [
+                        { status: TodoOccurrenceStatus.OVERDUE },
+                        { status: TodoOccurrenceStatus.SCHEDULED },
+                      ],
+                    },
+                  },
+                }
+              : undefined;
 
     return {
       userId: { in: userIds },
       deletedAt: null,
       ...(frequencyWhere ?? {}),
+      ...(cadenceWhere ?? {}),
       priority: options?.priority,
       status: options?.status,
       type: options?.type,
+      ...(operationalStateWhere ?? {}),
+      recordings:
+        options?.hasLinkedExpense === undefined
+          ? options?.feeBearingOnly
+            ? {
+                some: {
+                  reversedAt: null,
+                  feeAmount: {
+                    gt: new Prisma.Decimal(0),
+                  },
+                },
+              }
+            : undefined
+          : options.hasLinkedExpense
+            ? {
+                some: {
+                  reversedAt: null,
+                  ...(options.feeBearingOnly
+                    ? {
+                        feeAmount: {
+                          gt: new Prisma.Decimal(0),
+                        },
+                      }
+                    : {}),
+                },
+              }
+            : {
+                none: {
+                  reversedAt: null,
+                },
+              },
       name:
         options?.search !== undefined
           ? {
@@ -588,6 +789,12 @@ export class TodosRepository {
               hasSome: options.occurrenceDates,
             }
           : undefined,
+      remainingAmount:
+        options?.remainingBudgetLte === undefined
+          ? undefined
+          : {
+              lte: new Prisma.Decimal(options.remainingBudgetLte),
+            },
     };
   }
 }
