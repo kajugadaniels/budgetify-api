@@ -1,6 +1,12 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { Currency, LoanDirection, LoanStatus, LoanType } from '@prisma/client';
+import {
+  Currency,
+  LoanDirection,
+  LoanRepaymentAllocation,
+  LoanStatus,
+  LoanType,
+} from '@prisma/client';
 import {
   IsEnum,
   IsISO8601,
@@ -151,6 +157,18 @@ export class UpdateLoanRequestDto {
     message: 'Status must be a valid loan lifecycle value.',
   })
   status?: LoanStatus;
+
+  @ApiPropertyOptional({
+    enum: LoanRepaymentAllocation,
+    example: LoanRepaymentAllocation.PRINCIPAL_FIRST,
+    description:
+      'Updated repayment allocation rule used when repayments are not split manually.',
+  })
+  @IsOptional()
+  @IsEnum(LoanRepaymentAllocation, {
+    message: 'Repayment allocation must be a valid loan repayment rule.',
+  })
+  repaymentAllocation?: LoanRepaymentAllocation;
 
   @ApiPropertyOptional({
     description:
