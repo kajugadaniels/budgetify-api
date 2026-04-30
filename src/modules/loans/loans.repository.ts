@@ -16,15 +16,43 @@ const USER_SELECT = {
   avatarUrl: true,
 } as const;
 
+const TRANSACTION_EXPENSE_SELECT = {
+  id: true,
+  label: true,
+  amount: true,
+  currency: true,
+  amountRwf: true,
+  totalAmountRwf: true,
+  category: true,
+  date: true,
+} as const;
+
+const TRANSACTION_INCOME_SELECT = {
+  id: true,
+  label: true,
+  amount: true,
+  currency: true,
+  amountRwf: true,
+  category: true,
+  received: true,
+  date: true,
+} as const;
+
+const TRANSACTION_SELECT = {
+  recordedBy: { select: USER_SELECT },
+  expense: { select: TRANSACTION_EXPENSE_SELECT },
+  income: { select: TRANSACTION_INCOME_SELECT },
+} as const;
+
 export type LoanWithCreator = Prisma.LoanGetPayload<{
   include: {
     user: { select: typeof USER_SELECT };
-    transactions: true;
+    transactions: { include: typeof TRANSACTION_SELECT };
   };
 }>;
 
 export type LoanTransactionWithRecorder = Prisma.LoanTransactionGetPayload<{
-  include: { recordedBy: { select: typeof USER_SELECT } };
+  include: typeof TRANSACTION_SELECT;
 }>;
 
 @Injectable()
@@ -93,7 +121,9 @@ export class LoansRepository {
         where,
         include: {
           user: { select: USER_SELECT },
-          transactions: true,
+          transactions: {
+            include: TRANSACTION_SELECT,
+          },
         },
         orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
         skip: options?.skip,
@@ -129,7 +159,9 @@ export class LoansRepository {
       },
       include: {
         user: { select: USER_SELECT },
-        transactions: true,
+        transactions: {
+          include: TRANSACTION_SELECT,
+        },
       },
     });
   }
@@ -142,7 +174,9 @@ export class LoansRepository {
       data,
       include: {
         user: { select: USER_SELECT },
-        transactions: true,
+        transactions: {
+          include: TRANSACTION_SELECT,
+        },
       },
     });
   }
@@ -157,7 +191,9 @@ export class LoansRepository {
       data,
       include: {
         user: { select: USER_SELECT },
-        transactions: true,
+        transactions: {
+          include: TRANSACTION_SELECT,
+        },
       },
     });
   }
@@ -168,7 +204,7 @@ export class LoansRepository {
   ): Promise<LoanTransactionWithRecorder[]> {
     return db.loanTransaction.findMany({
       where: { loanId },
-      include: { recordedBy: { select: USER_SELECT } },
+      include: TRANSACTION_SELECT,
       orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
     });
   }
@@ -179,7 +215,7 @@ export class LoansRepository {
   ): Promise<LoanTransactionWithRecorder | null> {
     return db.loanTransaction.findUnique({
       where: { id },
-      include: { recordedBy: { select: USER_SELECT } },
+      include: TRANSACTION_SELECT,
     });
   }
 
@@ -189,7 +225,7 @@ export class LoansRepository {
   ): Promise<LoanTransactionWithRecorder> {
     return db.loanTransaction.create({
       data,
-      include: { recordedBy: { select: USER_SELECT } },
+      include: TRANSACTION_SELECT,
     });
   }
 
@@ -202,7 +238,7 @@ export class LoansRepository {
         loanId,
         type: 'DISBURSEMENT',
       },
-      include: { recordedBy: { select: USER_SELECT } },
+      include: TRANSACTION_SELECT,
       orderBy: [{ date: 'asc' }, { createdAt: 'asc' }],
     });
   }
@@ -215,7 +251,7 @@ export class LoansRepository {
     return db.loanTransaction.update({
       where: { id },
       data,
-      include: { recordedBy: { select: USER_SELECT } },
+      include: TRANSACTION_SELECT,
     });
   }
 }
