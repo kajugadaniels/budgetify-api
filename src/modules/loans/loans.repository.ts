@@ -17,7 +17,10 @@ const USER_SELECT = {
 } as const;
 
 export type LoanWithCreator = Prisma.LoanGetPayload<{
-  include: { user: { select: typeof USER_SELECT } };
+  include: {
+    user: { select: typeof USER_SELECT };
+    transactions: true;
+  };
 }>;
 
 export type LoanTransactionWithRecorder = Prisma.LoanTransactionGetPayload<{
@@ -88,7 +91,10 @@ export class LoansRepository {
     const [items, totalItems] = await Promise.all([
       db.loan.findMany({
         where,
-        include: { user: { select: USER_SELECT } },
+        include: {
+          user: { select: USER_SELECT },
+          transactions: true,
+        },
         orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
         skip: options?.skip,
         take: options?.take,
@@ -121,7 +127,10 @@ export class LoansRepository {
         userId: { in: userIds },
         deletedAt: null,
       },
-      include: { user: { select: USER_SELECT } },
+      include: {
+        user: { select: USER_SELECT },
+        transactions: true,
+      },
     });
   }
 
@@ -131,7 +140,10 @@ export class LoansRepository {
   ): Promise<LoanWithCreator> {
     return db.loan.create({
       data,
-      include: { user: { select: USER_SELECT } },
+      include: {
+        user: { select: USER_SELECT },
+        transactions: true,
+      },
     });
   }
 
@@ -143,7 +155,10 @@ export class LoansRepository {
     return db.loan.update({
       where: { id },
       data,
-      include: { user: { select: USER_SELECT } },
+      include: {
+        user: { select: USER_SELECT },
+        transactions: true,
+      },
     });
   }
 
@@ -173,6 +188,32 @@ export class LoansRepository {
     db: PrismaExecutor = this.prisma,
   ): Promise<LoanTransactionWithRecorder> {
     return db.loanTransaction.create({
+      data,
+      include: { recordedBy: { select: USER_SELECT } },
+    });
+  }
+
+  async findInitialDisbursementByLoanId(
+    loanId: string,
+    db: PrismaExecutor = this.prisma,
+  ): Promise<LoanTransactionWithRecorder | null> {
+    return db.loanTransaction.findFirst({
+      where: {
+        loanId,
+        type: 'DISBURSEMENT',
+      },
+      include: { recordedBy: { select: USER_SELECT } },
+      orderBy: [{ date: 'asc' }, { createdAt: 'asc' }],
+    });
+  }
+
+  async updateTransaction(
+    id: string,
+    data: Prisma.LoanTransactionUpdateInput,
+    db: PrismaExecutor = this.prisma,
+  ): Promise<LoanTransactionWithRecorder> {
+    return db.loanTransaction.update({
+      where: { id },
       data,
       include: { recordedBy: { select: USER_SELECT } },
     });
