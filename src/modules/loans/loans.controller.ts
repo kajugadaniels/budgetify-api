@@ -19,6 +19,7 @@ import type { AuthenticatedRequestUser } from '../../common/interfaces/authentic
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CreateLoanRequestDto } from './dto/create-loan.request.dto';
 import { CreateLoanTransactionRequestDto } from './dto/create-loan-transaction.request.dto';
+import { LinkLoanTransactionFinancialRecordRequestDto } from './dto/link-loan-transaction-financial-record.request.dto';
 import { ListLoansQueryDto } from './dto/list-loans.query.dto';
 import { LoanSettlementResponseDto } from './dto/loan-settlement-response.dto';
 import { LoanTransactionResponseDto } from './dto/loan-transaction.response.dto';
@@ -36,6 +37,8 @@ import {
   ApiListCurrentUserLoansEndpoint,
   ApiListCurrentUserLoanTransactionsEndpoint,
   ApiSendCurrentUserLoanToExpenseEndpoint,
+  ApiSendCurrentUserLoanTransactionToExpenseEndpoint,
+  ApiSendCurrentUserLoanTransactionToIncomeEndpoint,
   ApiUpdateCurrentUserLoanEndpoint,
 } from './loans.swagger';
 
@@ -124,6 +127,46 @@ export class LoansController {
     );
 
     return LoansMapper.toLoanSettlementResponse(result);
+  }
+
+  @Post(LOANS_ROUTES.transactionToExpense)
+  @HttpCode(HttpStatus.CREATED)
+  @ApiSendCurrentUserLoanTransactionToExpenseEndpoint()
+  async sendCurrentUserLoanTransactionToExpense(
+    @CurrentUser() user: AuthenticatedRequestUser,
+    @Param('loanId', ParseUUIDPipe) loanId: string,
+    @Param('transactionId', ParseUUIDPipe) transactionId: string,
+    @Body() body: LinkLoanTransactionFinancialRecordRequestDto,
+  ): Promise<LoanTransactionResponseDto> {
+    const transaction =
+      await this.loansService.sendCurrentUserLoanTransactionToExpense(
+        user.userId,
+        loanId,
+        transactionId,
+        body,
+      );
+
+    return LoansMapper.toLoanTransactionResponse(transaction);
+  }
+
+  @Post(LOANS_ROUTES.transactionToIncome)
+  @HttpCode(HttpStatus.CREATED)
+  @ApiSendCurrentUserLoanTransactionToIncomeEndpoint()
+  async sendCurrentUserLoanTransactionToIncome(
+    @CurrentUser() user: AuthenticatedRequestUser,
+    @Param('loanId', ParseUUIDPipe) loanId: string,
+    @Param('transactionId', ParseUUIDPipe) transactionId: string,
+    @Body() body: LinkLoanTransactionFinancialRecordRequestDto,
+  ): Promise<LoanTransactionResponseDto> {
+    const transaction =
+      await this.loansService.sendCurrentUserLoanTransactionToIncome(
+        user.userId,
+        loanId,
+        transactionId,
+        body,
+      );
+
+    return LoansMapper.toLoanTransactionResponse(transaction);
   }
 
   @Patch(LOANS_ROUTES.byId)
