@@ -3,8 +3,12 @@ import { ExpensesMapper } from '../../expenses/mappers/expenses.mapper';
 import { ExpenseWithCreator } from '../../expenses/expenses.repository';
 import { PaginatedLoanResponseDto } from '../dto/paginated-loan.response.dto';
 import { LoanSettlementResponseDto } from '../dto/loan-settlement-response.dto';
+import { LoanTransactionResponseDto } from '../dto/loan-transaction.response.dto';
 import { LoanResponseDto } from '../dto/loan-response.dto';
-import { LoanWithCreator } from '../loans.repository';
+import {
+  LoanTransactionWithRecorder,
+  LoanWithCreator,
+} from '../loans.repository';
 
 export class LoansMapper {
   static toLoanResponse(loan: LoanWithCreator): LoanResponseDto {
@@ -43,6 +47,30 @@ export class LoansMapper {
     return {
       items: LoansMapper.toLoanResponseList(payload.items),
       meta: payload.meta,
+    };
+  }
+
+  static toLoanTransactionResponse(
+    transaction: LoanTransactionWithRecorder,
+  ): LoanTransactionResponseDto {
+    return {
+      id: transaction.id,
+      loanId: transaction.loanId,
+      type: transaction.type,
+      amount: Number(transaction.amount),
+      currency: transaction.currency,
+      amountRwf: Number(transaction.amountRwf),
+      date: transaction.date,
+      note: transaction.note,
+      reversalOfTransactionId: transaction.reversalOfTransactionId,
+      recordedBy: {
+        id: transaction.recordedBy.id,
+        firstName: transaction.recordedBy.firstName,
+        lastName: transaction.recordedBy.lastName,
+        avatarUrl: transaction.recordedBy.avatarUrl,
+      },
+      createdAt: transaction.createdAt,
+      updatedAt: transaction.updatedAt,
     };
   }
 
