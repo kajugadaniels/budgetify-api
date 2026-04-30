@@ -6,6 +6,8 @@ import {
 } from '@prisma/client';
 
 import { CreatedByResponseDto } from '../../../common/dto/created-by.response.dto';
+import { LoanLinkedExpenseResponseDto } from './loan-linked-expense.response.dto';
+import { LoanLinkedIncomeResponseDto } from './loan-linked-income.response.dto';
 
 export class LoanTransactionResponseDto {
   @ApiProperty({ example: '3e8063c6-714f-482e-8d2c-6b6771ce9e14' })
@@ -61,6 +63,18 @@ export class LoanTransactionResponseDto {
     nullable: true,
   })
   reversalOfTransactionId!: string | null;
+
+  @ApiPropertyOptional({
+    type: LoanLinkedExpenseResponseDto,
+    nullable: true,
+  })
+  linkedExpense!: LoanLinkedExpenseResponseDto | null;
+
+  @ApiPropertyOptional({
+    type: LoanLinkedIncomeResponseDto,
+    nullable: true,
+  })
+  linkedIncome!: LoanLinkedIncomeResponseDto | null;
 
   @ApiProperty({ type: CreatedByResponseDto })
   recordedBy!: CreatedByResponseDto;
