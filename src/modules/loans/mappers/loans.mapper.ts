@@ -84,6 +84,32 @@ export class LoansMapper {
       date: transaction.date,
       note: transaction.note,
       reversalOfTransactionId: transaction.reversalOfTransactionId,
+      linkedExpense:
+        transaction.expense === null
+          ? null
+          : {
+              id: transaction.expense.id,
+              label: transaction.expense.label,
+              amount: Number(transaction.expense.amount),
+              currency: transaction.expense.currency,
+              amountRwf: Number(transaction.expense.amountRwf),
+              totalAmountRwf: Number(transaction.expense.totalAmountRwf),
+              category: transaction.expense.category,
+              date: transaction.expense.date,
+            },
+      linkedIncome:
+        transaction.income === null
+          ? null
+          : {
+              id: transaction.income.id,
+              label: transaction.income.label,
+              amount: Number(transaction.income.amount),
+              currency: transaction.income.currency,
+              amountRwf: Number(transaction.income.amountRwf),
+              category: transaction.income.category,
+              received: transaction.income.received,
+              date: transaction.income.date,
+            },
       recordedBy: {
         id: transaction.recordedBy.id,
         firstName: transaction.recordedBy.firstName,
