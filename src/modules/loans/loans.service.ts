@@ -3,7 +3,14 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { ExpenseCategory, LoanStatus, Prisma } from '@prisma/client';
+import {
+  Currency,
+  ExpenseCategory,
+  LoanBalanceEffect,
+  LoanStatus,
+  LoanTransactionType,
+  Prisma,
+} from '@prisma/client';
 
 import {
   PaginatedResponse,
@@ -79,9 +86,8 @@ export class LoansService {
 
     this.assertLoanDatesAreValid(issuedDate, dueDate);
     const status = this.resolveLifecycleStatus(payload.status, dueDate);
-    const amountRwf = await this.currencyService.convertToRwf(
-      payload.amount,
-      payload.currency,
+    const amountRwf = Number(
+      await this.currencyService.convertToRwf(payload.amount, payload.currency),
     );
 
     return this.prisma.$transaction(async (tx) => {
@@ -105,16 +111,21 @@ export class LoansService {
       );
 
       await this.loansRepository.createTransaction(
-        {
+        LoansService.buildLoanTransactionCreateData({
           loanId: loan.id,
           recordedByUserId: userId,
           type: 'DISBURSEMENT',
-          amount: new Prisma.Decimal(payload.amount),
           currency: payload.currency,
-          amountRwf,
           date: issuedDate,
           note: payload.note ?? 'Initial loan disbursement',
-        },
+          amount: payload.amount,
+          amountRwf,
+          principalAmount: payload.amount,
+          principalAmountRwf: amountRwf,
+          interestAmount: 0,
+          interestAmountRwf: 0,
+          balanceEffect: 'INCREASE',
+        }),
         tx,
       );
 
@@ -163,28 +174,70 @@ export class LoansService {
     const shouldUpdateAmountRwf =
       payload.amount !== undefined || payload.currency !== undefined;
     const amountRwf = shouldUpdateAmountRwf
-      ? await this.currencyService.convertToRwf(
-          payload.amount ?? Number(loan.amount),
-          nextCurrency,
+      ? Number(
+          await this.currencyService.convertToRwf(
+            payload.amount ?? Number(loan.amount),
+            nextCurrency,
+          ),
         )
       : undefined;
+    const nextAmount = payload.amount ?? Number(loan.amount);
 
-    return this.loansRepository.update(loan.id, {
-      label: payload.label,
-      direction: payload.direction,
-      type: payload.type,
-      counterpartyName: payload.counterpartyName,
-      counterpartyContact: payload.counterpartyContact,
-      amount:
-        payload.amount === undefined
-          ? undefined
-          : new Prisma.Decimal(payload.amount),
-      currency: payload.currency,
-      amountRwf,
-      date: payload.issuedDate === undefined ? undefined : nextIssuedDate,
-      dueDate: payload.dueDate === undefined ? undefined : nextDueDate,
-      status: nextStatus,
-      note: payload.note,
+    return this.prisma.$transaction(async (tx) => {
+      const updatedLoan = await this.loansRepository.update(
+        loan.id,
+        {
+          label: payload.label,
+          direction: payload.direction,
+          type: payload.type,
+          counterpartyName: payload.counterpartyName,
+          counterpartyContact: payload.counterpartyContact,
+          amount:
+            payload.amount === undefined
+              ? undefined
+              : new Prisma.Decimal(payload.amount),
+          currency: payload.currency,
+          amountRwf,
+          date: payload.issuedDate === undefined ? undefined : nextIssuedDate,
+          dueDate: payload.dueDate === undefined ? undefined : nextDueDate,
+          status: nextStatus,
+          note: payload.note,
+        },
+        tx,
+      );
+
+      if (
+        payload.amount !== undefined ||
+        payload.currency !== undefined ||
+        payload.issuedDate !== undefined ||
+        payload.note !== undefined
+      ) {
+        const initialDisbursement =
+          await this.loansRepository.findInitialDisbursementByLoanId(
+            loan.id,
+            tx,
+          );
+
+        if (initialDisbursement) {
+          const nextAmountRwf =
+            amountRwf === undefined ? Number(loan.amountRwf) : amountRwf;
+          await this.loansRepository.updateTransaction(
+            initialDisbursement.id,
+            {
+              amount: new Prisma.Decimal(nextAmount),
+              currency: nextCurrency,
+              amountRwf: new Prisma.Decimal(nextAmountRwf),
+              principalAmount: new Prisma.Decimal(nextAmount),
+              principalAmountRwf: new Prisma.Decimal(nextAmountRwf),
+              date: nextIssuedDate,
+              note: payload.note ?? initialDisbursement.note,
+            },
+            tx,
+          );
+        }
+      }
+
+      return updatedLoan;
     });
   }
 
@@ -241,16 +294,21 @@ export class LoansService {
       );
 
       await this.loansRepository.createTransaction(
-        {
+        LoansService.buildLoanTransactionCreateData({
           loanId: loan.id,
           recordedByUserId: userId,
           type: 'REPAYMENT',
-          amount: loan.amount,
           currency: loan.currency,
-          amountRwf: loan.amountRwf,
           date: new Date(payload.date),
           note: payload.note ?? 'Loan settled into expenses',
-        },
+          amount: Number(loan.amount),
+          amountRwf: Number(loan.amountRwf),
+          principalAmount: Number(loan.amount),
+          principalAmountRwf: Number(loan.amountRwf),
+          interestAmount: 0,
+          interestAmountRwf: 0,
+          balanceEffect: 'DECREASE',
+        }),
         tx,
       );
 
@@ -293,8 +351,10 @@ export class LoansService {
       throw new BadRequestException('Transaction date must be valid.');
     }
 
+    let reversalTarget: LoanTransactionWithRecorder | null = null;
+
     if (payload.reversalOfTransactionId !== undefined) {
-      const reversalTarget = await this.loansRepository.findTransactionById(
+      reversalTarget = await this.loansRepository.findTransactionById(
         payload.reversalOfTransactionId,
       );
 
@@ -311,28 +371,38 @@ export class LoansService {
       }
     }
 
-    const amountRwf = await this.currencyService.convertToRwf(
-      payload.amount,
-      payload.currency,
+    const amountRwf = Number(
+      await this.currencyService.convertToRwf(payload.amount, payload.currency),
+    );
+    const allocation = await this.resolveTransactionAllocation(
+      payload,
+      amountRwf,
+      reversalTarget,
     );
     const nextStatus = this.resolveStatusFromTransactionType(
       loan.status,
       payload.type,
+      allocation.balanceEffect,
     );
 
     return this.prisma.$transaction(async (tx) => {
       const transaction = await this.loansRepository.createTransaction(
-        {
+        LoansService.buildLoanTransactionCreateData({
           loanId: loan.id,
           recordedByUserId: userId,
           type: payload.type,
-          amount: new Prisma.Decimal(payload.amount),
           currency: payload.currency,
-          amountRwf,
           date: transactionDate,
           note: payload.note ?? null,
           reversalOfTransactionId: payload.reversalOfTransactionId ?? null,
-        },
+          amount: payload.amount,
+          amountRwf,
+          principalAmount: allocation.principalAmount,
+          principalAmountRwf: allocation.principalAmountRwf,
+          interestAmount: allocation.interestAmount,
+          interestAmountRwf: allocation.interestAmountRwf,
+          balanceEffect: allocation.balanceEffect,
+        }),
         tx,
       );
 
@@ -442,21 +512,191 @@ export class LoansService {
   private resolveStatusFromTransactionType(
     currentStatus: LoanStatus,
     transactionType: CreateLoanTransactionRequestDto['type'],
+    balanceEffect: LoanBalanceEffect,
   ): LoanStatus {
     switch (transactionType) {
       case 'WRITE_OFF':
         return LoanStatus.WRITTEN_OFF;
       case 'REPAYMENT':
       case 'INTEREST_PAYMENT':
-      case 'ADJUSTMENT':
-      case 'REVERSAL':
         return currentStatus === LoanStatus.OVERDUE
           ? LoanStatus.PARTIALLY_REPAID
           : currentStatus === LoanStatus.SETTLED
             ? LoanStatus.SETTLED
             : LoanStatus.PARTIALLY_REPAID;
+      case 'ADJUSTMENT':
+      case 'REVERSAL':
+        return balanceEffect === 'DECREASE'
+          ? currentStatus === LoanStatus.OVERDUE
+            ? LoanStatus.PARTIALLY_REPAID
+            : currentStatus === LoanStatus.SETTLED
+              ? LoanStatus.SETTLED
+              : LoanStatus.PARTIALLY_REPAID
+          : currentStatus === LoanStatus.SETTLED
+            ? LoanStatus.ACTIVE
+            : currentStatus;
       default:
         return currentStatus;
     }
+  }
+
+  private async resolveTransactionAllocation(
+    payload: CreateLoanTransactionRequestDto,
+    amountRwf: number,
+    reversalTarget: LoanTransactionWithRecorder | null,
+  ): Promise<{
+    principalAmount: number;
+    principalAmountRwf: number;
+    interestAmount: number;
+    interestAmountRwf: number;
+    balanceEffect: LoanBalanceEffect;
+  }> {
+    switch (payload.type) {
+      case 'DISBURSEMENT':
+        return {
+          principalAmount: payload.amount,
+          principalAmountRwf: amountRwf,
+          interestAmount: 0,
+          interestAmountRwf: 0,
+          balanceEffect: 'INCREASE',
+        };
+      case 'REPAYMENT':
+        return {
+          principalAmount: payload.amount,
+          principalAmountRwf: amountRwf,
+          interestAmount: 0,
+          interestAmountRwf: 0,
+          balanceEffect: 'DECREASE',
+        };
+      case 'INTEREST_CHARGE':
+        return {
+          principalAmount: 0,
+          principalAmountRwf: 0,
+          interestAmount: payload.amount,
+          interestAmountRwf: amountRwf,
+          balanceEffect: 'INCREASE',
+        };
+      case 'INTEREST_PAYMENT':
+        return {
+          principalAmount: 0,
+          principalAmountRwf: 0,
+          interestAmount: payload.amount,
+          interestAmountRwf: amountRwf,
+          balanceEffect: 'DECREASE',
+        };
+      case 'WRITE_OFF':
+        return {
+          principalAmount: payload.principalAmount ?? payload.amount,
+          principalAmountRwf:
+            payload.principalAmount === undefined
+              ? amountRwf
+              : Number(
+                  await this.currencyService.convertToRwf(
+                    payload.principalAmount,
+                    payload.currency,
+                  ),
+                ),
+          interestAmount: payload.interestAmount ?? 0,
+          interestAmountRwf:
+            payload.interestAmount === undefined
+              ? 0
+              : Number(
+                  await this.currencyService.convertToRwf(
+                    payload.interestAmount,
+                    payload.currency,
+                  ),
+                ),
+          balanceEffect: 'DECREASE',
+        };
+      case 'ADJUSTMENT':
+      case 'REVERSAL': {
+        if (payload.type === 'REVERSAL' && reversalTarget !== null) {
+          return {
+            principalAmount: Number(reversalTarget.principalAmount),
+            principalAmountRwf: Number(reversalTarget.principalAmountRwf),
+            interestAmount: Number(reversalTarget.interestAmount),
+            interestAmountRwf: Number(reversalTarget.interestAmountRwf),
+            balanceEffect:
+              reversalTarget.balanceEffect === 'INCREASE'
+                ? 'DECREASE'
+                : 'INCREASE',
+          };
+        }
+
+        const principalAmount = payload.principalAmount ?? payload.amount;
+        const interestAmount = payload.interestAmount ?? 0;
+
+        if (
+          Math.abs(principalAmount + interestAmount - payload.amount) > 0.01
+        ) {
+          throw new BadRequestException(
+            'Principal and interest components must add up to the transaction amount.',
+          );
+        }
+
+        const principalAmountRwf = Number(
+          await this.currencyService.convertToRwf(
+            principalAmount,
+            payload.currency,
+          ),
+        );
+        const interestAmountRwf = Number(
+          await this.currencyService.convertToRwf(
+            interestAmount,
+            payload.currency,
+          ),
+        );
+
+        return {
+          principalAmount,
+          principalAmountRwf,
+          interestAmount,
+          interestAmountRwf,
+          balanceEffect: payload.balanceEffect ?? 'INCREASE',
+        };
+      }
+      default:
+        return {
+          principalAmount: payload.amount,
+          principalAmountRwf: amountRwf,
+          interestAmount: 0,
+          interestAmountRwf: 0,
+          balanceEffect: 'INCREASE',
+        };
+    }
+  }
+
+  private static buildLoanTransactionCreateData(input: {
+    loanId: string;
+    recordedByUserId: string;
+    type: LoanTransactionType;
+    balanceEffect: LoanBalanceEffect;
+    amount: number;
+    amountRwf: number;
+    principalAmount: number;
+    principalAmountRwf: number;
+    interestAmount: number;
+    interestAmountRwf: number;
+    currency: Currency;
+    date: Date;
+    note: string | null;
+    reversalOfTransactionId?: string | null;
+  }): Prisma.LoanTransactionUncheckedCreateInput {
+    return {
+      loanId: input.loanId,
+      recordedByUserId: input.recordedByUserId,
+      type: input.type,
+      balanceEffect: input.balanceEffect,
+      amount: new Prisma.Decimal(input.amount),
+      currency: input.currency,
+      amountRwf: new Prisma.Decimal(input.amountRwf),
+      principalAmount: new Prisma.Decimal(input.principalAmount),
+      principalAmountRwf: new Prisma.Decimal(input.principalAmountRwf),
+      interestAmount: new Prisma.Decimal(input.interestAmount),
+      interestAmountRwf: new Prisma.Decimal(input.interestAmountRwf),
+      date: input.date,
+      note: input.note,
+      reversalOfTransactionId: input.reversalOfTransactionId ?? null,
+    };
   }
 }
