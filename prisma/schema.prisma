@@ -27,6 +27,7 @@ enum IncomeCategory {
   DIVIDENDS
   RENTAL
   SIDE_HUSTLE
+  LOAN_RECOVERY
   OTHER
 }
 
@@ -295,6 +296,7 @@ model Income {
   deletedAt DateTime?
   user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   savingTransactionSources SavingTransactionIncomeSource[]
+  loanTransaction LoanTransaction?
 
   @@index([userId])
   @@index([deletedAt])
@@ -326,6 +328,7 @@ model Expense {
   deletedAt DateTime?
   user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   todoRecording TodoRecording?
+  loanTransaction LoanTransaction?
 
   @@index([userId])
   @@index([deletedAt])
@@ -385,6 +388,8 @@ model LoanTransaction {
   id                    String              @id @default(uuid()) @db.Uuid
   loanId                String              @db.Uuid
   recordedByUserId      String              @db.Uuid
+  expenseId             String?             @unique @db.Uuid
+  incomeId              String?             @unique @db.Uuid
   type                  LoanTransactionType
   balanceEffect         LoanBalanceEffect
   amount                Decimal             @db.Decimal(15, 2)
@@ -401,6 +406,8 @@ model LoanTransaction {
   updatedAt             DateTime            @updatedAt
   loan                  Loan                @relation(fields: [loanId], references: [id], onDelete: Cascade)
   recordedBy            User                @relation("LoanTransactionRecordedBy", fields: [recordedByUserId], references: [id], onDelete: Cascade)
+  expense               Expense?            @relation(fields: [expenseId], references: [id], onDelete: SetNull)
+  income                Income?             @relation(fields: [incomeId], references: [id], onDelete: SetNull)
   reversalOfTransaction LoanTransaction?    @relation("LoanTransactionReversal", fields: [reversalOfTransactionId], references: [id])
   reversals             LoanTransaction[]   @relation("LoanTransactionReversal")
 
@@ -408,6 +415,8 @@ model LoanTransaction {
   @@index([recordedByUserId, date])
   @@index([type, date])
   @@index([reversalOfTransactionId])
+  @@index([expenseId])
+  @@index([incomeId])
 }
 
 model Saving {
