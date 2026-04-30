@@ -16,8 +16,26 @@ const USER_SELECT = {
   avatarUrl: true,
 } as const;
 
+const INCOME_LOAN_TRANSACTION_SELECT = {
+  id: true,
+  type: true,
+  date: true,
+  loan: {
+    select: {
+      id: true,
+      label: true,
+      direction: true,
+      status: true,
+      counterpartyName: true,
+    },
+  },
+} as const;
+
 export type IncomeWithCreator = Prisma.IncomeGetPayload<{
-  include: { user: { select: typeof USER_SELECT } };
+  include: {
+    user: { select: typeof USER_SELECT };
+    loanTransaction: { select: typeof INCOME_LOAN_TRANSACTION_SELECT };
+  };
 }>;
 
 export interface IncomeAllocationCandidate {
@@ -103,7 +121,12 @@ export class IncomeRepository {
     const [items, totalItems] = await Promise.all([
       db.income.findMany({
         where,
-        include: { user: { select: USER_SELECT } },
+        include: {
+          user: { select: USER_SELECT },
+          loanTransaction: {
+            select: INCOME_LOAN_TRANSACTION_SELECT,
+          },
+        },
         orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
         skip: options?.skip,
         take: options?.take,
@@ -136,7 +159,12 @@ export class IncomeRepository {
         userId: { in: userIds },
         deletedAt: null,
       },
-      include: { user: { select: USER_SELECT } },
+      include: {
+        user: { select: USER_SELECT },
+        loanTransaction: {
+          select: INCOME_LOAN_TRANSACTION_SELECT,
+        },
+      },
     });
   }
 
@@ -146,7 +174,12 @@ export class IncomeRepository {
   ): Promise<IncomeWithCreator> {
     return db.income.create({
       data,
-      include: { user: { select: USER_SELECT } },
+      include: {
+        user: { select: USER_SELECT },
+        loanTransaction: {
+          select: INCOME_LOAN_TRANSACTION_SELECT,
+        },
+      },
     });
   }
 
@@ -158,7 +191,12 @@ export class IncomeRepository {
     return db.income.update({
       where: { id },
       data,
-      include: { user: { select: USER_SELECT } },
+      include: {
+        user: { select: USER_SELECT },
+        loanTransaction: {
+          select: INCOME_LOAN_TRANSACTION_SELECT,
+        },
+      },
     });
   }
 
