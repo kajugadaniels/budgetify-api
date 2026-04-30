@@ -1,5 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Currency, LoanDirection, LoanStatus, LoanType } from '@prisma/client';
+import {
+  Currency,
+  LoanDirection,
+  LoanRepaymentAllocation,
+  LoanStatus,
+  LoanType,
+} from '@prisma/client';
 
 import { CreatedByResponseDto } from '../../../common/dto/created-by.response.dto';
 
@@ -33,6 +39,12 @@ export class LoanResponseDto {
 
   @ApiProperty({ example: 250000 })
   amountRwf!: number;
+
+  @ApiProperty({
+    enum: LoanRepaymentAllocation,
+    example: LoanRepaymentAllocation.INTEREST_FIRST,
+  })
+  repaymentAllocation!: LoanRepaymentAllocation;
 
   @ApiProperty({ example: 250000 })
   originalPrincipal!: number;
