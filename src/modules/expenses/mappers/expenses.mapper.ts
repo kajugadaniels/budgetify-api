@@ -40,6 +40,19 @@ export class ExpensesMapper {
                 .slice(0, 10),
             }
           : null,
+      linkedLoan:
+        expense.loanTransaction === null
+          ? null
+          : {
+              loanId: expense.loanTransaction.loan.id,
+              loanLabel: expense.loanTransaction.loan.label,
+              loanDirection: expense.loanTransaction.loan.direction,
+              loanStatus: expense.loanTransaction.loan.status,
+              counterpartyName: expense.loanTransaction.loan.counterpartyName,
+              transactionId: expense.loanTransaction.id,
+              transactionType: expense.loanTransaction.type,
+              transactionDate: expense.loanTransaction.date,
+            },
     };
   }
 
