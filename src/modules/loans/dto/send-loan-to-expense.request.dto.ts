@@ -22,6 +22,18 @@ export class SendLoanToExpenseRequestDto {
 
   @ApiPropertyOptional({
     description:
+      'Optional label override for the linked expense entry created from this loan flow.',
+    example: 'Mama Alice loan repayment',
+    maxLength: 120,
+  })
+  @Transform(({ value }) => normalizeOptionalNote(value))
+  @IsOptional()
+  @IsString()
+  @MaxLength(120, { message: 'Label must not exceed 120 characters.' })
+  label?: string;
+
+  @ApiPropertyOptional({
+    description:
       'Optional expense note override. When omitted, the existing loan note is reused.',
     example: 'Settled through monthly repayment budget',
     maxLength: 500,
