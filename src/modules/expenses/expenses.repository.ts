@@ -45,10 +45,26 @@ const EXPENSE_RECORDING_SNAPSHOT_SELECT = {
   mobileMoneyNetwork: true,
 } as const;
 
+const EXPENSE_LOAN_TRANSACTION_SELECT = {
+  id: true,
+  type: true,
+  date: true,
+  loan: {
+    select: {
+      id: true,
+      label: true,
+      direction: true,
+      status: true,
+      counterpartyName: true,
+    },
+  },
+} as const;
+
 export type ExpenseWithCreator = Prisma.ExpenseGetPayload<{
   include: {
     user: { select: typeof USER_SELECT };
     todoRecording: { select: typeof EXPENSE_TODO_RECORDING_SELECT };
+    loanTransaction: { select: typeof EXPENSE_LOAN_TRANSACTION_SELECT };
   };
 }>;
 
@@ -138,6 +154,9 @@ export class ExpensesRepository {
           todoRecording: {
             select: EXPENSE_TODO_RECORDING_SELECT,
           },
+          loanTransaction: {
+            select: EXPENSE_LOAN_TRANSACTION_SELECT,
+          },
         },
         orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
         skip: options?.skip,
@@ -176,6 +195,9 @@ export class ExpensesRepository {
         todoRecording: {
           select: EXPENSE_TODO_RECORDING_SELECT,
         },
+        loanTransaction: {
+          select: EXPENSE_LOAN_TRANSACTION_SELECT,
+        },
       },
     });
   }
@@ -190,6 +212,9 @@ export class ExpensesRepository {
         user: { select: USER_SELECT },
         todoRecording: {
           select: EXPENSE_TODO_RECORDING_SELECT,
+        },
+        loanTransaction: {
+          select: EXPENSE_LOAN_TRANSACTION_SELECT,
         },
       },
     });
@@ -217,6 +242,9 @@ export class ExpensesRepository {
         user: { select: USER_SELECT },
         todoRecording: {
           select: EXPENSE_TODO_RECORDING_SELECT,
+        },
+        loanTransaction: {
+          select: EXPENSE_LOAN_TRANSACTION_SELECT,
         },
       },
     });
