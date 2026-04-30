@@ -167,6 +167,11 @@ enum LoanTransactionType {
   REVERSAL
 }
 
+enum LoanBalanceEffect {
+  INCREASE
+  DECREASE
+}
+
 // ─────────────────────────────────────────────────────────────
 // Core user models
 // ─────────────────────────────────────────────────────────────
@@ -381,9 +386,14 @@ model LoanTransaction {
   loanId                String              @db.Uuid
   recordedByUserId      String              @db.Uuid
   type                  LoanTransactionType
+  balanceEffect         LoanBalanceEffect
   amount                Decimal             @db.Decimal(15, 2)
   currency              Currency            @default(RWF)
   amountRwf             Decimal             @db.Decimal(15, 2)
+  principalAmount       Decimal             @default(0) @db.Decimal(15, 2)
+  principalAmountRwf    Decimal             @default(0) @db.Decimal(15, 2)
+  interestAmount        Decimal             @default(0) @db.Decimal(15, 2)
+  interestAmountRwf     Decimal             @default(0) @db.Decimal(15, 2)
   date                  DateTime            @db.Date
   note                  String?
   reversalOfTransactionId String?           @db.Uuid
