@@ -1,5 +1,9 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Currency, LoanTransactionType } from '@prisma/client';
+import {
+  Currency,
+  LoanBalanceEffect,
+  LoanTransactionType,
+} from '@prisma/client';
 
 import { CreatedByResponseDto } from '../../../common/dto/created-by.response.dto';
 
@@ -16,6 +20,12 @@ export class LoanTransactionResponseDto {
   })
   type!: LoanTransactionType;
 
+  @ApiProperty({
+    enum: LoanBalanceEffect,
+    example: LoanBalanceEffect.INCREASE,
+  })
+  balanceEffect!: LoanBalanceEffect;
+
   @ApiProperty({ example: 250000 })
   amount!: number;
 
@@ -24,6 +34,18 @@ export class LoanTransactionResponseDto {
 
   @ApiProperty({ example: 250000 })
   amountRwf!: number;
+
+  @ApiProperty({ example: 250000 })
+  principalAmount!: number;
+
+  @ApiProperty({ example: 250000 })
+  principalAmountRwf!: number;
+
+  @ApiProperty({ example: 0 })
+  interestAmount!: number;
+
+  @ApiProperty({ example: 0 })
+  interestAmountRwf!: number;
 
   @ApiProperty({ example: '2026-05-01T00:00:00.000Z' })
   date!: Date;
