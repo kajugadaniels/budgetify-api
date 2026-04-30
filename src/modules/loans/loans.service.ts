@@ -109,6 +109,7 @@ export class LoansService {
           amount: new Prisma.Decimal(payload.amount),
           currency: payload.currency,
           amountRwf,
+          repaymentAllocation: payload.repaymentAllocation,
           date: issuedDate,
           dueDate,
           status,
@@ -156,6 +157,7 @@ export class LoansService {
       payload.issuedDate === undefined &&
       payload.dueDate === undefined &&
       payload.status === undefined &&
+      payload.repaymentAllocation === undefined &&
       payload.note === undefined
     ) {
       throw new BadRequestException(
@@ -208,6 +210,7 @@ export class LoansService {
           date: payload.issuedDate === undefined ? undefined : nextIssuedDate,
           dueDate: payload.dueDate === undefined ? undefined : nextDueDate,
           status: nextStatus,
+          repaymentAllocation: payload.repaymentAllocation,
           note: payload.note,
         },
         tx,
@@ -275,6 +278,14 @@ export class LoansService {
       }
 
       return this.prisma.$transaction(async (tx) => {
+        const balances = this.summarizeLoanBalances(loan);
+        const repaymentAmount = balances.totalOutstanding;
+        const repaymentAmountRwf = Number(
+          await this.currencyService.convertToRwf(
+            repaymentAmount,
+            loan.currency,
+          ),
+        );
         const transaction = await this.loansRepository.createTransaction(
           LoansService.buildLoanTransactionCreateData({
             loanId: loan.id,
@@ -283,12 +294,22 @@ export class LoansService {
             currency: loan.currency,
             date: new Date(payload.date),
             note: payload.note ?? 'Loan settled into expenses',
-            amount: Number(loan.amount),
-            amountRwf: Number(loan.amountRwf),
-            principalAmount: Number(loan.amount),
-            principalAmountRwf: Number(loan.amountRwf),
-            interestAmount: 0,
-            interestAmountRwf: 0,
+            amount: repaymentAmount,
+            amountRwf: repaymentAmountRwf,
+            principalAmount: balances.principalOutstanding,
+            principalAmountRwf: Number(
+              await this.currencyService.convertToRwf(
+                balances.principalOutstanding,
+                loan.currency,
+              ),
+            ),
+            interestAmount: balances.interestOutstanding,
+            interestAmountRwf: Number(
+              await this.currencyService.convertToRwf(
+                balances.interestOutstanding,
+                loan.currency,
+              ),
+            ),
             balanceEffect: 'DECREASE',
           }),
           tx,
@@ -444,6 +465,12 @@ export class LoansService {
       );
     }
 
+    if (payload.currency !== loan.currency) {
+      throw new BadRequestException(
+        'Loan transactions must use the same currency as the loan contract.',
+      );
+    }
+
     const transactionDate = new Date(payload.date);
     if (Number.isNaN(transactionDate.getTime())) {
       throw new BadRequestException('Transaction date must be valid.');
@@ -473,14 +500,15 @@ export class LoansService {
       await this.currencyService.convertToRwf(payload.amount, payload.currency),
     );
     const allocation = await this.resolveTransactionAllocation(
+      loan,
       payload,
       amountRwf,
       reversalTarget,
     );
-    const nextStatus = this.resolveStatusFromTransactionType(
-      loan.status,
+    const nextStatus = this.resolveStatusAfterTransaction(
+      loan,
       payload.type,
-      allocation.balanceEffect,
+      allocation,
     );
 
     return this.prisma.$transaction(async (tx) => {
@@ -784,38 +812,39 @@ export class LoansService {
     return baseStatus === LoanStatus.OVERDUE ? LoanStatus.ACTIVE : baseStatus;
   }
 
-  private resolveStatusFromTransactionType(
-    currentStatus: LoanStatus,
+  private resolveStatusAfterTransaction(
+    loan: LoanWithCreator,
     transactionType: CreateLoanTransactionRequestDto['type'],
-    balanceEffect: LoanBalanceEffect,
+    allocation: {
+      principalAmount: number;
+      principalAmountRwf: number;
+      interestAmount: number;
+      interestAmountRwf: number;
+      balanceEffect: LoanBalanceEffect;
+    },
   ): LoanStatus {
-    switch (transactionType) {
-      case 'WRITE_OFF':
-        return LoanStatus.WRITTEN_OFF;
-      case 'REPAYMENT':
-      case 'INTEREST_PAYMENT':
-        return currentStatus === LoanStatus.OVERDUE
-          ? LoanStatus.PARTIALLY_REPAID
-          : currentStatus === LoanStatus.SETTLED
-            ? LoanStatus.SETTLED
-            : LoanStatus.PARTIALLY_REPAID;
-      case 'ADJUSTMENT':
-      case 'REVERSAL':
-        return balanceEffect === 'DECREASE'
-          ? currentStatus === LoanStatus.OVERDUE
-            ? LoanStatus.PARTIALLY_REPAID
-            : currentStatus === LoanStatus.SETTLED
-              ? LoanStatus.SETTLED
-              : LoanStatus.PARTIALLY_REPAID
-          : currentStatus === LoanStatus.SETTLED
-            ? LoanStatus.ACTIVE
-            : currentStatus;
-      default:
-        return currentStatus;
+    if (transactionType === 'WRITE_OFF') {
+      return LoanStatus.WRITTEN_OFF;
     }
+
+    const projectedBalances = this.projectLoanBalances(loan, allocation);
+
+    if (projectedBalances.totalOutstanding <= 0.01) {
+      return LoanStatus.SETTLED;
+    }
+
+    if (allocation.balanceEffect === 'DECREASE') {
+      return this.resolveLifecycleStatus(
+        LoanStatus.PARTIALLY_REPAID,
+        loan.dueDate,
+      );
+    }
+
+    return this.resolveLifecycleStatus(LoanStatus.ACTIVE, loan.dueDate);
   }
 
   private async resolveTransactionAllocation(
+    loan: LoanWithCreator,
     payload: CreateLoanTransactionRequestDto,
     amountRwf: number,
     reversalTarget: LoanTransactionWithRecorder | null,
@@ -836,13 +865,7 @@ export class LoansService {
           balanceEffect: 'INCREASE',
         };
       case 'REPAYMENT':
-        return {
-          principalAmount: payload.amount,
-          principalAmountRwf: amountRwf,
-          interestAmount: 0,
-          interestAmountRwf: 0,
-          balanceEffect: 'DECREASE',
-        };
+        return this.resolveRepaymentAllocation(loan, payload);
       case 'INTEREST_CHARGE':
         return {
           principalAmount: 0,
@@ -852,6 +875,7 @@ export class LoansService {
           balanceEffect: 'INCREASE',
         };
       case 'INTEREST_PAYMENT':
+        this.assertInterestPaymentAmountWithinOutstanding(loan, payload.amount);
         return {
           principalAmount: 0,
           principalAmountRwf: 0,
@@ -939,6 +963,191 @@ export class LoansService {
           balanceEffect: 'INCREASE',
         };
     }
+  }
+
+  private async resolveRepaymentAllocation(
+    loan: LoanWithCreator,
+    payload: CreateLoanTransactionRequestDto,
+  ): Promise<{
+    principalAmount: number;
+    principalAmountRwf: number;
+    interestAmount: number;
+    interestAmountRwf: number;
+    balanceEffect: LoanBalanceEffect;
+  }> {
+    const balances = this.summarizeLoanBalances(loan);
+    const outstandingPrincipal = balances.principalOutstanding;
+    const outstandingInterest = balances.interestOutstanding;
+    const totalOutstanding = balances.totalOutstanding;
+
+    if (totalOutstanding <= 0.01) {
+      throw new BadRequestException(
+        'This loan has no remaining outstanding balance to repay.',
+      );
+    }
+
+    if (payload.amount > totalOutstanding + 0.01) {
+      throw new BadRequestException(
+        'Repayment amount cannot exceed the remaining loan balance.',
+      );
+    }
+
+    let principalAmount: number;
+    let interestAmount: number;
+
+    if (
+      payload.principalAmount !== undefined ||
+      payload.interestAmount !== undefined
+    ) {
+      principalAmount =
+        payload.principalAmount ??
+        payload.amount - (payload.interestAmount ?? 0);
+      interestAmount =
+        payload.interestAmount ??
+        payload.amount - (payload.principalAmount ?? 0);
+
+      if (
+        principalAmount < 0 ||
+        interestAmount < 0 ||
+        Math.abs(principalAmount + interestAmount - payload.amount) > 0.01
+      ) {
+        throw new BadRequestException(
+          'Principal and interest components must add up to the repayment amount.',
+        );
+      }
+    } else if (loan.repaymentAllocation === 'PRINCIPAL_FIRST') {
+      principalAmount = Math.min(outstandingPrincipal, payload.amount);
+      interestAmount = payload.amount - principalAmount;
+    } else {
+      interestAmount = Math.min(outstandingInterest, payload.amount);
+      principalAmount = payload.amount - interestAmount;
+    }
+
+    if (principalAmount > outstandingPrincipal + 0.01) {
+      throw new BadRequestException(
+        'Repayment principal portion cannot exceed the remaining principal balance.',
+      );
+    }
+
+    if (interestAmount > outstandingInterest + 0.01) {
+      throw new BadRequestException(
+        'Repayment interest portion cannot exceed the remaining interest balance.',
+      );
+    }
+
+    const principalAmountRwf = Number(
+      await this.currencyService.convertToRwf(
+        principalAmount,
+        payload.currency,
+      ),
+    );
+    const interestAmountRwf = Number(
+      await this.currencyService.convertToRwf(interestAmount, payload.currency),
+    );
+
+    return {
+      principalAmount,
+      principalAmountRwf,
+      interestAmount,
+      interestAmountRwf,
+      balanceEffect: 'DECREASE',
+    };
+  }
+
+  private assertInterestPaymentAmountWithinOutstanding(
+    loan: LoanWithCreator,
+    amount: number,
+  ): void {
+    const balances = this.summarizeLoanBalances(loan);
+
+    if (balances.interestOutstanding <= 0.01) {
+      throw new BadRequestException(
+        'This loan has no outstanding interest balance to pay.',
+      );
+    }
+
+    if (amount > balances.interestOutstanding + 0.01) {
+      throw new BadRequestException(
+        'Interest payment amount cannot exceed the remaining interest balance.',
+      );
+    }
+  }
+
+  private summarizeLoanBalances(loan: LoanWithCreator): {
+    principalOutstanding: number;
+    interestOutstanding: number;
+    totalOutstanding: number;
+  } {
+    const totals = loan.transactions.reduce(
+      (accumulator, transaction) => {
+        const principal = Number(transaction.principalAmount);
+        const interest = Number(transaction.interestAmount);
+
+        if (transaction.balanceEffect === 'INCREASE') {
+          accumulator.principalIn += principal;
+          accumulator.interestIn += interest;
+        } else {
+          accumulator.principalOut += principal;
+          accumulator.interestOut += interest;
+        }
+
+        return accumulator;
+      },
+      {
+        principalIn: 0,
+        principalOut: 0,
+        interestIn: 0,
+        interestOut: 0,
+      },
+    );
+
+    const principalOutstanding = Math.max(
+      totals.principalIn - totals.principalOut,
+      0,
+    );
+    const interestOutstanding = Math.max(
+      totals.interestIn - totals.interestOut,
+      0,
+    );
+
+    return {
+      principalOutstanding,
+      interestOutstanding,
+      totalOutstanding: principalOutstanding + interestOutstanding,
+    };
+  }
+
+  private projectLoanBalances(
+    loan: LoanWithCreator,
+    allocation: {
+      principalAmount: number;
+      interestAmount: number;
+      balanceEffect: LoanBalanceEffect;
+    },
+  ): {
+    principalOutstanding: number;
+    interestOutstanding: number;
+    totalOutstanding: number;
+  } {
+    const balances = this.summarizeLoanBalances(loan);
+
+    const principalOutstanding =
+      allocation.balanceEffect === 'INCREASE'
+        ? balances.principalOutstanding + allocation.principalAmount
+        : Math.max(
+            balances.principalOutstanding - allocation.principalAmount,
+            0,
+          );
+    const interestOutstanding =
+      allocation.balanceEffect === 'INCREASE'
+        ? balances.interestOutstanding + allocation.interestAmount
+        : Math.max(balances.interestOutstanding - allocation.interestAmount, 0);
+
+    return {
+      principalOutstanding,
+      interestOutstanding,
+      totalOutstanding: principalOutstanding + interestOutstanding,
+    };
   }
 
   private static buildLoanTransactionCreateData(input: {
