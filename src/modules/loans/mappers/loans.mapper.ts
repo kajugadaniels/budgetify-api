@@ -24,6 +24,7 @@ export class LoansMapper {
       amount: Number(loan.amount),
       currency: loan.currency,
       amountRwf: Number(loan.amountRwf),
+      repaymentAllocation: loan.repaymentAllocation,
       originalPrincipal: summary.originalPrincipal,
       originalPrincipalRwf: summary.originalPrincipalRwf,
       principalRepaid: summary.principalRepaid,
