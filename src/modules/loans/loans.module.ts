@@ -4,6 +4,7 @@ import { PassportModule } from '@nestjs/passport';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrencyModule } from '../currency/currency.module';
 import { ExpensesRepository } from '../expenses/expenses.repository';
+import { IncomeRepository } from '../income/income.repository';
 import { PartnershipsModule } from '../partnerships/partnerships.module';
 import { UsersModule } from '../users/users.module';
 import { LoansController } from './loans.controller';
@@ -18,7 +19,13 @@ import { LoansService } from './loans.service';
     PartnershipsModule,
   ],
   controllers: [LoansController],
-  providers: [LoansRepository, ExpensesRepository, LoansService, JwtAuthGuard],
+  providers: [
+    LoansRepository,
+    ExpensesRepository,
+    IncomeRepository,
+    LoansService,
+    JwtAuthGuard,
+  ],
   exports: [LoansService],
 })
 export class LoansModule {}
