@@ -18,6 +18,7 @@ import {
 import { ApiErrorResponseDto } from '../../common/dto/api-error-response.dto';
 import { CreateLoanRequestDto } from './dto/create-loan.request.dto';
 import { CreateLoanTransactionRequestDto } from './dto/create-loan-transaction.request.dto';
+import { LinkLoanTransactionFinancialRecordRequestDto } from './dto/link-loan-transaction-financial-record.request.dto';
 import { LoanSettlementResponseDto } from './dto/loan-settlement-response.dto';
 import { LoanTransactionResponseDto } from './dto/loan-transaction.response.dto';
 import { PaginatedLoanResponseDto } from './dto/paginated-loan.response.dto';
@@ -247,7 +248,7 @@ export function ApiSendCurrentUserLoanToExpenseEndpoint(): MethodDecorator {
     ApiOperation({
       summary: 'Send a loan to expenses',
       description:
-        'Creates one expense entry in the LOAN category from a borrowed loan record owned by the authenticated user, then marks that loan as settled inside the same transaction.',
+        'Creates one linked expense entry in the LOAN category from a loan flow owned by the authenticated user. Borrowed loans create a repayment transaction and settle the loan; lent loans link the original disbursement transaction to an expense outflow.',
     }),
     ApiParam({
       name: 'loanId',
@@ -256,13 +257,12 @@ export function ApiSendCurrentUserLoanToExpenseEndpoint(): MethodDecorator {
     }),
     ApiBody({ type: SendLoanToExpenseRequestDto }),
     ApiCreatedResponse({
-      description:
-        'Loan was sent to expenses successfully and marked as settled.',
+      description: 'Loan flow was linked to expenses successfully.',
       type: LoanSettlementResponseDto,
     }),
     ApiBadRequestResponse({
       description:
-        'Request validation failed, the loan is already settled or closed, or the loan direction is not BORROWED.',
+        'Request validation failed, the loan is already settled or closed, or the relevant loan flow was already linked.',
       type: ApiErrorResponseDto,
     }),
     ApiUnauthorizedResponse({
@@ -277,6 +277,108 @@ export function ApiSendCurrentUserLoanToExpenseEndpoint(): MethodDecorator {
     ApiNotFoundResponse({
       description:
         'The requested loan record does not exist for the authenticated user.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiTooManyRequestsResponse({
+      description:
+        'Too many loan write requests were sent in a short time. Wait about 15 seconds before trying again.',
+      type: ApiErrorResponseDto,
+    }),
+  );
+}
+
+export function ApiSendCurrentUserLoanTransactionToExpenseEndpoint(): MethodDecorator {
+  return applyDecorators(
+    ApiBearerAuth('access-token'),
+    ApiOperation({
+      summary: 'Create an expense from one loan transaction',
+      description:
+        'Links one eligible loan transaction to a new expense record. Supported flows are lent disbursements and outgoing borrowed-loan repayment or interest payment transactions.',
+    }),
+    ApiParam({
+      name: 'loanId',
+      description: 'UUID of the loan record that owns the transaction.',
+      format: 'uuid',
+    }),
+    ApiParam({
+      name: 'transactionId',
+      description: 'UUID of the loan transaction to turn into an expense.',
+      format: 'uuid',
+    }),
+    ApiBody({ type: LinkLoanTransactionFinancialRecordRequestDto }),
+    ApiCreatedResponse({
+      description:
+        'The loan transaction was linked to a newly created expense record.',
+      type: LoanTransactionResponseDto,
+    }),
+    ApiBadRequestResponse({
+      description:
+        'Request validation failed, the transaction is ineligible for an expense flow, or it is already linked.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiUnauthorizedResponse({
+      description: 'Access token is missing, invalid, or expired.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiForbiddenResponse({
+      description:
+        'Authenticated user account is not allowed to record expense flows for that loan.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiNotFoundResponse({
+      description:
+        'The requested loan or loan transaction does not exist for the authenticated user.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiTooManyRequestsResponse({
+      description:
+        'Too many loan write requests were sent in a short time. Wait about 15 seconds before trying again.',
+      type: ApiErrorResponseDto,
+    }),
+  );
+}
+
+export function ApiSendCurrentUserLoanTransactionToIncomeEndpoint(): MethodDecorator {
+  return applyDecorators(
+    ApiBearerAuth('access-token'),
+    ApiOperation({
+      summary: 'Create an income entry from one loan transaction',
+      description:
+        'Links one eligible lent-loan repayment or interest receipt transaction to a new received income entry.',
+    }),
+    ApiParam({
+      name: 'loanId',
+      description: 'UUID of the loan record that owns the transaction.',
+      format: 'uuid',
+    }),
+    ApiParam({
+      name: 'transactionId',
+      description: 'UUID of the loan transaction to turn into income.',
+      format: 'uuid',
+    }),
+    ApiBody({ type: LinkLoanTransactionFinancialRecordRequestDto }),
+    ApiCreatedResponse({
+      description:
+        'The loan transaction was linked to a newly created income record.',
+      type: LoanTransactionResponseDto,
+    }),
+    ApiBadRequestResponse({
+      description:
+        'Request validation failed, the transaction is ineligible for an income flow, or it is already linked.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiUnauthorizedResponse({
+      description: 'Access token is missing, invalid, or expired.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiForbiddenResponse({
+      description:
+        'Authenticated user account is not allowed to record income flows for that loan.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiNotFoundResponse({
+      description:
+        'The requested loan or loan transaction does not exist for the authenticated user.',
       type: ApiErrorResponseDto,
     }),
     ApiTooManyRequestsResponse({
