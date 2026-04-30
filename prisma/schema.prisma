@@ -173,6 +173,11 @@ enum LoanBalanceEffect {
   DECREASE
 }
 
+enum LoanRepaymentAllocation {
+  INTEREST_FIRST
+  PRINCIPAL_FIRST
+}
+
 // ─────────────────────────────────────────────────────────────
 // Core user models
 // ─────────────────────────────────────────────────────────────
@@ -366,6 +371,7 @@ model Loan {
   amount            Decimal       @db.Decimal(15, 2)
   currency          Currency      @default(RWF)
   amountRwf         Decimal       @default(0) @db.Decimal(15, 2)
+  repaymentAllocation LoanRepaymentAllocation @default(INTEREST_FIRST)
   date              DateTime
   dueDate           DateTime?     @db.Date
   note              String?
