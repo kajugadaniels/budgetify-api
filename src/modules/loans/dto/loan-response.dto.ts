@@ -34,6 +34,48 @@ export class LoanResponseDto {
   @ApiProperty({ example: 250000 })
   amountRwf!: number;
 
+  @ApiProperty({ example: 250000 })
+  originalPrincipal!: number;
+
+  @ApiProperty({ example: 250000 })
+  originalPrincipalRwf!: number;
+
+  @ApiProperty({ example: 120000 })
+  principalRepaid!: number;
+
+  @ApiProperty({ example: 120000 })
+  principalRepaidRwf!: number;
+
+  @ApiProperty({ example: 130000 })
+  principalOutstanding!: number;
+
+  @ApiProperty({ example: 130000 })
+  principalOutstandingRwf!: number;
+
+  @ApiProperty({ example: 20000 })
+  interestCharged!: number;
+
+  @ApiProperty({ example: 20000 })
+  interestChargedRwf!: number;
+
+  @ApiProperty({ example: 5000 })
+  interestPaid!: number;
+
+  @ApiProperty({ example: 5000 })
+  interestPaidRwf!: number;
+
+  @ApiProperty({ example: 15000 })
+  interestOutstanding!: number;
+
+  @ApiProperty({ example: 15000 })
+  interestOutstandingRwf!: number;
+
+  @ApiProperty({ example: 145000 })
+  totalOutstanding!: number;
+
+  @ApiProperty({ example: 145000 })
+  totalOutstandingRwf!: number;
+
   @ApiProperty({ example: '2026-03-31T00:00:00.000Z' })
   issuedDate!: Date;
 
