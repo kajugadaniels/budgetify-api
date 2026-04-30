@@ -9,5 +9,6 @@ export const INCOME_CATEGORY_OPTIONS: ReadonlyArray<IncomeCategoryOptionResponse
     { value: IncomeCategory.DIVIDENDS, label: 'Dividends' },
     { value: IncomeCategory.RENTAL, label: 'Rental' },
     { value: IncomeCategory.SIDE_HUSTLE, label: 'Side hustle' },
+    { value: IncomeCategory.LOAN_RECOVERY, label: 'Loan recovery' },
     { value: IncomeCategory.OTHER, label: 'Other' },
   ];
