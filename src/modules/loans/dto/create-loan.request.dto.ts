@@ -1,6 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { Currency, LoanDirection, LoanStatus, LoanType } from '@prisma/client';
+import {
+  Currency,
+  LoanDirection,
+  LoanRepaymentAllocation,
+  LoanStatus,
+  LoanType,
+} from '@prisma/client';
 import {
   IsEnum,
   IsISO8601,
@@ -146,6 +152,19 @@ export class CreateLoanRequestDto {
     message: 'Status must be a valid loan lifecycle value.',
   })
   status: LoanStatus = LoanStatus.ACTIVE;
+
+  @ApiPropertyOptional({
+    enum: LoanRepaymentAllocation,
+    example: LoanRepaymentAllocation.INTEREST_FIRST,
+    description:
+      'How general repayments should be allocated when principal and interest portions are not entered explicitly.',
+  })
+  @IsOptional()
+  @IsEnum(LoanRepaymentAllocation, {
+    message: 'Repayment allocation must be a valid loan repayment rule.',
+  })
+  repaymentAllocation: LoanRepaymentAllocation =
+    LoanRepaymentAllocation.INTEREST_FIRST;
 
   @ApiPropertyOptional({
     description: 'Optional free-text note for additional context.',
