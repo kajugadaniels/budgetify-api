@@ -3,6 +3,7 @@ import { Currency, IncomeCategory } from '@prisma/client';
 
 import { CreatedByResponseDto } from '../../../common/dto/created-by.response.dto';
 import { IncomeAllocationStatus } from './income-allocation-status.enum';
+import { IncomeLinkedLoanResponseDto } from './income-linked-loan.response.dto';
 
 export class IncomeResponseDto {
   @ApiProperty({ example: '8d65c09f-e7fa-4ee1-9428-3b1ebc80a918' })
@@ -72,4 +73,11 @@ export class IncomeResponseDto {
 
   @ApiProperty({ type: CreatedByResponseDto })
   createdBy!: CreatedByResponseDto;
+
+  @ApiProperty({
+    type: IncomeLinkedLoanResponseDto,
+    nullable: true,
+    required: false,
+  })
+  linkedLoan!: IncomeLinkedLoanResponseDto | null;
 }
