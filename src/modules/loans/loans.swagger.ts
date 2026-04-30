@@ -17,7 +17,9 @@ import {
 
 import { ApiErrorResponseDto } from '../../common/dto/api-error-response.dto';
 import { CreateLoanRequestDto } from './dto/create-loan.request.dto';
+import { CreateLoanTransactionRequestDto } from './dto/create-loan-transaction.request.dto';
 import { LoanSettlementResponseDto } from './dto/loan-settlement-response.dto';
+import { LoanTransactionResponseDto } from './dto/loan-transaction.response.dto';
 import { PaginatedLoanResponseDto } from './dto/paginated-loan.response.dto';
 import { LoanResponseDto } from './dto/loan-response.dto';
 import { SendLoanToExpenseRequestDto } from './dto/send-loan-to-expense.request.dto';
@@ -270,6 +272,86 @@ export function ApiSendCurrentUserLoanToExpenseEndpoint(): MethodDecorator {
     ApiForbiddenResponse({
       description:
         'Authenticated user account is not allowed to settle loan records.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiNotFoundResponse({
+      description:
+        'The requested loan record does not exist for the authenticated user.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiTooManyRequestsResponse({
+      description:
+        'Too many loan write requests were sent in a short time. Wait about 15 seconds before trying again.',
+      type: ApiErrorResponseDto,
+    }),
+  );
+}
+
+export function ApiListCurrentUserLoanTransactionsEndpoint(): MethodDecorator {
+  return applyDecorators(
+    ApiBearerAuth('access-token'),
+    ApiOperation({
+      summary: 'List loan transactions',
+      description:
+        'Returns the transaction ledger for one loan visible to the authenticated user, ordered from newest to oldest.',
+    }),
+    ApiParam({
+      name: 'loanId',
+      description: 'UUID of the loan record whose ledger should be returned.',
+      format: 'uuid',
+    }),
+    ApiOkResponse({
+      description: 'Loan transactions retrieved successfully.',
+      type: LoanTransactionResponseDto,
+      isArray: true,
+    }),
+    ApiUnauthorizedResponse({
+      description: 'Access token is missing, invalid, or expired.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiForbiddenResponse({
+      description:
+        'Authenticated user account is not allowed to view loan transactions.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiNotFoundResponse({
+      description:
+        'The requested loan record does not exist for the authenticated user.',
+      type: ApiErrorResponseDto,
+    }),
+  );
+}
+
+export function ApiCreateCurrentUserLoanTransactionEndpoint(): MethodDecorator {
+  return applyDecorators(
+    ApiBearerAuth('access-token'),
+    ApiOperation({
+      summary: 'Record a loan transaction',
+      description:
+        'Records a new ledger movement against a visible loan and updates the loan lifecycle when the transaction type requires it.',
+    }),
+    ApiParam({
+      name: 'loanId',
+      description: 'UUID of the loan record to append a transaction to.',
+      format: 'uuid',
+    }),
+    ApiBody({ type: CreateLoanTransactionRequestDto }),
+    ApiCreatedResponse({
+      description: 'Loan transaction recorded successfully.',
+      type: LoanTransactionResponseDto,
+    }),
+    ApiBadRequestResponse({
+      description:
+        'Request validation failed, the target transaction for reversal was not found, or the loan cannot accept new transactions.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiUnauthorizedResponse({
+      description: 'Access token is missing, invalid, or expired.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiForbiddenResponse({
+      description:
+        'Authenticated user account is not allowed to record transactions on that loan.',
       type: ApiErrorResponseDto,
     }),
     ApiNotFoundResponse({
