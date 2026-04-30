@@ -1,6 +1,10 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { Currency, LoanTransactionType } from '@prisma/client';
+import {
+  Currency,
+  LoanBalanceEffect,
+  LoanTransactionType,
+} from '@prisma/client';
 import {
   IsEnum,
   IsISO8601,
@@ -52,6 +56,34 @@ export class CreateLoanTransactionRequestDto {
   @Min(1, { message: 'Amount must be greater than zero.' })
   amount!: number;
 
+  @ApiPropertyOptional({
+    example: 100000,
+    description:
+      'Optional principal portion of the transaction amount. Required for split adjustments.',
+  })
+  @Transform(({ value }) => normalizeAmount(value))
+  @IsOptional()
+  @IsNumber(
+    { allowInfinity: false, allowNaN: false, maxDecimalPlaces: 2 },
+    { message: 'Principal amount must be a valid number.' },
+  )
+  @Min(0, { message: 'Principal amount must not be negative.' })
+  principalAmount?: number;
+
+  @ApiPropertyOptional({
+    example: 20000,
+    description:
+      'Optional interest portion of the transaction amount. Required for split adjustments.',
+  })
+  @Transform(({ value }) => normalizeAmount(value))
+  @IsOptional()
+  @IsNumber(
+    { allowInfinity: false, allowNaN: false, maxDecimalPlaces: 2 },
+    { message: 'Interest amount must be a valid number.' },
+  )
+  @Min(0, { message: 'Interest amount must not be negative.' })
+  interestAmount?: number;
+
   @ApiProperty({
     enum: Currency,
     example: Currency.RWF,
@@ -61,6 +93,18 @@ export class CreateLoanTransactionRequestDto {
     message: 'Currency must be a valid currency.',
   })
   currency: Currency = Currency.RWF;
+
+  @ApiPropertyOptional({
+    enum: LoanBalanceEffect,
+    example: LoanBalanceEffect.DECREASE,
+    description:
+      'Optional balance effect override. Used for manual adjustment entries.',
+  })
+  @IsOptional()
+  @IsEnum(LoanBalanceEffect, {
+    message: 'Balance effect must be INCREASE or DECREASE.',
+  })
+  balanceEffect?: LoanBalanceEffect;
 
   @ApiProperty({
     example: '2026-05-01T00:00:00.000Z',
