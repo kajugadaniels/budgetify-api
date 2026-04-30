@@ -22,10 +22,15 @@ import {
 import { PartnershipsService } from '../partnerships/partnerships.service';
 import { UsersService } from '../users/users.service';
 import { CreateLoanRequestDto } from './dto/create-loan.request.dto';
+import { CreateLoanTransactionRequestDto } from './dto/create-loan-transaction.request.dto';
 import { ListLoansQueryDto } from './dto/list-loans.query.dto';
 import { SendLoanToExpenseRequestDto } from './dto/send-loan-to-expense.request.dto';
 import { UpdateLoanRequestDto } from './dto/update-loan.request.dto';
-import { LoanWithCreator, LoansRepository } from './loans.repository';
+import {
+  LoanTransactionWithRecorder,
+  LoanWithCreator,
+  LoansRepository,
+} from './loans.repository';
 
 @Injectable()
 export class LoansService {
@@ -79,20 +84,41 @@ export class LoansService {
       payload.currency,
     );
 
-    return this.loansRepository.create({
-      userId,
-      label: payload.label,
-      direction: payload.direction,
-      type: payload.type,
-      counterpartyName: payload.counterpartyName,
-      counterpartyContact: payload.counterpartyContact ?? null,
-      amount: new Prisma.Decimal(payload.amount),
-      currency: payload.currency,
-      amountRwf,
-      date: issuedDate,
-      dueDate,
-      status,
-      note: payload.note ?? null,
+    return this.prisma.$transaction(async (tx) => {
+      const loan = await this.loansRepository.create(
+        {
+          userId,
+          label: payload.label,
+          direction: payload.direction,
+          type: payload.type,
+          counterpartyName: payload.counterpartyName,
+          counterpartyContact: payload.counterpartyContact ?? null,
+          amount: new Prisma.Decimal(payload.amount),
+          currency: payload.currency,
+          amountRwf,
+          date: issuedDate,
+          dueDate,
+          status,
+          note: payload.note ?? null,
+        },
+        tx,
+      );
+
+      await this.loansRepository.createTransaction(
+        {
+          loanId: loan.id,
+          recordedByUserId: userId,
+          type: 'DISBURSEMENT',
+          amount: new Prisma.Decimal(payload.amount),
+          currency: payload.currency,
+          amountRwf,
+          date: issuedDate,
+          note: payload.note ?? 'Initial loan disbursement',
+        },
+        tx,
+      );
+
+      return loan;
     });
   }
 
@@ -214,10 +240,113 @@ export class LoansService {
         tx,
       );
 
+      await this.loansRepository.createTransaction(
+        {
+          loanId: loan.id,
+          recordedByUserId: userId,
+          type: 'REPAYMENT',
+          amount: loan.amount,
+          currency: loan.currency,
+          amountRwf: loan.amountRwf,
+          date: new Date(payload.date),
+          note: payload.note ?? 'Loan settled into expenses',
+        },
+        tx,
+      );
+
       return {
         loan: updatedLoan,
         expense,
       };
+    });
+  }
+
+  async listCurrentUserLoanTransactions(
+    userId: string,
+    loanId: string,
+  ): Promise<LoanTransactionWithRecorder[]> {
+    await this.usersService.findActiveByIdOrThrow(userId);
+    const loan = await this.findVisibleLoanOrThrow(userId, loanId);
+
+    return this.loansRepository.findTransactionsByLoanId(loan.id);
+  }
+
+  async createCurrentUserLoanTransaction(
+    userId: string,
+    loanId: string,
+    payload: CreateLoanTransactionRequestDto,
+  ): Promise<LoanTransactionWithRecorder> {
+    await this.usersService.findActiveByIdOrThrow(userId);
+    const loan = await this.findVisibleLoanOrThrow(userId, loanId);
+
+    if (
+      loan.status === LoanStatus.ARCHIVED ||
+      loan.status === LoanStatus.CANCELLED
+    ) {
+      throw new BadRequestException(
+        'Archived or cancelled loans cannot accept new transactions.',
+      );
+    }
+
+    const transactionDate = new Date(payload.date);
+    if (Number.isNaN(transactionDate.getTime())) {
+      throw new BadRequestException('Transaction date must be valid.');
+    }
+
+    if (payload.reversalOfTransactionId !== undefined) {
+      const reversalTarget = await this.loansRepository.findTransactionById(
+        payload.reversalOfTransactionId,
+      );
+
+      if (reversalTarget === null) {
+        throw new BadRequestException(
+          'The transaction selected for reversal could not be found.',
+        );
+      }
+
+      if (reversalTarget.loanId !== loan.id) {
+        throw new BadRequestException(
+          'Reversal targets must belong to the same loan ledger.',
+        );
+      }
+    }
+
+    const amountRwf = await this.currencyService.convertToRwf(
+      payload.amount,
+      payload.currency,
+    );
+    const nextStatus = this.resolveStatusFromTransactionType(
+      loan.status,
+      payload.type,
+    );
+
+    return this.prisma.$transaction(async (tx) => {
+      const transaction = await this.loansRepository.createTransaction(
+        {
+          loanId: loan.id,
+          recordedByUserId: userId,
+          type: payload.type,
+          amount: new Prisma.Decimal(payload.amount),
+          currency: payload.currency,
+          amountRwf,
+          date: transactionDate,
+          note: payload.note ?? null,
+          reversalOfTransactionId: payload.reversalOfTransactionId ?? null,
+        },
+        tx,
+      );
+
+      if (nextStatus !== loan.status) {
+        await this.loansRepository.update(
+          loan.id,
+          {
+            status: nextStatus,
+          },
+          tx,
+        );
+      }
+
+      return transaction;
     });
   }
 
@@ -308,5 +437,26 @@ export class LoansService {
     }
 
     return baseStatus === LoanStatus.OVERDUE ? LoanStatus.ACTIVE : baseStatus;
+  }
+
+  private resolveStatusFromTransactionType(
+    currentStatus: LoanStatus,
+    transactionType: CreateLoanTransactionRequestDto['type'],
+  ): LoanStatus {
+    switch (transactionType) {
+      case 'WRITE_OFF':
+        return LoanStatus.WRITTEN_OFF;
+      case 'REPAYMENT':
+      case 'INTEREST_PAYMENT':
+      case 'ADJUSTMENT':
+      case 'REVERSAL':
+        return currentStatus === LoanStatus.OVERDUE
+          ? LoanStatus.PARTIALLY_REPAID
+          : currentStatus === LoanStatus.SETTLED
+            ? LoanStatus.SETTLED
+            : LoanStatus.PARTIALLY_REPAID;
+      default:
+        return currentStatus;
+    }
   }
 }
