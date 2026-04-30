@@ -20,6 +20,10 @@ export type LoanWithCreator = Prisma.LoanGetPayload<{
   include: { user: { select: typeof USER_SELECT } };
 }>;
 
+export type LoanTransactionWithRecorder = Prisma.LoanTransactionGetPayload<{
+  include: { recordedBy: { select: typeof USER_SELECT } };
+}>;
+
 @Injectable()
 export class LoansRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -140,6 +144,37 @@ export class LoansRepository {
       where: { id },
       data,
       include: { user: { select: USER_SELECT } },
+    });
+  }
+
+  async findTransactionsByLoanId(
+    loanId: string,
+    db: PrismaExecutor = this.prisma,
+  ): Promise<LoanTransactionWithRecorder[]> {
+    return db.loanTransaction.findMany({
+      where: { loanId },
+      include: { recordedBy: { select: USER_SELECT } },
+      orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
+    });
+  }
+
+  async findTransactionById(
+    id: string,
+    db: PrismaExecutor = this.prisma,
+  ): Promise<LoanTransactionWithRecorder | null> {
+    return db.loanTransaction.findUnique({
+      where: { id },
+      include: { recordedBy: { select: USER_SELECT } },
+    });
+  }
+
+  async createTransaction(
+    data: Prisma.LoanTransactionUncheckedCreateInput,
+    db: PrismaExecutor = this.prisma,
+  ): Promise<LoanTransactionWithRecorder> {
+    return db.loanTransaction.create({
+      data,
+      include: { recordedBy: { select: USER_SELECT } },
     });
   }
 }
