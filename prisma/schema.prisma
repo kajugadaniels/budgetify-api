@@ -157,6 +157,16 @@ enum LoanStatus {
   ARCHIVED
 }
 
+enum LoanTransactionType {
+  DISBURSEMENT
+  REPAYMENT
+  INTEREST_CHARGE
+  INTEREST_PAYMENT
+  ADJUSTMENT
+  WRITE_OFF
+  REVERSAL
+}
+
 // ─────────────────────────────────────────────────────────────
 // Core user models
 // ─────────────────────────────────────────────────────────────
@@ -185,6 +195,7 @@ model User {
   todoRecordings    TodoRecording[]        @relation("TodoRecordingRecordedBy")
   reversedTodoRecordings TodoRecording[]   @relation("TodoRecordingReversedBy")
   loans             Loan[]
+  loanTransactions  LoanTransaction[]      @relation("LoanTransactionRecordedBy")
   savings           Saving[]
   savingTransactions SavingTransaction[]
   moneyMovements    MoneyMovement[]
@@ -354,6 +365,7 @@ model Loan {
   updatedAt         DateTime      @updatedAt
   deletedAt         DateTime?
   user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions      LoanTransaction[]
 
   @@index([userId])
   @@index([deletedAt])
@@ -362,6 +374,30 @@ model Loan {
   @@index([userId, direction])
   @@index([userId, type])
   @@index([dueDate])
+}
+
+model LoanTransaction {
+  id                    String              @id @default(uuid()) @db.Uuid
+  loanId                String              @db.Uuid
+  recordedByUserId      String              @db.Uuid
+  type                  LoanTransactionType
+  amount                Decimal             @db.Decimal(15, 2)
+  currency              Currency            @default(RWF)
+  amountRwf             Decimal             @db.Decimal(15, 2)
+  date                  DateTime            @db.Date
+  note                  String?
+  reversalOfTransactionId String?           @db.Uuid
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+  loan                  Loan                @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  recordedBy            User                @relation("LoanTransactionRecordedBy", fields: [recordedByUserId], references: [id], onDelete: Cascade)
+  reversalOfTransaction LoanTransaction?    @relation("LoanTransactionReversal", fields: [reversalOfTransactionId], references: [id])
+  reversals             LoanTransaction[]   @relation("LoanTransactionReversal")
+
+  @@index([loanId, date])
+  @@index([recordedByUserId, date])
+  @@index([type, date])
+  @@index([reversalOfTransactionId])
 }
 
 model Saving {
