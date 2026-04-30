@@ -6,6 +6,7 @@ import {
 import {
   Currency,
   ExpenseCategory,
+  IncomeCategory,
   LoanBalanceEffect,
   LoanStatus,
   LoanTransactionType,
@@ -26,10 +27,15 @@ import {
   ExpenseWithCreator,
   ExpensesRepository,
 } from '../expenses/expenses.repository';
+import {
+  IncomeRepository,
+  IncomeWithCreator,
+} from '../income/income.repository';
 import { PartnershipsService } from '../partnerships/partnerships.service';
 import { UsersService } from '../users/users.service';
 import { CreateLoanRequestDto } from './dto/create-loan.request.dto';
 import { CreateLoanTransactionRequestDto } from './dto/create-loan-transaction.request.dto';
+import { LinkLoanTransactionFinancialRecordRequestDto } from './dto/link-loan-transaction-financial-record.request.dto';
 import { ListLoansQueryDto } from './dto/list-loans.query.dto';
 import { SendLoanToExpenseRequestDto } from './dto/send-loan-to-expense.request.dto';
 import { UpdateLoanRequestDto } from './dto/update-loan.request.dto';
@@ -44,6 +50,7 @@ export class LoansService {
   constructor(
     private readonly loansRepository: LoansRepository,
     private readonly expensesRepository: ExpensesRepository,
+    private readonly incomeRepository: IncomeRepository,
     private readonly prisma: PrismaService,
     private readonly usersService: UsersService,
     private readonly partnershipsService: PartnershipsService,
@@ -250,72 +257,163 @@ export class LoansService {
 
     const loan = await this.findVisibleLoanOrThrow(userId, loanId);
 
-    if (loan.status === LoanStatus.SETTLED) {
-      throw new BadRequestException(
-        'This loan is already settled and cannot be sent to expenses again.',
-      );
-    }
-
-    if (loan.direction !== 'BORROWED') {
-      throw new BadRequestException(
-        'Only borrowed loans can be settled into expenses.',
-      );
-    }
-
     if (
       loan.status === LoanStatus.CANCELLED ||
       loan.status === LoanStatus.WRITTEN_OFF ||
       loan.status === LoanStatus.ARCHIVED
     ) {
       throw new BadRequestException(
-        'Only active loan lifecycle states can be settled into expenses.',
+        'Only active loan lifecycle states can be sent into tracked expense flows.',
       );
     }
 
-    return this.prisma.$transaction(async (tx) => {
-      const expense = await this.expensesRepository.create(
-        {
+    if (loan.direction === 'BORROWED') {
+      if (loan.status === LoanStatus.SETTLED) {
+        throw new BadRequestException(
+          'This loan is already settled and cannot be sent to expenses again.',
+        );
+      }
+
+      return this.prisma.$transaction(async (tx) => {
+        const transaction = await this.loansRepository.createTransaction(
+          LoansService.buildLoanTransactionCreateData({
+            loanId: loan.id,
+            recordedByUserId: userId,
+            type: 'REPAYMENT',
+            currency: loan.currency,
+            date: new Date(payload.date),
+            note: payload.note ?? 'Loan settled into expenses',
+            amount: Number(loan.amount),
+            amountRwf: Number(loan.amountRwf),
+            principalAmount: Number(loan.amount),
+            principalAmountRwf: Number(loan.amountRwf),
+            interestAmount: 0,
+            interestAmountRwf: 0,
+            balanceEffect: 'DECREASE',
+          }),
+          tx,
+        );
+
+        const expense = await this.createLinkedExpenseFromTransaction(
           userId,
-          label: loan.label,
-          amount: loan.amount,
-          category: ExpenseCategory.LOAN,
-          date: new Date(payload.date),
-          note: payload.note ?? loan.note,
-        },
+          loan,
+          transaction,
+          payload,
+          tx,
+        );
+
+        const updatedLoan = await this.loansRepository.update(
+          loan.id,
+          {
+            status: LoanStatus.SETTLED,
+          },
+          tx,
+        );
+
+        return {
+          loan: updatedLoan,
+          expense,
+        };
+      });
+    }
+
+    const firstDisbursement = loan.transactions
+      .slice()
+      .sort(
+        (left, right) =>
+          left.date.getTime() - right.date.getTime() ||
+          left.createdAt.getTime() - right.createdAt.getTime(),
+      )
+      .find((transaction) => transaction.type === 'DISBURSEMENT');
+
+    if (firstDisbursement === undefined) {
+      throw new BadRequestException(
+        'No disbursement transaction exists for this lent loan yet.',
+      );
+    }
+
+    const disbursement = await this.findTransactionForLoanOrThrow(
+      loan,
+      firstDisbursement.id,
+    );
+
+    if (disbursement.expense !== null) {
+      throw new BadRequestException(
+        'The lending disbursement for this loan has already been recorded as an expense.',
+      );
+    }
+
+    const expense = await this.prisma.$transaction((tx) =>
+      this.createLinkedExpenseFromTransaction(
+        userId,
+        loan,
+        disbursement,
+        payload,
+        tx,
+      ),
+    );
+
+    return {
+      loan,
+      expense,
+    };
+  }
+
+  async sendCurrentUserLoanTransactionToExpense(
+    userId: string,
+    loanId: string,
+    transactionId: string,
+    payload: LinkLoanTransactionFinancialRecordRequestDto,
+  ): Promise<LoanTransactionWithRecorder> {
+    await this.usersService.findActiveByIdOrThrow(userId);
+    const loan = await this.findVisibleLoanOrThrow(userId, loanId);
+    const transaction = await this.findTransactionForLoanOrThrow(
+      loan,
+      transactionId,
+    );
+
+    return this.prisma.$transaction(async (tx) => {
+      await this.createLinkedExpenseFromTransaction(
+        userId,
+        loan,
+        transaction,
+        payload,
         tx,
       );
 
-      const updatedLoan = await this.loansRepository.update(
-        loan.id,
-        {
-          status: LoanStatus.SETTLED,
-        },
+      return this.loansRepository.findTransactionById(
+        transaction.id,
+        tx,
+      ) as Promise<LoanTransactionWithRecorder>;
+    });
+  }
+
+  async sendCurrentUserLoanTransactionToIncome(
+    userId: string,
+    loanId: string,
+    transactionId: string,
+    payload: LinkLoanTransactionFinancialRecordRequestDto,
+  ): Promise<LoanTransactionWithRecorder> {
+    await this.usersService.findActiveByIdOrThrow(userId);
+    const loan = await this.findVisibleLoanOrThrow(userId, loanId);
+    const transaction = await this.findTransactionForLoanOrThrow(
+      loan,
+      transactionId,
+    );
+
+    return this.prisma.$transaction(async (tx) => {
+      await this.createLinkedIncomeFromTransaction(
+        userId,
+        loan,
+        transaction,
+        payload,
         tx,
       );
 
-      await this.loansRepository.createTransaction(
-        LoansService.buildLoanTransactionCreateData({
-          loanId: loan.id,
-          recordedByUserId: userId,
-          type: 'REPAYMENT',
-          currency: loan.currency,
-          date: new Date(payload.date),
-          note: payload.note ?? 'Loan settled into expenses',
-          amount: Number(loan.amount),
-          amountRwf: Number(loan.amountRwf),
-          principalAmount: Number(loan.amount),
-          principalAmountRwf: Number(loan.amountRwf),
-          interestAmount: 0,
-          interestAmountRwf: 0,
-          balanceEffect: 'DECREASE',
-        }),
+      return this.loansRepository.findTransactionById(
+        transaction.id,
         tx,
-      );
-
-      return {
-        loan: updatedLoan,
-        expense,
-      };
+      ) as Promise<LoanTransactionWithRecorder>;
     });
   }
 
@@ -453,6 +551,183 @@ export class LoansService {
     }
 
     return loan;
+  }
+
+  private async findTransactionForLoanOrThrow(
+    loan: LoanWithCreator,
+    transactionId: string,
+  ): Promise<LoanTransactionWithRecorder> {
+    const transaction =
+      await this.loansRepository.findTransactionById(transactionId);
+
+    if (transaction === null || transaction.loanId !== loan.id) {
+      throw new NotFoundException(
+        'The requested loan transaction does not exist for this loan.',
+      );
+    }
+
+    return transaction;
+  }
+
+  private async createLinkedExpenseFromTransaction(
+    userId: string,
+    loan: LoanWithCreator,
+    transaction: LoanTransactionWithRecorder,
+    payload:
+      | SendLoanToExpenseRequestDto
+      | LinkLoanTransactionFinancialRecordRequestDto,
+    tx: Prisma.TransactionClient,
+  ): Promise<ExpenseWithCreator> {
+    if (transaction.expense !== null) {
+      throw new BadRequestException(
+        'This loan transaction is already linked to an expense record.',
+      );
+    }
+
+    if (!this.canTransactionCreateExpense(loan, transaction)) {
+      throw new BadRequestException(
+        'Only loan disbursements you lend out, or outgoing repayment and interest payments on borrowed loans, can be recorded as expenses.',
+      );
+    }
+
+    const label =
+      payload.label ?? this.buildDefaultExpenseLabel(loan, transaction);
+    const note = payload.note ?? transaction.note ?? loan.note ?? null;
+    const date = new Date(payload.date);
+
+    const expense = await this.expensesRepository.create(
+      {
+        userId,
+        label,
+        amount: transaction.amount,
+        currency: transaction.currency,
+        amountRwf: transaction.amountRwf,
+        feeAmount: 0,
+        feeAmountRwf: 0,
+        totalAmountRwf: transaction.amountRwf,
+        category: ExpenseCategory.LOAN,
+        date,
+        note,
+      },
+      tx,
+    );
+
+    await this.loansRepository.updateTransaction(
+      transaction.id,
+      {
+        expense: {
+          connect: {
+            id: expense.id,
+          },
+        },
+      },
+      tx,
+    );
+
+    return expense;
+  }
+
+  private async createLinkedIncomeFromTransaction(
+    userId: string,
+    loan: LoanWithCreator,
+    transaction: LoanTransactionWithRecorder,
+    payload: LinkLoanTransactionFinancialRecordRequestDto,
+    tx: Prisma.TransactionClient,
+  ): Promise<IncomeWithCreator> {
+    if (transaction.income !== null) {
+      throw new BadRequestException(
+        'This loan transaction is already linked to an income record.',
+      );
+    }
+
+    if (!this.canTransactionCreateIncome(loan, transaction)) {
+      throw new BadRequestException(
+        'Only repayment and interest receipts on lent loans can be recorded as income.',
+      );
+    }
+
+    const label =
+      payload.label ?? this.buildDefaultIncomeLabel(loan, transaction);
+    const date = new Date(payload.date);
+
+    const income = await this.incomeRepository.create(
+      {
+        userId,
+        label,
+        amount: transaction.amount,
+        currency: transaction.currency,
+        amountRwf: transaction.amountRwf,
+        category: IncomeCategory.LOAN_RECOVERY,
+        date,
+        received: true,
+      },
+      tx,
+    );
+
+    await this.loansRepository.updateTransaction(
+      transaction.id,
+      {
+        income: {
+          connect: {
+            id: income.id,
+          },
+        },
+      },
+      tx,
+    );
+
+    return income;
+  }
+
+  private canTransactionCreateExpense(
+    loan: LoanWithCreator,
+    transaction: LoanTransactionWithRecorder,
+  ): boolean {
+    return (
+      (loan.direction === 'LENT' && transaction.type === 'DISBURSEMENT') ||
+      (loan.direction === 'BORROWED' &&
+        transaction.balanceEffect === 'DECREASE' &&
+        (transaction.type === 'REPAYMENT' ||
+          transaction.type === 'INTEREST_PAYMENT'))
+    );
+  }
+
+  private canTransactionCreateIncome(
+    loan: LoanWithCreator,
+    transaction: LoanTransactionWithRecorder,
+  ): boolean {
+    return (
+      loan.direction === 'LENT' &&
+      transaction.balanceEffect === 'DECREASE' &&
+      (transaction.type === 'REPAYMENT' ||
+        transaction.type === 'INTEREST_PAYMENT')
+    );
+  }
+
+  private buildDefaultExpenseLabel(
+    loan: LoanWithCreator,
+    transaction: LoanTransactionWithRecorder,
+  ): string {
+    if (loan.direction === 'LENT') {
+      return `${loan.label} disbursement`;
+    }
+
+    if (transaction.type === 'INTEREST_PAYMENT') {
+      return `${loan.label} interest payment`;
+    }
+
+    return `${loan.label} repayment`;
+  }
+
+  private buildDefaultIncomeLabel(
+    loan: LoanWithCreator,
+    transaction: LoanTransactionWithRecorder,
+  ): string {
+    if (transaction.type === 'INTEREST_PAYMENT') {
+      return `${loan.label} interest received`;
+    }
+
+    return `${loan.label} repayment received`;
   }
 
   private assertLoanDatesAreValid(
