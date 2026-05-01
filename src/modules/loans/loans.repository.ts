@@ -62,6 +62,63 @@ export type LoanTransactionWithRecorder = Prisma.LoanTransactionGetPayload<{
   include: typeof TRANSACTION_SELECT;
 }>;
 
+function buildLoanSearchFilters(search?: string): Prisma.LoanWhereInput[] {
+  return search === undefined
+    ? []
+    : [
+        {
+          label: {
+            contains: search,
+            mode: 'insensitive',
+          },
+        },
+        {
+          note: {
+            contains: search,
+            mode: 'insensitive',
+          },
+        },
+        {
+          counterpartyName: {
+            contains: search,
+            mode: 'insensitive',
+          },
+        },
+        {
+          counterpartyContact: {
+            contains: search,
+            mode: 'insensitive',
+          },
+        },
+      ];
+}
+
+function buildLoanDateRangeFilter(
+  dateFrom?: Date,
+  dateTo?: Date,
+): Prisma.LoanWhereInput | undefined {
+  if (dateFrom === undefined || dateTo === undefined) {
+    return undefined;
+  }
+
+  return {
+    OR: [
+      {
+        date: {
+          gte: dateFrom,
+          lt: dateTo,
+        },
+      },
+      {
+        dueDate: {
+          gte: dateFrom,
+          lt: dateTo,
+        },
+      },
+    ],
+  };
+}
+
 @Injectable()
 export class LoansRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -82,35 +139,21 @@ export class LoansRepository {
     },
     db: PrismaExecutor = this.prisma,
   ): Promise<PaginatedResponse<LoanWithCreator>> {
-    const searchFilters: Prisma.LoanWhereInput[] =
-      options?.search === undefined
-        ? []
-        : [
+    const searchFilters = buildLoanSearchFilters(options?.search);
+    const dateRangeFilter = buildLoanDateRangeFilter(
+      options?.dateFrom,
+      options?.dateTo,
+    );
+    const andFilters: Prisma.LoanWhereInput[] = [
+      ...(searchFilters.length > 0
+        ? [
             {
-              label: {
-                contains: options.search,
-                mode: 'insensitive',
-              },
+              OR: searchFilters,
             },
-            {
-              note: {
-                contains: options.search,
-                mode: 'insensitive',
-              },
-            },
-            {
-              counterpartyName: {
-                contains: options.search,
-                mode: 'insensitive',
-              },
-            },
-            {
-              counterpartyContact: {
-                contains: options.search,
-                mode: 'insensitive',
-              },
-            },
-          ];
+          ]
+        : []),
+      ...(dateRangeFilter === undefined ? [] : [dateRangeFilter]),
+    ];
 
     const where: Prisma.LoanWhereInput = {
       userId: { in: userIds },
@@ -118,21 +161,7 @@ export class LoansRepository {
       status: options?.status,
       direction: options?.direction,
       type: options?.type,
-      AND:
-        searchFilters.length > 0
-          ? [
-              {
-                OR: searchFilters,
-              },
-            ]
-          : undefined,
-      date:
-        options?.dateFrom && options?.dateTo
-          ? {
-              gte: options.dateFrom,
-              lt: options.dateTo,
-            }
-          : undefined,
+      AND: andFilters.length > 0 ? andFilters : undefined,
     };
 
     const [items, totalItems] = await Promise.all([
@@ -169,35 +198,21 @@ export class LoansRepository {
     },
     db: PrismaExecutor = this.prisma,
   ): Promise<LoanWithCreator[]> {
-    const searchFilters: Prisma.LoanWhereInput[] =
-      options?.search === undefined
-        ? []
-        : [
+    const searchFilters = buildLoanSearchFilters(options?.search);
+    const dateRangeFilter = buildLoanDateRangeFilter(
+      options?.dateFrom,
+      options?.dateTo,
+    );
+    const andFilters: Prisma.LoanWhereInput[] = [
+      ...(searchFilters.length > 0
+        ? [
             {
-              label: {
-                contains: options.search,
-                mode: 'insensitive',
-              },
+              OR: searchFilters,
             },
-            {
-              note: {
-                contains: options.search,
-                mode: 'insensitive',
-              },
-            },
-            {
-              counterpartyName: {
-                contains: options.search,
-                mode: 'insensitive',
-              },
-            },
-            {
-              counterpartyContact: {
-                contains: options.search,
-                mode: 'insensitive',
-              },
-            },
-          ];
+          ]
+        : []),
+      ...(dateRangeFilter === undefined ? [] : [dateRangeFilter]),
+    ];
 
     return db.loan.findMany({
       where: {
@@ -206,21 +221,7 @@ export class LoansRepository {
         status: options?.status,
         direction: options?.direction,
         type: options?.type,
-        AND:
-          searchFilters.length > 0
-            ? [
-                {
-                  OR: searchFilters,
-                },
-              ]
-            : undefined,
-        date:
-          options?.dateFrom && options?.dateTo
-            ? {
-                gte: options.dateFrom,
-                lt: options.dateTo,
-              }
-            : undefined,
+        AND: andFilters.length > 0 ? andFilters : undefined,
       },
       include: {
         user: { select: USER_SELECT },
