@@ -202,6 +202,7 @@ export class TodosRepository {
       remainingBudgetLte?: number;
       search?: string;
       occurrenceDates?: string[];
+      hideCompletedBefore?: Date;
     },
     db: PrismaExecutor = this.prisma,
   ): Promise<TodoWithImages[]> {
@@ -226,6 +227,7 @@ export class TodosRepository {
       remainingBudgetLte?: number;
       search?: string;
       occurrenceDates?: string[];
+      hideCompletedBefore?: Date;
       skip?: number;
       take?: number;
       page: number;
@@ -266,6 +268,7 @@ export class TodosRepository {
       remainingBudgetLte?: number;
       search?: string;
       occurrenceDates?: string[];
+      hideCompletedBefore?: Date;
     },
     db: PrismaExecutor = this.prisma,
   ): Promise<TodoSummaryRow[]> {
@@ -648,6 +651,7 @@ export class TodosRepository {
       remainingBudgetLte?: number;
       search?: string;
       occurrenceDates?: string[];
+      hideCompletedBefore?: Date;
     },
   ): Prisma.TodoWhereInput {
     const today = new Date();
@@ -797,6 +801,19 @@ export class TodosRepository {
           : {
               lte: new Prisma.Decimal(options.remainingBudgetLte),
             },
+      AND:
+        options?.hideCompletedBefore === undefined
+          ? undefined
+          : [
+              {
+                NOT: {
+                  status: TodoStatus.COMPLETED,
+                  updatedAt: {
+                    lt: options.hideCompletedBefore,
+                  },
+                },
+              },
+            ],
     };
   }
 }
