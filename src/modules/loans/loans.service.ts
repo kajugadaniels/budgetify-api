@@ -8,6 +8,7 @@ import {
   ExpenseCategory,
   IncomeCategory,
   LoanBalanceEffect,
+  LoanDirection,
   LoanStatus,
   LoanTransactionType,
   Prisma,
@@ -38,6 +39,10 @@ import { CreateLoanRequestDto } from './dto/create-loan.request.dto';
 import { CreateLoanTransactionRequestDto } from './dto/create-loan-transaction.request.dto';
 import { LinkLoanTransactionFinancialRecordRequestDto } from './dto/link-loan-transaction-financial-record.request.dto';
 import { ListLoansQueryDto } from './dto/list-loans.query.dto';
+import { LoanAgingResponseDto } from './dto/loan-aging.response.dto';
+import { LoanAuditResponseDto } from './dto/loan-audit.response.dto';
+import { LoanReportingQueryDto } from './dto/loan-reporting.query.dto';
+import { LoanSummaryResponseDto } from './dto/loan-summary.response.dto';
 import { ReverseLoanTransactionRequestDto } from './dto/reverse-loan-transaction.request.dto';
 import { SendLoanToExpenseRequestDto } from './dto/send-loan-to-expense.request.dto';
 import { UpdateLoanRequestDto } from './dto/update-loan.request.dto';
@@ -82,6 +87,212 @@ export class LoansService {
       skip: pagination.skip,
       take: pagination.limit,
     });
+  }
+
+  async summarizeCurrentUserLoans(
+    userId: string,
+    query: LoanReportingQueryDto,
+  ): Promise<LoanSummaryResponseDto> {
+    await this.usersService.findActiveByIdOrThrow(userId);
+    const loans = await this.findReportingLoans(userId, query);
+    const dateRange = resolveListDateRange(query);
+    const periodTransactions = this.filterTransactionsByDateRange(
+      loans,
+      dateRange?.dateFrom,
+      dateRange?.dateTo,
+    );
+    const audit = this.buildLoanAuditSnapshot(loans, periodTransactions, {
+      periodStartDate: null,
+      periodEndDate: null,
+    });
+    const latestTransaction = periodTransactions
+      .slice()
+      .sort(
+        (left, right) =>
+          right.transaction.date.getTime() - left.transaction.date.getTime() ||
+          right.transaction.createdAt.getTime() -
+            left.transaction.createdAt.getTime(),
+      )[0];
+
+    return {
+      totalLoanCount: audit.loanCount,
+      activeLoanCount: loans.filter(
+        (loan) =>
+          loan.status === LoanStatus.ACTIVE ||
+          loan.status === LoanStatus.PARTIALLY_REPAID ||
+          loan.status === LoanStatus.OVERDUE,
+      ).length,
+      settledLoanCount: loans.filter(
+        (loan) => loan.status === LoanStatus.SETTLED,
+      ).length,
+      overdueLoanCount:
+        audit.statusBreakdown.find((item) => item.status === LoanStatus.OVERDUE)
+          ?.loanCount ?? 0,
+      borrowedOutstandingRwf:
+        audit.exposureByDirection.find(
+          (item) => item.direction === LoanDirection.BORROWED,
+        )?.totalOutstandingRwf ?? 0,
+      lentOutstandingRwf:
+        audit.exposureByDirection.find(
+          (item) => item.direction === LoanDirection.LENT,
+        )?.totalOutstandingRwf ?? 0,
+      interestPayableOutstandingRwf:
+        audit.exposureByDirection.find(
+          (item) => item.direction === LoanDirection.BORROWED,
+        )?.interestOutstandingRwf ?? 0,
+      interestReceivableOutstandingRwf:
+        audit.exposureByDirection.find(
+          (item) => item.direction === LoanDirection.LENT,
+        )?.interestOutstandingRwf ?? 0,
+      repaymentsThisPeriodRwf: periodTransactions
+        .filter(({ transaction }) => transaction.balanceEffect === 'DECREASE')
+        .reduce(
+          (sum, { transaction }) => sum + Number(transaction.amountRwf),
+          0,
+        ),
+      interestEarnedThisPeriodRwf: periodTransactions
+        .filter(
+          ({ loan, transaction }) =>
+            loan.direction === LoanDirection.LENT &&
+            transaction.balanceEffect === 'DECREASE',
+        )
+        .reduce(
+          (sum, { transaction }) => sum + Number(transaction.interestAmountRwf),
+          0,
+        ),
+      interestPaidThisPeriodRwf: periodTransactions
+        .filter(
+          ({ loan, transaction }) =>
+            loan.direction === LoanDirection.BORROWED &&
+            transaction.balanceEffect === 'DECREASE',
+        )
+        .reduce(
+          (sum, { transaction }) => sum + Number(transaction.interestAmountRwf),
+          0,
+        ),
+      linkedExpenseCount: audit.linkedExpenseCount,
+      linkedIncomeCount: audit.linkedIncomeCount,
+      reversedTransactionCount: audit.reversedTransactionCount,
+      exposureByDirection: audit.exposureByDirection,
+      statusBreakdown: audit.statusBreakdown,
+      latestTransaction:
+        latestTransaction === undefined
+          ? null
+          : {
+              id: latestTransaction.transaction.id,
+              loanLabel: latestTransaction.loan.label,
+              amountRwf: Number(latestTransaction.transaction.amountRwf),
+              date: latestTransaction.transaction.date,
+            },
+    };
+  }
+
+  async auditCurrentUserLoans(
+    userId: string,
+    query: LoanReportingQueryDto,
+  ): Promise<LoanAuditResponseDto> {
+    await this.usersService.findActiveByIdOrThrow(userId);
+    const loans = await this.findReportingLoans(userId, query);
+    const dateRange = resolveListDateRange(query);
+    const periodTransactions = this.filterTransactionsByDateRange(
+      loans,
+      dateRange?.dateFrom,
+      dateRange?.dateTo,
+    );
+
+    return this.buildLoanAuditSnapshot(loans, periodTransactions, {
+      periodStartDate: dateRange?.dateFrom.toISOString().slice(0, 10) ?? null,
+      periodEndDate:
+        dateRange?.dateTo === undefined
+          ? null
+          : new Date(dateRange.dateTo.getTime() - 1).toISOString().slice(0, 10),
+    });
+  }
+
+  async ageCurrentUserLoans(
+    userId: string,
+    query: LoanReportingQueryDto,
+  ): Promise<LoanAgingResponseDto> {
+    await this.usersService.findActiveByIdOrThrow(userId);
+    const loans = await this.findReportingLoans(userId, query);
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+    const overdueLoans = loans.filter((loan) => {
+      if (loan.dueDate === null) {
+        return false;
+      }
+
+      return (
+        loan.dueDate.getTime() < today.getTime() &&
+        this.summarizeLoanBalancesRwf(loan).totalOutstandingRwf > 0.01
+      );
+    });
+    const bucketNames = ['0-30', '31-60', '61-90', '90+'];
+    const buckets = bucketNames.map((bucket) =>
+      this.buildAgingBucket(
+        bucket,
+        overdueLoans.filter((loan) =>
+          this.isLoanInAgingBucket(loan, bucket, today),
+        ),
+      ),
+    );
+
+    return {
+      asOfDate: today.toISOString().slice(0, 10),
+      overdueLoanCount: overdueLoans.length,
+      overdueOutstandingRwf: overdueLoans.reduce(
+        (sum, loan) =>
+          sum + this.summarizeLoanBalancesRwf(loan).totalOutstandingRwf,
+        0,
+      ),
+      buckets,
+      byDirection: [LoanDirection.BORROWED, LoanDirection.LENT].map(
+        (direction) => {
+          const directionLoans = overdueLoans.filter(
+            (loan) => loan.direction === direction,
+          );
+
+          return {
+            direction,
+            overdueLoanCount: directionLoans.length,
+            overdueOutstandingRwf: directionLoans.reduce(
+              (sum, loan) =>
+                sum + this.summarizeLoanBalancesRwf(loan).totalOutstandingRwf,
+              0,
+            ),
+            buckets: bucketNames.map((bucket) =>
+              this.buildAgingBucket(
+                bucket,
+                directionLoans.filter((loan) =>
+                  this.isLoanInAgingBucket(loan, bucket, today),
+                ),
+              ),
+            ),
+          };
+        },
+      ),
+    };
+  }
+
+  async listCurrentUserLoanTransactionIndex(
+    userId: string,
+    query: LoanReportingQueryDto,
+  ): Promise<LoanTransactionWithRecorder[]> {
+    await this.usersService.findActiveByIdOrThrow(userId);
+    const loans = await this.findReportingLoans(userId, query);
+    const dateRange = resolveListDateRange(query);
+
+    return this.filterTransactionsByDateRange(
+      loans,
+      dateRange?.dateFrom,
+      dateRange?.dateTo,
+    )
+      .map(({ transaction }) => transaction)
+      .sort(
+        (left, right) =>
+          right.date.getTime() - left.date.getTime() ||
+          right.createdAt.getTime() - left.createdAt.getTime(),
+      );
   }
 
   async createCurrentUserLoan(
@@ -713,6 +924,253 @@ export class LoansService {
     }
 
     return transaction;
+  }
+
+  private async findReportingLoans(
+    userId: string,
+    query: LoanReportingQueryDto,
+  ): Promise<LoanWithCreator[]> {
+    const visibleUserIds =
+      await this.partnershipsService.getVisibleUserIds(userId);
+
+    return this.loansRepository.findAllByUserIds(visibleUserIds, {
+      search: normalizeListSearch(query.search),
+      status: query.status,
+      direction: query.direction,
+      type: query.type,
+    });
+  }
+
+  private filterTransactionsByDateRange(
+    loans: LoanWithCreator[],
+    dateFrom?: Date,
+    dateTo?: Date,
+  ): Array<{
+    loan: LoanWithCreator;
+    transaction: LoanTransactionWithRecorder;
+  }> {
+    return loans.flatMap((loan) =>
+      loan.transactions
+        .filter((transaction) => {
+          if (dateFrom === undefined || dateTo === undefined) {
+            return true;
+          }
+
+          return (
+            transaction.date.getTime() >= dateFrom.getTime() &&
+            transaction.date.getTime() < dateTo.getTime()
+          );
+        })
+        .map((transaction) => ({ loan, transaction })),
+    );
+  }
+
+  private buildLoanAuditSnapshot(
+    loans: LoanWithCreator[],
+    periodTransactions: Array<{
+      loan: LoanWithCreator;
+      transaction: LoanTransactionWithRecorder;
+    }>,
+    period: Pick<LoanAuditResponseDto, 'periodStartDate' | 'periodEndDate'>,
+  ): LoanAuditResponseDto {
+    const balances = loans.map((loan) => ({
+      loan,
+      balances: this.summarizeLoanBalancesRwf(loan),
+    }));
+
+    return {
+      ...period,
+      loanCount: loans.length,
+      transactionCount: periodTransactions.length,
+      reversedTransactionCount: periodTransactions.filter(
+        ({ transaction }) =>
+          transaction.type === LoanTransactionType.REVERSAL ||
+          transaction.reversals.length > 0,
+      ).length,
+      originalPrincipalRwf: balances.reduce(
+        (sum, item) => sum + item.balances.originalPrincipalRwf,
+        0,
+      ),
+      principalRepaidRwf: balances.reduce(
+        (sum, item) => sum + item.balances.principalRepaidRwf,
+        0,
+      ),
+      principalOutstandingRwf: balances.reduce(
+        (sum, item) => sum + item.balances.principalOutstandingRwf,
+        0,
+      ),
+      interestChargedRwf: balances.reduce(
+        (sum, item) => sum + item.balances.interestChargedRwf,
+        0,
+      ),
+      interestPaidRwf: balances.reduce(
+        (sum, item) => sum + item.balances.interestPaidRwf,
+        0,
+      ),
+      interestOutstandingRwf: balances.reduce(
+        (sum, item) => sum + item.balances.interestOutstandingRwf,
+        0,
+      ),
+      totalOutstandingRwf: balances.reduce(
+        (sum, item) => sum + item.balances.totalOutstandingRwf,
+        0,
+      ),
+      linkedExpenseCount: periodTransactions.filter(
+        ({ transaction }) =>
+          transaction.expense !== null &&
+          transaction.expense.deletedAt === null,
+      ).length,
+      linkedIncomeCount: periodTransactions.filter(
+        ({ transaction }) =>
+          transaction.income !== null && transaction.income.deletedAt === null,
+      ).length,
+      unlinkedEligibleTransactionCount: periodTransactions.filter(
+        ({ loan, transaction }) =>
+          this.canTransactionCreateExpense(loan, transaction) ||
+          this.canTransactionCreateIncome(loan, transaction),
+      ).length,
+      exposureByDirection: [LoanDirection.BORROWED, LoanDirection.LENT].map(
+        (direction) => {
+          const scoped = balances.filter(
+            (item) => item.loan.direction === direction,
+          );
+
+          return {
+            direction,
+            loanCount: scoped.length,
+            originalPrincipalRwf: scoped.reduce(
+              (sum, item) => sum + item.balances.originalPrincipalRwf,
+              0,
+            ),
+            principalOutstandingRwf: scoped.reduce(
+              (sum, item) => sum + item.balances.principalOutstandingRwf,
+              0,
+            ),
+            interestOutstandingRwf: scoped.reduce(
+              (sum, item) => sum + item.balances.interestOutstandingRwf,
+              0,
+            ),
+            totalOutstandingRwf: scoped.reduce(
+              (sum, item) => sum + item.balances.totalOutstandingRwf,
+              0,
+            ),
+          };
+        },
+      ),
+      statusBreakdown: Object.values(LoanStatus).map((status) => {
+        const scoped = balances.filter((item) => item.loan.status === status);
+
+        return {
+          status,
+          loanCount: scoped.length,
+          totalOutstandingRwf: scoped.reduce(
+            (sum, item) => sum + item.balances.totalOutstandingRwf,
+            0,
+          ),
+        };
+      }),
+    };
+  }
+
+  private summarizeLoanBalancesRwf(loan: LoanWithCreator): {
+    interestChargedRwf: number;
+    interestOutstandingRwf: number;
+    interestPaidRwf: number;
+    originalPrincipalRwf: number;
+    principalOutstandingRwf: number;
+    principalRepaidRwf: number;
+    totalOutstandingRwf: number;
+  } {
+    const totals = loan.transactions.reduce(
+      (accumulator, transaction) => {
+        const principalRwf = Number(transaction.principalAmountRwf);
+        const interestRwf = Number(transaction.interestAmountRwf);
+
+        if (transaction.balanceEffect === LoanBalanceEffect.INCREASE) {
+          accumulator.principalInRwf += principalRwf;
+          accumulator.interestInRwf += interestRwf;
+        } else {
+          accumulator.principalOutRwf += principalRwf;
+          accumulator.interestOutRwf += interestRwf;
+        }
+
+        return accumulator;
+      },
+      {
+        interestInRwf: 0,
+        interestOutRwf: 0,
+        principalInRwf: 0,
+        principalOutRwf: 0,
+      },
+    );
+    const principalOutstandingRwf = Math.max(
+      totals.principalInRwf - totals.principalOutRwf,
+      0,
+    );
+    const interestOutstandingRwf = Math.max(
+      totals.interestInRwf - totals.interestOutRwf,
+      0,
+    );
+
+    return {
+      interestChargedRwf: totals.interestInRwf,
+      interestOutstandingRwf,
+      interestPaidRwf: totals.interestOutRwf,
+      originalPrincipalRwf: totals.principalInRwf,
+      principalOutstandingRwf,
+      principalRepaidRwf: totals.principalOutRwf,
+      totalOutstandingRwf: principalOutstandingRwf + interestOutstandingRwf,
+    };
+  }
+
+  private buildAgingBucket(bucket: string, loans: LoanWithCreator[]) {
+    return {
+      bucket,
+      loanCount: loans.length,
+      principalOutstandingRwf: loans.reduce(
+        (sum, loan) =>
+          sum + this.summarizeLoanBalancesRwf(loan).principalOutstandingRwf,
+        0,
+      ),
+      interestOutstandingRwf: loans.reduce(
+        (sum, loan) =>
+          sum + this.summarizeLoanBalancesRwf(loan).interestOutstandingRwf,
+        0,
+      ),
+      totalOutstandingRwf: loans.reduce(
+        (sum, loan) =>
+          sum + this.summarizeLoanBalancesRwf(loan).totalOutstandingRwf,
+        0,
+      ),
+    };
+  }
+
+  private isLoanInAgingBucket(
+    loan: LoanWithCreator,
+    bucket: string,
+    asOfDate: Date,
+  ): boolean {
+    if (loan.dueDate === null) {
+      return false;
+    }
+
+    const overdueDays = Math.floor(
+      (asOfDate.getTime() - loan.dueDate.getTime()) / (24 * 60 * 60 * 1000),
+    );
+
+    if (bucket === '0-30') {
+      return overdueDays >= 0 && overdueDays <= 30;
+    }
+
+    if (bucket === '31-60') {
+      return overdueDays >= 31 && overdueDays <= 60;
+    }
+
+    if (bucket === '61-90') {
+      return overdueDays >= 61 && overdueDays <= 90;
+    }
+
+    return overdueDays > 90;
   }
 
   private async createLinkedExpenseFromTransaction(
