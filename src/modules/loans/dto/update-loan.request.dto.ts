@@ -36,13 +36,13 @@ function normalizeOptionalAmount(value: unknown): unknown {
   return value;
 }
 
-function normalizeOptionalNote(value: unknown): unknown {
+function normalizeOptionalNullableText(value: unknown): unknown {
   if (typeof value !== 'string') {
     return value;
   }
 
   const trimmed = value.trim();
-  return trimmed.length === 0 ? undefined : trimmed;
+  return trimmed.length === 0 ? null : trimmed;
 }
 
 function normalizeOptionalNullableDate(value: unknown): unknown {
@@ -107,13 +107,13 @@ export class UpdateLoanRequestDto {
     example: '+250788000000',
     maxLength: 120,
   })
-  @Transform(({ value }) => normalizeOptionalNote(value))
+  @Transform(({ value }) => normalizeOptionalNullableText(value))
   @IsOptional()
   @IsString()
   @MaxLength(120, {
     message: 'Counterparty contact must not exceed 120 characters.',
   })
-  counterpartyContact?: string;
+  counterpartyContact?: string | null;
 
   @ApiPropertyOptional({
     description: 'Updated loan amount in the selected currency.',
@@ -185,9 +185,9 @@ export class UpdateLoanRequestDto {
     example: 'Cleared in two installments',
     maxLength: 500,
   })
-  @Transform(({ value }) => normalizeOptionalNote(value))
+  @Transform(({ value }) => normalizeOptionalNullableText(value))
   @IsOptional()
   @IsString()
   @MaxLength(500, { message: 'Note must not exceed 500 characters.' })
-  note?: string;
+  note?: string | null;
 }
