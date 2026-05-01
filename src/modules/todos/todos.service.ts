@@ -247,7 +247,7 @@ export class TodosService {
       await this.partnershipsService.getVisibleUserIds(userId);
     const pagination = resolvePaginationOptions(query);
     const dateRange = resolveListDateRange(query);
-    const hideCompletedBefore = this.getCurrentMonthStartDate();
+    const defaultBoardScope = this.resolveDefaultBoardScope(query);
     const items = await this.todosRepository.findAllByUserIds(visibleUserIds, {
       frequency: query.frequency,
       cadence: query.cadence,
@@ -260,7 +260,7 @@ export class TodosService {
       remainingBudgetLte: query.remainingBudgetLte,
       search: normalizeListSearch(query.search),
       occurrenceDates: dateRange?.isoDates,
-      hideCompletedBefore,
+      ...defaultBoardScope,
     });
     const sortedItems = this.sortTodoListItems(
       items,
@@ -282,9 +282,11 @@ export class TodosService {
     query: TodoSummaryQueryDto,
   ): Promise<TodoSummarySnapshot> {
     const dateRange = resolveListDateRange(query);
-    const rows = await this.listSummaryRowsForUser(userId, query, {
-      hideCompletedBefore: this.getCurrentMonthStartDate(),
-    });
+    const rows = await this.listSummaryRowsForUser(
+      userId,
+      query,
+      this.resolveDefaultBoardScope(query),
+    );
     const report = await this.buildTodoReportingSnapshot(rows, {
       occurrenceDateFrom: dateRange?.dateFrom,
       occurrenceDateTo: dateRange?.dateTo,
@@ -2233,6 +2235,87 @@ export class TodosService {
     return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
   }
 
+  private getCurrentMonthIsoDates(): string[] {
+    const monthStart = this.getCurrentMonthStartDate();
+    const nextMonthStart = new Date(
+      Date.UTC(monthStart.getUTCFullYear(), monthStart.getUTCMonth() + 1, 1),
+    );
+    const dates: string[] = [];
+
+    for (
+      let cursor = new Date(monthStart);
+      cursor.getTime() < nextMonthStart.getTime();
+      cursor = this.addDays(cursor, 1)
+    ) {
+      dates.push(this.toIsoDate(cursor));
+    }
+
+    return dates;
+  }
+
+  private resolveDefaultBoardScope(
+    query: Pick<
+      ListTodosQueryDto,
+      | 'frequency'
+      | 'cadence'
+      | 'priority'
+      | 'status'
+      | 'type'
+      | 'operationalState'
+      | 'hasLinkedExpense'
+      | 'feeBearingOnly'
+      | 'remainingBudgetLte'
+      | 'search'
+      | 'dateFrom'
+      | 'dateTo'
+    >,
+  ): {
+    defaultOccurrenceDates?: string[];
+    hideCompletedBefore?: Date;
+  } {
+    if (this.hasUserAppliedBoardFilter(query)) {
+      return {};
+    }
+
+    return {
+      defaultOccurrenceDates: this.getCurrentMonthIsoDates(),
+      hideCompletedBefore: this.getCurrentMonthStartDate(),
+    };
+  }
+
+  private hasUserAppliedBoardFilter(
+    query: Pick<
+      ListTodosQueryDto,
+      | 'frequency'
+      | 'cadence'
+      | 'priority'
+      | 'status'
+      | 'type'
+      | 'operationalState'
+      | 'hasLinkedExpense'
+      | 'feeBearingOnly'
+      | 'remainingBudgetLte'
+      | 'search'
+      | 'dateFrom'
+      | 'dateTo'
+    >,
+  ): boolean {
+    return (
+      query.frequency !== undefined ||
+      query.cadence !== undefined ||
+      query.priority !== undefined ||
+      query.status !== undefined ||
+      query.type !== undefined ||
+      query.operationalState !== undefined ||
+      query.hasLinkedExpense !== undefined ||
+      query.feeBearingOnly !== undefined ||
+      query.remainingBudgetLte !== undefined ||
+      normalizeListSearch(query.search) !== undefined ||
+      query.dateFrom !== undefined ||
+      query.dateTo !== undefined
+    );
+  }
+
   private async listSummaryRowsForUser(
     userId: string,
     query: Pick<
@@ -2251,6 +2334,7 @@ export class TodosService {
       | 'dateTo'
     >,
     options?: {
+      defaultOccurrenceDates?: string[];
       hideCompletedBefore?: Date;
     },
   ): Promise<TodoSummaryRow[]> {
@@ -2271,6 +2355,7 @@ export class TodosService {
       remainingBudgetLte: query.remainingBudgetLte,
       search: normalizeListSearch(query.search),
       occurrenceDates: dateRange?.isoDates,
+      defaultOccurrenceDates: options?.defaultOccurrenceDates,
       hideCompletedBefore: options?.hideCompletedBefore,
     });
   }
