@@ -85,8 +85,10 @@ export class LoansMapper {
       date: transaction.date,
       note: transaction.note,
       reversalOfTransactionId: transaction.reversalOfTransactionId,
+      isReversed: transaction.reversals.length > 0,
+      reversedByTransactionId: transaction.reversals[0]?.id ?? null,
       linkedExpense:
-        transaction.expense === null
+        transaction.expense === null || transaction.expense.deletedAt !== null
           ? null
           : {
               id: transaction.expense.id,
@@ -99,7 +101,7 @@ export class LoansMapper {
               date: transaction.expense.date,
             },
       linkedIncome:
-        transaction.income === null
+        transaction.income === null || transaction.income.deletedAt !== null
           ? null
           : {
               id: transaction.income.id,
