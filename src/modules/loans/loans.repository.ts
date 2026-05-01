@@ -145,6 +145,69 @@ export class LoansRepository {
     });
   }
 
+  async findAllByUserIds(
+    userIds: string[],
+    options?: {
+      dateFrom?: Date;
+      dateTo?: Date;
+      search?: string;
+      status?: LoanStatus;
+      direction?: LoanDirection;
+      type?: LoanType;
+    },
+    db: PrismaExecutor = this.prisma,
+  ): Promise<LoanWithCreator[]> {
+    const searchFilters: Prisma.LoanWhereInput[] =
+      options?.search === undefined
+        ? []
+        : [
+            {
+              label: {
+                contains: options.search,
+                mode: 'insensitive',
+              },
+            },
+            {
+              note: {
+                contains: options.search,
+                mode: 'insensitive',
+              },
+            },
+          ];
+
+    return db.loan.findMany({
+      where: {
+        userId: { in: userIds },
+        deletedAt: null,
+        status: options?.status,
+        direction: options?.direction,
+        type: options?.type,
+        AND:
+          searchFilters.length > 0
+            ? [
+                {
+                  OR: searchFilters,
+                },
+              ]
+            : undefined,
+        date:
+          options?.dateFrom && options?.dateTo
+            ? {
+                gte: options.dateFrom,
+                lt: options.dateTo,
+              }
+            : undefined,
+      },
+      include: {
+        user: { select: USER_SELECT },
+        transactions: {
+          include: TRANSACTION_SELECT,
+        },
+      },
+      orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
+    });
+  }
+
   async findActiveByIdAndUserId(
     id: string,
     userId: string,
