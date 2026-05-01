@@ -203,6 +203,7 @@ export class TodosRepository {
       search?: string;
       occurrenceDates?: string[];
       hideCompletedBefore?: Date;
+      defaultOccurrenceDates?: string[];
     },
     db: PrismaExecutor = this.prisma,
   ): Promise<TodoWithImages[]> {
@@ -228,6 +229,7 @@ export class TodosRepository {
       search?: string;
       occurrenceDates?: string[];
       hideCompletedBefore?: Date;
+      defaultOccurrenceDates?: string[];
       skip?: number;
       take?: number;
       page: number;
@@ -269,6 +271,7 @@ export class TodosRepository {
       search?: string;
       occurrenceDates?: string[];
       hideCompletedBefore?: Date;
+      defaultOccurrenceDates?: string[];
     },
     db: PrismaExecutor = this.prisma,
   ): Promise<TodoSummaryRow[]> {
@@ -652,6 +655,7 @@ export class TodosRepository {
       search?: string;
       occurrenceDates?: string[];
       hideCompletedBefore?: Date;
+      defaultOccurrenceDates?: string[];
     },
   ): Prisma.TodoWhereInput {
     const today = new Date();
@@ -742,6 +746,36 @@ export class TodosRepository {
                   },
                 }
               : undefined;
+    const andFilters: Prisma.TodoWhereInput[] = [
+      ...(options?.hideCompletedBefore === undefined
+        ? []
+        : [
+            {
+              NOT: {
+                status: TodoStatus.COMPLETED,
+                updatedAt: {
+                  lt: options.hideCompletedBefore,
+                },
+              },
+            },
+          ]),
+      ...(options?.occurrenceDates === undefined &&
+      options?.defaultOccurrenceDates !== undefined &&
+      options.defaultOccurrenceDates.length > 0
+        ? [
+            {
+              OR: [
+                { occurrenceDates: { isEmpty: true } },
+                {
+                  occurrenceDates: {
+                    hasSome: options.defaultOccurrenceDates,
+                  },
+                },
+              ],
+            },
+          ]
+        : []),
+    ];
 
     return {
       userId: { in: userIds },
@@ -801,19 +835,7 @@ export class TodosRepository {
           : {
               lte: new Prisma.Decimal(options.remainingBudgetLte),
             },
-      AND:
-        options?.hideCompletedBefore === undefined
-          ? undefined
-          : [
-              {
-                NOT: {
-                  status: TodoStatus.COMPLETED,
-                  updatedAt: {
-                    lt: options.hideCompletedBefore,
-                  },
-                },
-              },
-            ],
+      AND: andFilters.length > 0 ? andFilters : undefined,
     };
   }
 }
