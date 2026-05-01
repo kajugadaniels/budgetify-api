@@ -1,12 +1,54 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { LoanDirection, LoanStatus, LoanType } from '@prisma/client';
-import { IsEnum, IsInt, IsOptional, Max, Min } from 'class-validator';
+import {
+  IsEnum,
+  IsIn,
+  IsInt,
+  IsNumber,
+  IsOptional,
+  Max,
+  Min,
+} from 'class-validator';
 
 import {
   normalizeOptionalInteger,
   PaginationQueryDto,
 } from '../../../common/dto/pagination-query.dto';
+
+function normalizeOptionalNumber(value: unknown): unknown {
+  if (typeof value !== 'string') {
+    return value;
+  }
+
+  const normalized = value.trim();
+  return normalized.length === 0 ? undefined : Number(normalized);
+}
+
+export const LOAN_OPERATIONAL_FILTERS = [
+  'DUE_SOON',
+  'OVERDUE',
+  'OUTSTANDING',
+  'HAS_LINKED_EXPENSE',
+  'HAS_LINKED_INCOME',
+  'UNLINKED_ELIGIBLE',
+  'HAS_INTEREST',
+] as const;
+
+export type LoanOperationalFilter = (typeof LOAN_OPERATIONAL_FILTERS)[number];
+
+export const LOAN_SORT_OPTIONS = [
+  'ISSUED_DESC',
+  'ISSUED_ASC',
+  'DUE_ASC',
+  'DUE_DESC',
+  'OUTSTANDING_DESC',
+  'OUTSTANDING_ASC',
+  'COUNTERPARTY_ASC',
+  'LATEST_ACTIVITY_DESC',
+] as const;
+
+export type LoanSortOption = (typeof LOAN_SORT_OPTIONS)[number];
 
 export class ListLoansQueryDto extends PaginationQueryDto {
   @ApiPropertyOptional({
@@ -67,4 +109,56 @@ export class ListLoansQueryDto extends PaginationQueryDto {
     message: 'Status must be a valid loan lifecycle value.',
   })
   status?: LoanStatus;
+
+  @ApiPropertyOptional({
+    enum: LOAN_OPERATIONAL_FILTERS,
+    example: 'UNLINKED_ELIGIBLE',
+    description:
+      'Optional operational filter for due, outstanding, linked, and action-needed loan states.',
+  })
+  @IsOptional()
+  @IsIn(LOAN_OPERATIONAL_FILTERS, {
+    message: 'Operational filter must be a valid loan operational state.',
+  })
+  operationalFilter?: LoanOperationalFilter;
+
+  @ApiPropertyOptional({
+    enum: LOAN_SORT_OPTIONS,
+    example: 'OUTSTANDING_DESC',
+    description:
+      'Optional sort order. Derived sorts use current loan balances and latest ledger activity.',
+  })
+  @IsOptional()
+  @IsIn(LOAN_SORT_OPTIONS, {
+    message: 'Sort option must be a valid loan sort value.',
+  })
+  sortBy?: LoanSortOption;
+
+  @ApiPropertyOptional({
+    description: 'Minimum current outstanding balance in RWF.',
+    example: 25000,
+    minimum: 0,
+  })
+  @Transform(({ value }) => normalizeOptionalNumber(value))
+  @IsOptional()
+  @IsNumber(
+    { maxDecimalPlaces: 2 },
+    { message: 'Minimum outstanding balance must be a number.' },
+  )
+  @Min(0, { message: 'Minimum outstanding balance must be at least 0.' })
+  minOutstandingRwf?: number;
+
+  @ApiPropertyOptional({
+    description: 'Maximum current outstanding balance in RWF.',
+    example: 500000,
+    minimum: 0,
+  })
+  @Transform(({ value }) => normalizeOptionalNumber(value))
+  @IsOptional()
+  @IsNumber(
+    { maxDecimalPlaces: 2 },
+    { message: 'Maximum outstanding balance must be a number.' },
+  )
+  @Min(0, { message: 'Maximum outstanding balance must be at least 0.' })
+  maxOutstandingRwf?: number;
 }
