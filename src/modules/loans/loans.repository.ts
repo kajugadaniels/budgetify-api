@@ -25,6 +25,7 @@ const TRANSACTION_EXPENSE_SELECT = {
   totalAmountRwf: true,
   category: true,
   date: true,
+  deletedAt: true,
 } as const;
 
 const TRANSACTION_INCOME_SELECT = {
@@ -36,12 +37,18 @@ const TRANSACTION_INCOME_SELECT = {
   category: true,
   received: true,
   date: true,
+  deletedAt: true,
 } as const;
 
 const TRANSACTION_SELECT = {
   recordedBy: { select: USER_SELECT },
   expense: { select: TRANSACTION_EXPENSE_SELECT },
   income: { select: TRANSACTION_INCOME_SELECT },
+  reversals: {
+    select: {
+      id: true,
+    },
+  },
 } as const;
 
 export type LoanWithCreator = Prisma.LoanGetPayload<{
