@@ -21,7 +21,11 @@ import { CreateLoanRequestDto } from './dto/create-loan.request.dto';
 import { CreateLoanTransactionRequestDto } from './dto/create-loan-transaction.request.dto';
 import { LinkLoanTransactionFinancialRecordRequestDto } from './dto/link-loan-transaction-financial-record.request.dto';
 import { ListLoansQueryDto } from './dto/list-loans.query.dto';
+import { LoanAgingResponseDto } from './dto/loan-aging.response.dto';
+import { LoanAuditResponseDto } from './dto/loan-audit.response.dto';
+import { LoanReportingQueryDto } from './dto/loan-reporting.query.dto';
 import { LoanSettlementResponseDto } from './dto/loan-settlement-response.dto';
+import { LoanSummaryResponseDto } from './dto/loan-summary.response.dto';
 import { LoanTransactionResponseDto } from './dto/loan-transaction.response.dto';
 import { PaginatedLoanResponseDto } from './dto/paginated-loan.response.dto';
 import { ReverseLoanTransactionRequestDto } from './dto/reverse-loan-transaction.request.dto';
@@ -35,12 +39,16 @@ import {
   ApiCreateCurrentUserLoanEndpoint,
   ApiCreateCurrentUserLoanTransactionEndpoint,
   ApiDeleteCurrentUserLoanEndpoint,
+  ApiAgeCurrentUserLoansEndpoint,
+  ApiAuditCurrentUserLoansEndpoint,
   ApiListCurrentUserLoansEndpoint,
+  ApiListCurrentUserLoanTransactionIndexEndpoint,
   ApiListCurrentUserLoanTransactionsEndpoint,
   ApiReverseCurrentUserLoanTransactionEndpoint,
   ApiSendCurrentUserLoanToExpenseEndpoint,
   ApiSendCurrentUserLoanTransactionToExpenseEndpoint,
   ApiSendCurrentUserLoanTransactionToIncomeEndpoint,
+  ApiSummarizeCurrentUserLoansEndpoint,
   ApiUpdateCurrentUserLoanEndpoint,
 } from './loans.swagger';
 
@@ -77,6 +85,50 @@ export class LoansController {
     );
 
     return LoansMapper.toLoanResponse(loan);
+  }
+
+  @Get(LOANS_ROUTES.summary)
+  @ApiSummarizeCurrentUserLoansEndpoint()
+  async summarizeCurrentUserLoans(
+    @CurrentUser() user: AuthenticatedRequestUser,
+    @Query() query: LoanReportingQueryDto,
+  ): Promise<LoanSummaryResponseDto> {
+    return this.loansService.summarizeCurrentUserLoans(user.userId, query);
+  }
+
+  @Get(LOANS_ROUTES.audit)
+  @ApiAuditCurrentUserLoansEndpoint()
+  async auditCurrentUserLoans(
+    @CurrentUser() user: AuthenticatedRequestUser,
+    @Query() query: LoanReportingQueryDto,
+  ): Promise<LoanAuditResponseDto> {
+    return this.loansService.auditCurrentUserLoans(user.userId, query);
+  }
+
+  @Get(LOANS_ROUTES.aging)
+  @ApiAgeCurrentUserLoansEndpoint()
+  async ageCurrentUserLoans(
+    @CurrentUser() user: AuthenticatedRequestUser,
+    @Query() query: LoanReportingQueryDto,
+  ): Promise<LoanAgingResponseDto> {
+    return this.loansService.ageCurrentUserLoans(user.userId, query);
+  }
+
+  @Get(LOANS_ROUTES.transactionsIndex)
+  @ApiListCurrentUserLoanTransactionIndexEndpoint()
+  async listCurrentUserLoanTransactionIndex(
+    @CurrentUser() user: AuthenticatedRequestUser,
+    @Query() query: LoanReportingQueryDto,
+  ): Promise<LoanTransactionResponseDto[]> {
+    const transactions =
+      await this.loansService.listCurrentUserLoanTransactionIndex(
+        user.userId,
+        query,
+      );
+
+    return transactions.map((transaction) =>
+      LoansMapper.toLoanTransactionResponse(transaction),
+    );
   }
 
   @Get(LOANS_ROUTES.transactions)
