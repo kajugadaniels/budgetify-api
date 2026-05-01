@@ -22,6 +22,7 @@ import { LinkLoanTransactionFinancialRecordRequestDto } from './dto/link-loan-tr
 import { LoanSettlementResponseDto } from './dto/loan-settlement-response.dto';
 import { LoanTransactionResponseDto } from './dto/loan-transaction.response.dto';
 import { PaginatedLoanResponseDto } from './dto/paginated-loan.response.dto';
+import { ReverseLoanTransactionRequestDto } from './dto/reverse-loan-transaction.request.dto';
 import { LoanResponseDto } from './dto/loan-response.dto';
 import { SendLoanToExpenseRequestDto } from './dto/send-loan-to-expense.request.dto';
 import { UpdateLoanRequestDto } from './dto/update-loan.request.dto';
@@ -444,7 +445,7 @@ export function ApiCreateCurrentUserLoanTransactionEndpoint(): MethodDecorator {
     }),
     ApiBadRequestResponse({
       description:
-        'Request validation failed, the target transaction for reversal was not found, or the loan cannot accept new transactions.',
+        'Request validation failed or the loan cannot accept new transactions.',
       type: ApiErrorResponseDto,
     }),
     ApiUnauthorizedResponse({
@@ -459,6 +460,56 @@ export function ApiCreateCurrentUserLoanTransactionEndpoint(): MethodDecorator {
     ApiNotFoundResponse({
       description:
         'The requested loan record does not exist for the authenticated user.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiTooManyRequestsResponse({
+      description:
+        'Too many loan write requests were sent in a short time. Wait about 15 seconds before trying again.',
+      type: ApiErrorResponseDto,
+    }),
+  );
+}
+
+export function ApiReverseCurrentUserLoanTransactionEndpoint(): MethodDecorator {
+  return applyDecorators(
+    ApiBearerAuth('access-token'),
+    ApiOperation({
+      summary: 'Reverse one loan transaction',
+      description:
+        'Creates one audited reversal entry for the specified loan transaction, automatically restores the loan balance effect, and unlinks any generated income or expense record created from the original transaction.',
+    }),
+    ApiParam({
+      name: 'loanId',
+      description: 'UUID of the loan record that owns the transaction.',
+      format: 'uuid',
+    }),
+    ApiParam({
+      name: 'transactionId',
+      description: 'UUID of the loan transaction to reverse.',
+      format: 'uuid',
+    }),
+    ApiBody({ type: ReverseLoanTransactionRequestDto }),
+    ApiCreatedResponse({
+      description: 'The reversal transaction was recorded successfully.',
+      type: LoanTransactionResponseDto,
+    }),
+    ApiBadRequestResponse({
+      description:
+        'Request validation failed, the transaction was already reversed, the transaction is itself a reversal, or a linked downstream record still has dependent allocations.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiUnauthorizedResponse({
+      description: 'Access token is missing, invalid, or expired.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiForbiddenResponse({
+      description:
+        'Authenticated user account is not allowed to reverse transactions on that loan.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiNotFoundResponse({
+      description:
+        'The requested loan or loan transaction does not exist for the authenticated user.',
       type: ApiErrorResponseDto,
     }),
     ApiTooManyRequestsResponse({
