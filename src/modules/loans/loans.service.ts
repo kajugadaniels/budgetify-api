@@ -427,7 +427,11 @@ export class LoansService {
         ? loan.date
         : new Date(payload.issuedDate);
     const nextDueDate =
-      payload.dueDate === undefined ? loan.dueDate : new Date(payload.dueDate);
+      payload.dueDate === undefined
+        ? loan.dueDate
+        : payload.dueDate === null
+          ? null
+          : new Date(payload.dueDate);
     this.assertLoanDatesAreValid(nextIssuedDate, nextDueDate);
     const nextStatus = this.resolveLifecycleStatus(
       payload.status ?? loan.status,
