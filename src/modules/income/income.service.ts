@@ -361,6 +361,12 @@ export class IncomeService {
       );
     }
 
+    if (income.loanTransaction !== null) {
+      throw new BadRequestException(
+        'Reverse the linked loan transaction before deleting this income directly.',
+      );
+    }
+
     await this.incomeRepository.update(income.id, {
       deletedAt: new Date(),
     });
