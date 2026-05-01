@@ -64,6 +64,15 @@ export class LoanTransactionResponseDto {
   })
   reversalOfTransactionId!: string | null;
 
+  @ApiProperty({ example: false })
+  isReversed!: boolean;
+
+  @ApiPropertyOptional({
+    example: '4c9d16ea-04e5-4171-b56d-c65b1aa0ab62',
+    nullable: true,
+  })
+  reversedByTransactionId!: string | null;
+
   @ApiPropertyOptional({
     type: LoanLinkedExpenseResponseDto,
     nullable: true,
