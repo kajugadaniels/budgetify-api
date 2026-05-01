@@ -32,11 +32,13 @@ import {
   IncomeWithCreator,
 } from '../income/income.repository';
 import { PartnershipsService } from '../partnerships/partnerships.service';
+import { SavingsRepository } from '../savings/savings.repository';
 import { UsersService } from '../users/users.service';
 import { CreateLoanRequestDto } from './dto/create-loan.request.dto';
 import { CreateLoanTransactionRequestDto } from './dto/create-loan-transaction.request.dto';
 import { LinkLoanTransactionFinancialRecordRequestDto } from './dto/link-loan-transaction-financial-record.request.dto';
 import { ListLoansQueryDto } from './dto/list-loans.query.dto';
+import { ReverseLoanTransactionRequestDto } from './dto/reverse-loan-transaction.request.dto';
 import { SendLoanToExpenseRequestDto } from './dto/send-loan-to-expense.request.dto';
 import { UpdateLoanRequestDto } from './dto/update-loan.request.dto';
 import {
@@ -51,6 +53,7 @@ export class LoansService {
     private readonly loansRepository: LoansRepository,
     private readonly expensesRepository: ExpensesRepository,
     private readonly incomeRepository: IncomeRepository,
+    private readonly savingsRepository: SavingsRepository,
     private readonly prisma: PrismaService,
     private readonly usersService: UsersService,
     private readonly partnershipsService: PartnershipsService,
@@ -471,29 +474,15 @@ export class LoansService {
       );
     }
 
+    if (payload.type === LoanTransactionType.REVERSAL) {
+      throw new BadRequestException(
+        'Use the dedicated reverse transaction endpoint for loan reversals.',
+      );
+    }
+
     const transactionDate = new Date(payload.date);
     if (Number.isNaN(transactionDate.getTime())) {
       throw new BadRequestException('Transaction date must be valid.');
-    }
-
-    let reversalTarget: LoanTransactionWithRecorder | null = null;
-
-    if (payload.reversalOfTransactionId !== undefined) {
-      reversalTarget = await this.loansRepository.findTransactionById(
-        payload.reversalOfTransactionId,
-      );
-
-      if (reversalTarget === null) {
-        throw new BadRequestException(
-          'The transaction selected for reversal could not be found.',
-        );
-      }
-
-      if (reversalTarget.loanId !== loan.id) {
-        throw new BadRequestException(
-          'Reversal targets must belong to the same loan ledger.',
-        );
-      }
     }
 
     const amountRwf = Number(
@@ -503,9 +492,8 @@ export class LoansService {
       loan,
       payload,
       amountRwf,
-      reversalTarget,
     );
-    const nextStatus = this.resolveStatusAfterTransaction(
+    const nextStatus = this.resolveStatusAfterLedgerMutation(
       loan,
       payload.type,
       allocation,
@@ -520,7 +508,6 @@ export class LoansService {
           currency: payload.currency,
           date: transactionDate,
           note: payload.note ?? null,
-          reversalOfTransactionId: payload.reversalOfTransactionId ?? null,
           amount: payload.amount,
           amountRwf,
           principalAmount: allocation.principalAmount,
@@ -543,6 +530,137 @@ export class LoansService {
       }
 
       return transaction;
+    });
+  }
+
+  async reverseCurrentUserLoanTransaction(
+    userId: string,
+    loanId: string,
+    transactionId: string,
+    payload: ReverseLoanTransactionRequestDto,
+  ): Promise<LoanTransactionWithRecorder> {
+    await this.usersService.findActiveByIdOrThrow(userId);
+    const loan = await this.findVisibleLoanOrThrow(userId, loanId);
+    const target = await this.findTransactionForLoanOrThrow(
+      loan,
+      transactionId,
+    );
+
+    if (target.type === LoanTransactionType.REVERSAL) {
+      throw new BadRequestException(
+        'Reversal transactions cannot be reversed directly.',
+      );
+    }
+
+    if (target.reversalOfTransactionId !== null) {
+      throw new BadRequestException(
+        'Reversal transactions cannot be reversed directly.',
+      );
+    }
+
+    if (target.reversals.length > 0) {
+      throw new BadRequestException(
+        'This loan transaction has already been reversed.',
+      );
+    }
+
+    const reversalDate = new Date(payload.date);
+    if (Number.isNaN(reversalDate.getTime())) {
+      throw new BadRequestException('Reversal date must be valid.');
+    }
+
+    if (target.income !== null) {
+      const allocatedToSavingsRwf =
+        await this.savingsRepository.sumDepositSourceAmountRwfByIncomeId(
+          target.income.id,
+        );
+
+      if (Number(allocatedToSavingsRwf) > 0) {
+        throw new BadRequestException(
+          'Reverse the savings allocations funded by this loan recovery before reversing the loan transaction.',
+        );
+      }
+    }
+
+    const allocation = {
+      principalAmount: Number(target.principalAmount),
+      principalAmountRwf: Number(target.principalAmountRwf),
+      interestAmount: Number(target.interestAmount),
+      interestAmountRwf: Number(target.interestAmountRwf),
+      balanceEffect:
+        target.balanceEffect === LoanBalanceEffect.INCREASE
+          ? LoanBalanceEffect.DECREASE
+          : LoanBalanceEffect.INCREASE,
+    } as const;
+    const nextStatus = this.resolveStatusAfterLedgerMutation(
+      loan,
+      LoanTransactionType.REVERSAL,
+      allocation,
+    );
+
+    return this.prisma.$transaction(async (tx) => {
+      if (target.expense !== null) {
+        await this.expensesRepository.update(
+          target.expense.id,
+          {
+            deletedAt: new Date(),
+          },
+          tx,
+        );
+      }
+
+      if (target.income !== null) {
+        await this.incomeRepository.update(
+          target.income.id,
+          {
+            deletedAt: new Date(),
+          },
+          tx,
+        );
+      }
+
+      await this.loansRepository.updateTransaction(
+        target.id,
+        {
+          expense: target.expense === null ? undefined : { disconnect: true },
+          income: target.income === null ? undefined : { disconnect: true },
+        },
+        tx,
+      );
+
+      const reversal = await this.loansRepository.createTransaction(
+        LoansService.buildLoanTransactionCreateData({
+          loanId: loan.id,
+          recordedByUserId: userId,
+          type: LoanTransactionType.REVERSAL,
+          currency: target.currency,
+          date: reversalDate,
+          note:
+            payload.note ??
+            `Reversal of ${target.type.toLowerCase().replace(/_/g, ' ')}`,
+          reversalOfTransactionId: target.id,
+          amount: Number(target.amount),
+          amountRwf: Number(target.amountRwf),
+          principalAmount: allocation.principalAmount,
+          principalAmountRwf: allocation.principalAmountRwf,
+          interestAmount: allocation.interestAmount,
+          interestAmountRwf: allocation.interestAmountRwf,
+          balanceEffect: allocation.balanceEffect,
+        }),
+        tx,
+      );
+
+      if (nextStatus !== loan.status) {
+        await this.loansRepository.update(
+          loan.id,
+          {
+            status: nextStatus,
+          },
+          tx,
+        );
+      }
+
+      return reversal;
     });
   }
 
@@ -606,6 +724,15 @@ export class LoansService {
       | LinkLoanTransactionFinancialRecordRequestDto,
     tx: Prisma.TransactionClient,
   ): Promise<ExpenseWithCreator> {
+    if (
+      transaction.reversalOfTransactionId !== null ||
+      transaction.reversals.length > 0
+    ) {
+      throw new BadRequestException(
+        'Reversed loan transactions cannot be linked to expenses.',
+      );
+    }
+
     if (transaction.expense !== null) {
       throw new BadRequestException(
         'This loan transaction is already linked to an expense record.',
@@ -662,6 +789,15 @@ export class LoansService {
     payload: LinkLoanTransactionFinancialRecordRequestDto,
     tx: Prisma.TransactionClient,
   ): Promise<IncomeWithCreator> {
+    if (
+      transaction.reversalOfTransactionId !== null ||
+      transaction.reversals.length > 0
+    ) {
+      throw new BadRequestException(
+        'Reversed loan transactions cannot be linked to income.',
+      );
+    }
+
     if (transaction.income !== null) {
       throw new BadRequestException(
         'This loan transaction is already linked to an income record.',
@@ -711,6 +847,13 @@ export class LoansService {
     loan: LoanWithCreator,
     transaction: LoanTransactionWithRecorder,
   ): boolean {
+    if (
+      transaction.reversalOfTransactionId !== null ||
+      transaction.reversals.length > 0
+    ) {
+      return false;
+    }
+
     return (
       (loan.direction === 'LENT' && transaction.type === 'DISBURSEMENT') ||
       (loan.direction === 'BORROWED' &&
@@ -724,6 +867,13 @@ export class LoansService {
     loan: LoanWithCreator,
     transaction: LoanTransactionWithRecorder,
   ): boolean {
+    if (
+      transaction.reversalOfTransactionId !== null ||
+      transaction.reversals.length > 0
+    ) {
+      return false;
+    }
+
     return (
       loan.direction === 'LENT' &&
       transaction.balanceEffect === 'DECREASE' &&
@@ -812,7 +962,7 @@ export class LoansService {
     return baseStatus === LoanStatus.OVERDUE ? LoanStatus.ACTIVE : baseStatus;
   }
 
-  private resolveStatusAfterTransaction(
+  private resolveStatusAfterLedgerMutation(
     loan: LoanWithCreator,
     transactionType: CreateLoanTransactionRequestDto['type'],
     allocation: {
@@ -833,7 +983,7 @@ export class LoansService {
       return LoanStatus.SETTLED;
     }
 
-    if (allocation.balanceEffect === 'DECREASE') {
+    if (projectedBalances.totalRepaid > 0.01) {
       return this.resolveLifecycleStatus(
         LoanStatus.PARTIALLY_REPAID,
         loan.dueDate,
@@ -847,7 +997,6 @@ export class LoansService {
     loan: LoanWithCreator,
     payload: CreateLoanTransactionRequestDto,
     amountRwf: number,
-    reversalTarget: LoanTransactionWithRecorder | null,
   ): Promise<{
     principalAmount: number;
     principalAmountRwf: number;
@@ -909,19 +1058,6 @@ export class LoansService {
         };
       case 'ADJUSTMENT':
       case 'REVERSAL': {
-        if (payload.type === 'REVERSAL' && reversalTarget !== null) {
-          return {
-            principalAmount: Number(reversalTarget.principalAmount),
-            principalAmountRwf: Number(reversalTarget.principalAmountRwf),
-            interestAmount: Number(reversalTarget.interestAmount),
-            interestAmountRwf: Number(reversalTarget.interestAmountRwf),
-            balanceEffect:
-              reversalTarget.balanceEffect === 'INCREASE'
-                ? 'DECREASE'
-                : 'INCREASE',
-          };
-        }
-
         const principalAmount = payload.principalAmount ?? payload.amount;
         const interestAmount = payload.interestAmount ?? 0;
 
@@ -1077,6 +1213,7 @@ export class LoansService {
     principalOutstanding: number;
     interestOutstanding: number;
     totalOutstanding: number;
+    totalRepaid: number;
   } {
     const totals = loan.transactions.reduce(
       (accumulator, transaction) => {
@@ -1114,6 +1251,7 @@ export class LoansService {
       principalOutstanding,
       interestOutstanding,
       totalOutstanding: principalOutstanding + interestOutstanding,
+      totalRepaid: totals.principalOut + totals.interestOut,
     };
   }
 
@@ -1128,6 +1266,7 @@ export class LoansService {
     principalOutstanding: number;
     interestOutstanding: number;
     totalOutstanding: number;
+    totalRepaid: number;
   } {
     const balances = this.summarizeLoanBalances(loan);
 
@@ -1142,11 +1281,23 @@ export class LoansService {
       allocation.balanceEffect === 'INCREASE'
         ? balances.interestOutstanding + allocation.interestAmount
         : Math.max(balances.interestOutstanding - allocation.interestAmount, 0);
+    const totalRepaid =
+      allocation.balanceEffect === 'DECREASE'
+        ? balances.totalRepaid +
+          allocation.principalAmount +
+          allocation.interestAmount
+        : Math.max(
+            balances.totalRepaid -
+              allocation.principalAmount -
+              allocation.interestAmount,
+            0,
+          );
 
     return {
       principalOutstanding,
       interestOutstanding,
       totalOutstanding: principalOutstanding + interestOutstanding,
+      totalRepaid,
     };
   }
 
