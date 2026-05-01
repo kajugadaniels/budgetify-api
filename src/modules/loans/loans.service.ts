@@ -16,6 +16,7 @@ import {
 
 import {
   PaginatedResponse,
+  createPaginatedResponse,
   resolvePaginationOptions,
 } from '../../common/interfaces/paginated-response.interface';
 import {
@@ -38,7 +39,11 @@ import { UsersService } from '../users/users.service';
 import { CreateLoanRequestDto } from './dto/create-loan.request.dto';
 import { CreateLoanTransactionRequestDto } from './dto/create-loan-transaction.request.dto';
 import { LinkLoanTransactionFinancialRecordRequestDto } from './dto/link-loan-transaction-financial-record.request.dto';
-import { ListLoansQueryDto } from './dto/list-loans.query.dto';
+import {
+  ListLoansQueryDto,
+  LoanOperationalFilter,
+  LoanSortOption,
+} from './dto/list-loans.query.dto';
 import { LoanAgingResponseDto } from './dto/loan-aging.response.dto';
 import { LoanAuditResponseDto } from './dto/loan-audit.response.dto';
 import { LoanReportingQueryDto } from './dto/loan-reporting.query.dto';
@@ -74,6 +79,41 @@ export class LoansService {
       await this.partnershipsService.getVisibleUserIds(userId);
     const pagination = resolvePaginationOptions(query);
     const dateRange = resolveListDateRange(query);
+    const needsDerivedListHandling =
+      query.operationalFilter !== undefined ||
+      query.sortBy !== undefined ||
+      query.minOutstandingRwf !== undefined ||
+      query.maxOutstandingRwf !== undefined;
+
+    if (needsDerivedListHandling) {
+      const loans = await this.loansRepository.findAllByUserIds(
+        visibleUserIds,
+        {
+          dateFrom: dateRange?.dateFrom,
+          dateTo: dateRange?.dateTo,
+          search: normalizeListSearch(query.search),
+          status: query.status,
+          direction: query.direction,
+          type: query.type,
+        },
+      );
+      const filteredLoans = this.sortOperationalLoans(
+        this.filterOperationalLoans(loans, query),
+        query.sortBy,
+      );
+
+      return createPaginatedResponse(
+        filteredLoans.slice(
+          pagination.skip,
+          pagination.skip + pagination.limit,
+        ),
+        filteredLoans.length,
+        {
+          page: pagination.page,
+          limit: pagination.limit,
+        },
+      );
+    }
 
     return this.loansRepository.findManyByUserIds(visibleUserIds, {
       dateFrom: dateRange?.dateFrom,
@@ -933,12 +973,193 @@ export class LoansService {
     const visibleUserIds =
       await this.partnershipsService.getVisibleUserIds(userId);
 
-    return this.loansRepository.findAllByUserIds(visibleUserIds, {
+    const loans = await this.loansRepository.findAllByUserIds(visibleUserIds, {
       search: normalizeListSearch(query.search),
       status: query.status,
       direction: query.direction,
       type: query.type,
     });
+
+    return this.filterOperationalLoans(loans, query);
+  }
+
+  private filterOperationalLoans(
+    loans: LoanWithCreator[],
+    query: ListLoansQueryDto,
+  ): LoanWithCreator[] {
+    if (
+      query.minOutstandingRwf !== undefined &&
+      query.maxOutstandingRwf !== undefined &&
+      query.minOutstandingRwf > query.maxOutstandingRwf
+    ) {
+      throw new BadRequestException(
+        'Minimum outstanding balance must be less than or equal to maximum outstanding balance.',
+      );
+    }
+
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+    const dueSoonEnd = new Date(today);
+    dueSoonEnd.setUTCDate(dueSoonEnd.getUTCDate() + 7);
+
+    return loans.filter((loan) => {
+      const balances = this.summarizeLoanBalancesRwf(loan);
+
+      if (
+        query.minOutstandingRwf !== undefined &&
+        balances.totalOutstandingRwf < query.minOutstandingRwf
+      ) {
+        return false;
+      }
+
+      if (
+        query.maxOutstandingRwf !== undefined &&
+        balances.totalOutstandingRwf > query.maxOutstandingRwf
+      ) {
+        return false;
+      }
+
+      return this.matchesLoanOperationalFilter(
+        loan,
+        balances,
+        query.operationalFilter,
+        today,
+        dueSoonEnd,
+      );
+    });
+  }
+
+  private matchesLoanOperationalFilter(
+    loan: LoanWithCreator,
+    balances: ReturnType<LoansService['summarizeLoanBalancesRwf']>,
+    operationalFilter: LoanOperationalFilter | undefined,
+    today: Date,
+    dueSoonEnd: Date,
+  ): boolean {
+    if (operationalFilter === undefined) {
+      return true;
+    }
+
+    if (operationalFilter === 'OUTSTANDING') {
+      return balances.totalOutstandingRwf > 0.01;
+    }
+
+    if (operationalFilter === 'HAS_INTEREST') {
+      return balances.interestChargedRwf > 0.01;
+    }
+
+    if (operationalFilter === 'HAS_LINKED_EXPENSE') {
+      return loan.transactions.some(
+        (transaction) =>
+          transaction.expense !== null &&
+          transaction.expense.deletedAt === null,
+      );
+    }
+
+    if (operationalFilter === 'HAS_LINKED_INCOME') {
+      return loan.transactions.some(
+        (transaction) =>
+          transaction.income !== null && transaction.income.deletedAt === null,
+      );
+    }
+
+    if (operationalFilter === 'UNLINKED_ELIGIBLE') {
+      return loan.transactions.some(
+        (transaction) =>
+          this.canTransactionCreateExpense(loan, transaction) ||
+          this.canTransactionCreateIncome(loan, transaction),
+      );
+    }
+
+    if (loan.dueDate === null || balances.totalOutstandingRwf <= 0.01) {
+      return false;
+    }
+
+    const dueDate = new Date(loan.dueDate);
+    dueDate.setUTCHours(0, 0, 0, 0);
+
+    if (operationalFilter === 'OVERDUE') {
+      return dueDate.getTime() < today.getTime();
+    }
+
+    if (operationalFilter === 'DUE_SOON') {
+      return (
+        dueDate.getTime() >= today.getTime() &&
+        dueDate.getTime() <= dueSoonEnd.getTime()
+      );
+    }
+
+    return true;
+  }
+
+  private sortOperationalLoans(
+    loans: LoanWithCreator[],
+    sortBy: LoanSortOption | undefined,
+  ): LoanWithCreator[] {
+    return loans.slice().sort((left, right) => {
+      if (sortBy === 'ISSUED_ASC') {
+        return (
+          left.date.getTime() - right.date.getTime() ||
+          left.createdAt.getTime() - right.createdAt.getTime()
+        );
+      }
+
+      if (sortBy === 'DUE_ASC' || sortBy === 'DUE_DESC') {
+        const leftDue = left.dueDate?.getTime() ?? Number.MAX_SAFE_INTEGER;
+        const rightDue = right.dueDate?.getTime() ?? Number.MAX_SAFE_INTEGER;
+        const direction = sortBy === 'DUE_ASC' ? 1 : -1;
+
+        return (
+          (leftDue - rightDue) * direction ||
+          right.date.getTime() - left.date.getTime()
+        );
+      }
+
+      if (sortBy === 'OUTSTANDING_DESC' || sortBy === 'OUTSTANDING_ASC') {
+        const direction = sortBy === 'OUTSTANDING_DESC' ? -1 : 1;
+        const leftOutstanding =
+          this.summarizeLoanBalancesRwf(left).totalOutstandingRwf;
+        const rightOutstanding =
+          this.summarizeLoanBalancesRwf(right).totalOutstandingRwf;
+
+        return (
+          (leftOutstanding - rightOutstanding) * direction ||
+          right.date.getTime() - left.date.getTime()
+        );
+      }
+
+      if (sortBy === 'COUNTERPARTY_ASC') {
+        return (
+          left.counterpartyName.localeCompare(right.counterpartyName) ||
+          right.date.getTime() - left.date.getTime()
+        );
+      }
+
+      if (sortBy === 'LATEST_ACTIVITY_DESC') {
+        return (
+          this.getLatestLoanActivityTime(right) -
+            this.getLatestLoanActivityTime(left) ||
+          right.date.getTime() - left.date.getTime()
+        );
+      }
+
+      return (
+        right.date.getTime() - left.date.getTime() ||
+        right.createdAt.getTime() - left.createdAt.getTime()
+      );
+    });
+  }
+
+  private getLatestLoanActivityTime(loan: LoanWithCreator): number {
+    return loan.transactions.reduce(
+      (latest, transaction) =>
+        Math.max(
+          latest,
+          transaction.date.getTime(),
+          transaction.createdAt.getTime(),
+        ),
+      loan.date.getTime(),
+    );
   }
 
   private filterTransactionsByDateRange(
