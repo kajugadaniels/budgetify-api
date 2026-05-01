@@ -449,37 +449,44 @@ export class LoansService {
         )
       : undefined;
     const nextAmount = payload.amount ?? Number(loan.amount);
+    const shouldSyncInitialDisbursement =
+      (payload.amount !== undefined &&
+        payload.amount !== Number(loan.amount)) ||
+      (payload.currency !== undefined && payload.currency !== loan.currency) ||
+      (payload.issuedDate !== undefined &&
+        nextIssuedDate.getTime() !== loan.date.getTime()) ||
+      (payload.note !== undefined && payload.note !== loan.note);
+    const loanUpdateData: Prisma.LoanUpdateInput = {
+      label: payload.label,
+      direction: payload.direction,
+      type: payload.type,
+      counterpartyName: payload.counterpartyName,
+      counterpartyContact: payload.counterpartyContact,
+      amount:
+        payload.amount === undefined
+          ? undefined
+          : new Prisma.Decimal(payload.amount),
+      currency: payload.currency,
+      amountRwf,
+      date: payload.issuedDate === undefined ? undefined : nextIssuedDate,
+      dueDate: payload.dueDate === undefined ? undefined : nextDueDate,
+      status: nextStatus,
+      repaymentAllocation: payload.repaymentAllocation,
+      note: payload.note,
+    };
 
-    return this.prisma.$transaction(async (tx) => {
-      const updatedLoan = await this.loansRepository.update(
-        loan.id,
-        {
-          label: payload.label,
-          direction: payload.direction,
-          type: payload.type,
-          counterpartyName: payload.counterpartyName,
-          counterpartyContact: payload.counterpartyContact,
-          amount:
-            payload.amount === undefined
-              ? undefined
-              : new Prisma.Decimal(payload.amount),
-          currency: payload.currency,
-          amountRwf,
-          date: payload.issuedDate === undefined ? undefined : nextIssuedDate,
-          dueDate: payload.dueDate === undefined ? undefined : nextDueDate,
-          status: nextStatus,
-          repaymentAllocation: payload.repaymentAllocation,
-          note: payload.note,
-        },
-        tx,
-      );
+    if (!shouldSyncInitialDisbursement) {
+      return this.loansRepository.update(loan.id, loanUpdateData);
+    }
 
-      if (
-        payload.amount !== undefined ||
-        payload.currency !== undefined ||
-        payload.issuedDate !== undefined ||
-        payload.note !== undefined
-      ) {
+    return this.prisma.$transaction(
+      async (tx) => {
+        const updatedLoan = await this.loansRepository.update(
+          loan.id,
+          loanUpdateData,
+          tx,
+        );
+
         const initialDisbursement =
           await this.loansRepository.findInitialDisbursementByLoanId(
             loan.id,
@@ -503,10 +510,11 @@ export class LoansService {
             tx,
           );
         }
-      }
 
-      return updatedLoan;
-    });
+        return updatedLoan;
+      },
+      { timeout: 15000 },
+    );
   }
 
   async sendCurrentUserLoanToExpense(
