@@ -45,6 +45,15 @@ function normalizeOptionalNote(value: unknown): unknown {
   return trimmed.length === 0 ? undefined : trimmed;
 }
 
+function normalizeOptionalNullableDate(value: unknown): unknown {
+  if (typeof value !== 'string') {
+    return value;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length === 0 ? null : trimmed;
+}
+
 export class UpdateLoanRequestDto {
   @ApiPropertyOptional({
     description: 'Updated description of the loan.',
@@ -142,10 +151,10 @@ export class UpdateLoanRequestDto {
     description: 'Updated due date. Send an empty string to clear it.',
     example: '2026-05-15T00:00:00.000Z',
   })
-  @Transform(({ value }) => normalizeOptionalNote(value))
+  @Transform(({ value }) => normalizeOptionalNullableDate(value))
   @IsOptional()
   @IsISO8601({}, { message: 'Due date must be a valid ISO 8601 timestamp.' })
-  dueDate?: string;
+  dueDate?: string | null;
 
   @ApiPropertyOptional({
     enum: LoanStatus,
