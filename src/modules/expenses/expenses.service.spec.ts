@@ -65,7 +65,7 @@ describe('ExpensesService', () => {
     });
   });
 
-  it('audits the gap between base expenses and charged expenses', async () => {
+  it('audits charged expenses without counting fees twice', async () => {
     usersService.findActiveByIdOrThrow.mockResolvedValue(undefined);
     partnershipsService.getVisibleUserIds.mockResolvedValue(['user-1']);
     expensesRepository.summarizeByUserIds.mockResolvedValue({
@@ -93,11 +93,11 @@ describe('ExpensesService', () => {
       totalChargedExpensesRwf: 20300,
       expenseCount: 2,
       feeBearingExpenseCount: 1,
-      availableMoneyBeforeExpensesRwf: 500000,
+      availableMoneyBeforeExpensesRwf: 500300,
       availableMoneyAfterExpensesRwf: 480000,
-      recomputedAvailableMoneyAfterExpensesRwf: 479700,
-      reconciliationDifferenceRwf: 300,
-      isBalanced: false,
+      recomputedAvailableMoneyAfterExpensesRwf: 480000,
+      reconciliationDifferenceRwf: 0,
+      isBalanced: true,
     });
   });
 
