@@ -234,7 +234,7 @@ export class ExpensesService {
     ]);
 
     const availableMoneyBeforeExpensesRwf =
-      incomeSummary.availableMoneyNowRwf + expenseSummary.totalBaseAmountRwf;
+      incomeSummary.availableMoneyNowRwf + expenseSummary.totalChargedAmountRwf;
     const recomputedAvailableMoneyAfterExpensesRwf =
       availableMoneyBeforeExpensesRwf - expenseSummary.totalChargedAmountRwf;
     const reconciliationDifferenceRwf =
