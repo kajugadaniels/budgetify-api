@@ -402,6 +402,12 @@ export class ExpensesService {
       );
     }
 
+    if (expense.loanTransaction !== null) {
+      throw new BadRequestException(
+        'Reverse the linked loan transaction before deleting this expense directly.',
+      );
+    }
+
     await this.expensesRepository.update(expense.id, {
       deletedAt: new Date(),
     });
