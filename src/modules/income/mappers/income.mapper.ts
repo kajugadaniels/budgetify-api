@@ -40,19 +40,18 @@ export class IncomeMapper {
         lastName: income.user.lastName,
         avatarUrl: income.user.avatarUrl,
       },
-      linkedLoan:
-        income.loanTransaction === null
-          ? null
-          : {
-              loanId: income.loanTransaction.loan.id,
-              loanLabel: income.loanTransaction.loan.label,
-              loanDirection: income.loanTransaction.loan.direction,
-              loanStatus: income.loanTransaction.loan.status,
-              counterpartyName: income.loanTransaction.loan.counterpartyName,
-              transactionId: income.loanTransaction.id,
-              transactionType: income.loanTransaction.type,
-              transactionDate: income.loanTransaction.date,
-            },
+      linkedLoan: income.loanTransaction?.loan
+        ? {
+            loanId: income.loanTransaction.loan.id,
+            loanLabel: income.loanTransaction.loan.label,
+            loanDirection: income.loanTransaction.loan.direction,
+            loanStatus: income.loanTransaction.loan.status,
+            counterpartyName: income.loanTransaction.loan.counterpartyName,
+            transactionId: income.loanTransaction.id,
+            transactionType: income.loanTransaction.type,
+            transactionDate: income.loanTransaction.date,
+          }
+        : null,
     };
   }
 
