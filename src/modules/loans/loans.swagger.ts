@@ -19,7 +19,10 @@ import { ApiErrorResponseDto } from '../../common/dto/api-error-response.dto';
 import { CreateLoanRequestDto } from './dto/create-loan.request.dto';
 import { CreateLoanTransactionRequestDto } from './dto/create-loan-transaction.request.dto';
 import { LinkLoanTransactionFinancialRecordRequestDto } from './dto/link-loan-transaction-financial-record.request.dto';
+import { LoanAgingResponseDto } from './dto/loan-aging.response.dto';
+import { LoanAuditResponseDto } from './dto/loan-audit.response.dto';
 import { LoanSettlementResponseDto } from './dto/loan-settlement-response.dto';
+import { LoanSummaryResponseDto } from './dto/loan-summary.response.dto';
 import { LoanTransactionResponseDto } from './dto/loan-transaction.response.dto';
 import { PaginatedLoanResponseDto } from './dto/paginated-loan.response.dto';
 import { ReverseLoanTransactionRequestDto } from './dto/reverse-loan-transaction.request.dto';
@@ -155,6 +158,103 @@ export function ApiCreateCurrentUserLoanEndpoint(): MethodDecorator {
     ApiTooManyRequestsResponse({
       description:
         'Too many loan write requests were sent in a short time. Wait about 15 seconds before trying again.',
+      type: ApiErrorResponseDto,
+    }),
+  );
+}
+
+export function ApiSummarizeCurrentUserLoansEndpoint(): MethodDecorator {
+  return applyDecorators(
+    ApiBearerAuth('access-token'),
+    ApiOperation({
+      summary: 'Summarize loan exposure',
+      description:
+        'Returns borrowed-versus-lent exposure, outstanding principal and interest, linked financial record counts, reversal counts, and period activity for loans visible to the authenticated user.',
+    }),
+    ApiOkResponse({
+      description: 'Loan summary retrieved successfully.',
+      type: LoanSummaryResponseDto,
+    }),
+    ApiUnauthorizedResponse({
+      description: 'Access token is missing, invalid, or expired.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiForbiddenResponse({
+      description:
+        'Authenticated user account is not allowed to access loan reports.',
+      type: ApiErrorResponseDto,
+    }),
+  );
+}
+
+export function ApiAuditCurrentUserLoansEndpoint(): MethodDecorator {
+  return applyDecorators(
+    ApiBearerAuth('access-token'),
+    ApiOperation({
+      summary: 'Audit loan balances',
+      description:
+        'Returns period-aware audit metrics for the loan ledger, including principal, interest, outstanding exposure, linked income and expense counts, and unlinked eligible transactions.',
+    }),
+    ApiOkResponse({
+      description: 'Loan audit retrieved successfully.',
+      type: LoanAuditResponseDto,
+    }),
+    ApiUnauthorizedResponse({
+      description: 'Access token is missing, invalid, or expired.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiForbiddenResponse({
+      description:
+        'Authenticated user account is not allowed to access loan reports.',
+      type: ApiErrorResponseDto,
+    }),
+  );
+}
+
+export function ApiAgeCurrentUserLoansEndpoint(): MethodDecorator {
+  return applyDecorators(
+    ApiBearerAuth('access-token'),
+    ApiOperation({
+      summary: 'Age overdue loans',
+      description:
+        'Returns overdue loan exposure grouped into 0-30, 31-60, 61-90, and 90+ day aging buckets, with borrowed and lent breakdowns.',
+    }),
+    ApiOkResponse({
+      description: 'Loan aging report retrieved successfully.',
+      type: LoanAgingResponseDto,
+    }),
+    ApiUnauthorizedResponse({
+      description: 'Access token is missing, invalid, or expired.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiForbiddenResponse({
+      description:
+        'Authenticated user account is not allowed to access loan reports.',
+      type: ApiErrorResponseDto,
+    }),
+  );
+}
+
+export function ApiListCurrentUserLoanTransactionIndexEndpoint(): MethodDecorator {
+  return applyDecorators(
+    ApiBearerAuth('access-token'),
+    ApiOperation({
+      summary: 'List visible loan transactions',
+      description:
+        'Returns one period-filterable transaction ledger across all loans visible to the authenticated user.',
+    }),
+    ApiOkResponse({
+      description: 'Loan transaction ledger retrieved successfully.',
+      type: LoanTransactionResponseDto,
+      isArray: true,
+    }),
+    ApiUnauthorizedResponse({
+      description: 'Access token is missing, invalid, or expired.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiForbiddenResponse({
+      description:
+        'Authenticated user account is not allowed to access loan transactions.',
       type: ApiErrorResponseDto,
     }),
   );
