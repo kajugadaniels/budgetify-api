@@ -247,6 +247,7 @@ export class TodosService {
       await this.partnershipsService.getVisibleUserIds(userId);
     const pagination = resolvePaginationOptions(query);
     const dateRange = resolveListDateRange(query);
+    const hideCompletedBefore = this.getCurrentMonthStartDate();
     const items = await this.todosRepository.findAllByUserIds(visibleUserIds, {
       frequency: query.frequency,
       cadence: query.cadence,
@@ -259,6 +260,7 @@ export class TodosService {
       remainingBudgetLte: query.remainingBudgetLte,
       search: normalizeListSearch(query.search),
       occurrenceDates: dateRange?.isoDates,
+      hideCompletedBefore,
     });
     const sortedItems = this.sortTodoListItems(
       items,
@@ -280,7 +282,9 @@ export class TodosService {
     query: TodoSummaryQueryDto,
   ): Promise<TodoSummarySnapshot> {
     const dateRange = resolveListDateRange(query);
-    const rows = await this.listSummaryRowsForUser(userId, query);
+    const rows = await this.listSummaryRowsForUser(userId, query, {
+      hideCompletedBefore: this.getCurrentMonthStartDate(),
+    });
     const report = await this.buildTodoReportingSnapshot(rows, {
       occurrenceDateFrom: dateRange?.dateFrom,
       occurrenceDateTo: dateRange?.dateTo,
@@ -2224,6 +2228,11 @@ export class TodosService {
     return `${year}-${month}-${day}`;
   }
 
+  private getCurrentMonthStartDate(): Date {
+    const now = new Date();
+    return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  }
+
   private async listSummaryRowsForUser(
     userId: string,
     query: Pick<
@@ -2241,6 +2250,9 @@ export class TodosService {
       | 'dateFrom'
       | 'dateTo'
     >,
+    options?: {
+      hideCompletedBefore?: Date;
+    },
   ): Promise<TodoSummaryRow[]> {
     await this.usersService.findActiveByIdOrThrow(userId);
     const visibleUserIds =
@@ -2259,6 +2271,7 @@ export class TodosService {
       remainingBudgetLte: query.remainingBudgetLte,
       search: normalizeListSearch(query.search),
       occurrenceDates: dateRange?.isoDates,
+      hideCompletedBefore: options?.hideCompletedBefore,
     });
   }
 
