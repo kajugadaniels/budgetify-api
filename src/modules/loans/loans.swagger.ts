@@ -76,12 +76,42 @@ export function ApiListCurrentUserLoansEndpoint(): MethodDecorator {
       description: 'Optional lifecycle status filter.',
     }),
     ApiQuery({
+      name: 'operationalFilter',
+      required: false,
+      type: String,
+      example: 'UNLINKED_ELIGIBLE',
+      description:
+        'Optional action-focused filter for due soon, overdue, outstanding, linked, unlinked, or interest-bearing loans.',
+    }),
+    ApiQuery({
+      name: 'sortBy',
+      required: false,
+      type: String,
+      example: 'OUTSTANDING_DESC',
+      description:
+        'Optional operational sort by issued date, due date, outstanding balance, counterparty, or latest activity.',
+    }),
+    ApiQuery({
+      name: 'minOutstandingRwf',
+      required: false,
+      type: Number,
+      example: 25000,
+      description: 'Optional minimum current outstanding balance in RWF.',
+    }),
+    ApiQuery({
+      name: 'maxOutstandingRwf',
+      required: false,
+      type: Number,
+      example: 500000,
+      description: 'Optional maximum current outstanding balance in RWF.',
+    }),
+    ApiQuery({
       name: 'search',
       required: false,
       type: String,
-      example: 'rent',
+      example: 'alice',
       description:
-        'Optional text search applied when at least 3 characters are provided. Matches the loan label and note.',
+        'Optional text search applied when at least 3 characters are provided. Matches the loan label, note, counterparty name, and counterparty contact.',
     }),
     ApiQuery({
       name: 'dateFrom',
