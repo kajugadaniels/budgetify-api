@@ -6,6 +6,7 @@ import { CurrencyModule } from '../currency/currency.module';
 import { ExpensesRepository } from '../expenses/expenses.repository';
 import { IncomeRepository } from '../income/income.repository';
 import { PartnershipsModule } from '../partnerships/partnerships.module';
+import { SavingsRepository } from '../savings/savings.repository';
 import { UsersModule } from '../users/users.module';
 import { LoansController } from './loans.controller';
 import { LoansRepository } from './loans.repository';
@@ -23,6 +24,7 @@ import { LoansService } from './loans.service';
     LoansRepository,
     ExpensesRepository,
     IncomeRepository,
+    SavingsRepository,
     LoansService,
     JwtAuthGuard,
   ],
