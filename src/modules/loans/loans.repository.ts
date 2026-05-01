@@ -98,6 +98,18 @@ export class LoansRepository {
                 mode: 'insensitive',
               },
             },
+            {
+              counterpartyName: {
+                contains: options.search,
+                mode: 'insensitive',
+              },
+            },
+            {
+              counterpartyContact: {
+                contains: options.search,
+                mode: 'insensitive',
+              },
+            },
           ];
 
     const where: Prisma.LoanWhereInput = {
@@ -169,6 +181,18 @@ export class LoansRepository {
             },
             {
               note: {
+                contains: options.search,
+                mode: 'insensitive',
+              },
+            },
+            {
+              counterpartyName: {
+                contains: options.search,
+                mode: 'insensitive',
+              },
+            },
+            {
+              counterpartyContact: {
                 contains: options.search,
                 mode: 'insensitive',
               },
