@@ -416,10 +416,10 @@ export class ExpensesRepository {
             : undefined,
       },
       _sum: {
-        amount: true,
+        totalAmountRwf: true,
       },
     });
 
-    return Number(aggregate._sum.amount ?? 0);
+    return Number(aggregate._sum.totalAmountRwf ?? 0);
   }
 }
