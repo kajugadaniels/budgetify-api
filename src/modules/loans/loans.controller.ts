@@ -24,6 +24,7 @@ import { ListLoansQueryDto } from './dto/list-loans.query.dto';
 import { LoanSettlementResponseDto } from './dto/loan-settlement-response.dto';
 import { LoanTransactionResponseDto } from './dto/loan-transaction.response.dto';
 import { PaginatedLoanResponseDto } from './dto/paginated-loan.response.dto';
+import { ReverseLoanTransactionRequestDto } from './dto/reverse-loan-transaction.request.dto';
 import { LoanResponseDto } from './dto/loan-response.dto';
 import { SendLoanToExpenseRequestDto } from './dto/send-loan-to-expense.request.dto';
 import { UpdateLoanRequestDto } from './dto/update-loan.request.dto';
@@ -36,6 +37,7 @@ import {
   ApiDeleteCurrentUserLoanEndpoint,
   ApiListCurrentUserLoansEndpoint,
   ApiListCurrentUserLoanTransactionsEndpoint,
+  ApiReverseCurrentUserLoanTransactionEndpoint,
   ApiSendCurrentUserLoanToExpenseEndpoint,
   ApiSendCurrentUserLoanTransactionToExpenseEndpoint,
   ApiSendCurrentUserLoanTransactionToIncomeEndpoint,
@@ -106,6 +108,26 @@ export class LoansController {
       await this.loansService.createCurrentUserLoanTransaction(
         user.userId,
         loanId,
+        body,
+      );
+
+    return LoansMapper.toLoanTransactionResponse(transaction);
+  }
+
+  @Post(LOANS_ROUTES.reverseTransaction)
+  @HttpCode(HttpStatus.CREATED)
+  @ApiReverseCurrentUserLoanTransactionEndpoint()
+  async reverseCurrentUserLoanTransaction(
+    @CurrentUser() user: AuthenticatedRequestUser,
+    @Param('loanId', ParseUUIDPipe) loanId: string,
+    @Param('transactionId', ParseUUIDPipe) transactionId: string,
+    @Body() body: ReverseLoanTransactionRequestDto,
+  ): Promise<LoanTransactionResponseDto> {
+    const transaction =
+      await this.loansService.reverseCurrentUserLoanTransaction(
+        user.userId,
+        loanId,
+        transactionId,
         body,
       );
 
