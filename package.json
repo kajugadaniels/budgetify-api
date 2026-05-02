@@ -1,7 +1,7 @@
 {
   "name": "Budgetify API",
   "version": "0.0.1",
-  "description": "",
+  "description": "Budgetify API is a backend application built with NestJS and Prisma, designed to provide a robust and scalable solution for managing budgets and financial data. It offers a comprehensive set of features for handling user authentication, budget management, and financial analytics, making it an ideal choice for developers looking to create a powerful budgeting application.",
   "author": "Nexcode Africa",
   "private": true,
   "license": "UNLICENSED",
