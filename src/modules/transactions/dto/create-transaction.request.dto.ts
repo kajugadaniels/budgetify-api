@@ -1,5 +1,6 @@
 import {
   TransactionCategory,
+  TransactionRecipientType,
   TransactionTransferType,
 } from '@prisma/client';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -21,22 +22,12 @@ import {
   MIN_TRANSACTION_AMOUNT_RWF,
 } from '../transaction-tariffs';
 
-function normalizeRwandanPhone(value: unknown): unknown {
+function normalizeRecipientIdentifier(value: unknown): unknown {
   if (typeof value !== 'string') {
     return value;
   }
 
-  const compact = value.replace(/[\s()-]/g, '');
-
-  if (/^07\d{8}$/.test(compact)) {
-    return `+250${compact.slice(1)}`;
-  }
-
-  if (/^2507\d{8}$/.test(compact)) {
-    return `+${compact}`;
-  }
-
-  return compact;
+  return value.trim().replace(/[\s()-]/g, '');
 }
 
 function normalizeOptionalText(value: unknown): unknown {
@@ -62,24 +53,36 @@ export class CreateTransactionRequestDto {
   @Max(MAX_TRANSACTION_AMOUNT_RWF)
   amount!: number;
 
-  @ApiProperty({ enum: TransactionTransferType })
+  @ApiProperty({
+    enum: TransactionTransferType,
+  })
   @IsEnum(TransactionTransferType)
   transferType!: TransactionTransferType;
 
-  @ApiProperty({ enum: TransactionCategory })
+  @ApiProperty({
+    enum: TransactionRecipientType,
+  })
+  @IsEnum(TransactionRecipientType)
+  recipientType!: TransactionRecipientType;
+
+  @ApiProperty({
+    enum: TransactionCategory,
+  })
   @IsEnum(TransactionCategory)
   category!: TransactionCategory;
 
   @ApiProperty({
-    description: 'Recipient Rwanda phone number, normalized before storage.',
+    description:
+      'Recipient Rwanda phone number or numeric bank account identifier.',
     example: '+250788123456',
   })
-  @Transform(({ value }) => normalizeRwandanPhone(value))
+  @Transform(({ value }) => normalizeRecipientIdentifier(value))
   @IsString()
-  @Matches(/^\+2507\d{8}$/, {
-    message: 'Receiver phone must be a valid Rwanda phone number.',
+  @Matches(/^\+?\d{6,34}$/, {
+    message:
+      'Receiver identifier must be a valid phone number or bank account number.',
   })
-  receiverPhone!: string;
+  receiverIdentifier!: string;
 
   @ApiPropertyOptional({
     description: 'Optional payment note.',
