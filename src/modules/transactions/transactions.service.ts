@@ -1,5 +1,15 @@
-import { ConflictException, Injectable } from '@nestjs/common';
-import { Currency, Prisma, Transaction } from '@prisma/client';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+} from '@nestjs/common';
+import {
+  Currency,
+  Prisma,
+  Transaction,
+  TransactionRecipientType,
+  TransactionTransferType,
+} from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 
 import { CreateTransactionRequestDto } from './dto/create-transaction.request.dto';
@@ -16,26 +26,40 @@ export class TransactionsService {
   ) {}
 
   quote(body: TransactionQuoteRequestDto): TransactionQuoteResponseDto {
-    return this.feeCalculator.calculate(body.amount, body.transferType);
+    return this.feeCalculator.calculate(
+      body.amount,
+      body.transferType,
+    );
   }
 
   async create(
     userId: string,
     body: CreateTransactionRequestDto,
   ): Promise<Transaction> {
+    const receiverIdentifier = this.normalizeReceiverIdentifier(body);
+
     if (body.idempotencyKey) {
-      const existing = await this.transactionsRepository.findByIdempotencyKey(
-        userId,
-        body.idempotencyKey,
-      );
+      const existing =
+        await this.transactionsRepository.findByIdempotencyKey(
+          userId,
+          body.idempotencyKey,
+        );
 
       if (existing) {
-        this.assertIdempotentRequestMatches(existing, body);
+        this.assertIdempotentRequestMatches(
+          existing,
+          body,
+          receiverIdentifier,
+        );
+
         return existing;
       }
     }
 
-    const quote = this.feeCalculator.calculate(body.amount, body.transferType);
+    const quote = this.feeCalculator.calculate(
+      body.amount,
+      body.transferType,
+    );
 
     try {
       return await this.transactionsRepository.create({
@@ -43,12 +67,13 @@ export class TransactionsService {
         reference: this.createReference(),
         idempotencyKey: body.idempotencyKey,
         transferType: body.transferType,
+        recipientType: body.recipientType,
         category: body.category,
         currency: Currency.RWF,
         amount: quote.amount,
         feeAmount: quote.feeAmount,
         totalAmount: quote.totalAmount,
-        receiverPhone: body.receiverPhone,
+        receiverIdentifier,
         receiverName: null,
         note: body.note,
         tariffVersion: quote.tariffVersion,
@@ -67,7 +92,12 @@ export class TransactionsService {
           );
 
         if (existing) {
-          this.assertIdempotentRequestMatches(existing, body);
+          this.assertIdempotentRequestMatches(
+            existing,
+            body,
+            receiverIdentifier,
+          );
+
           return existing;
         }
       }
@@ -76,15 +106,61 @@ export class TransactionsService {
     }
   }
 
+  private normalizeReceiverIdentifier(
+    body: CreateTransactionRequestDto,
+  ): string {
+    const raw = body.receiverIdentifier.trim();
+
+    if (body.recipientType === TransactionRecipientType.PHONE) {
+      const compact = raw.replace(/[\s()+-]/g, '');
+
+      if (/^07\d{8}$/.test(compact)) {
+        return `+250${compact.slice(1)}`;
+      }
+
+      if (/^2507\d{8}$/.test(compact)) {
+        return `+${compact}`;
+      }
+
+      if (/^7\d{8}$/.test(compact)) {
+        return `+250${compact}`;
+      }
+
+      throw new BadRequestException(
+        'Receiver phone must be a valid Rwanda phone number.',
+      );
+    }
+
+    if (
+      body.transferType !== TransactionTransferType.MOMO_TO_EKASH
+    ) {
+      throw new BadRequestException(
+        'Bank account recipients are only supported through eKash.',
+      );
+    }
+
+    const account = raw.replace(/\D/g, '');
+
+    if (!/^\d{6,34}$/.test(account)) {
+      throw new BadRequestException(
+        'Bank account number must contain between 6 and 34 digits.',
+      );
+    }
+
+    return account;
+  }
+
   private assertIdempotentRequestMatches(
     existing: Transaction,
     body: CreateTransactionRequestDto,
+    receiverIdentifier: string,
   ): void {
     const matches =
       existing.amount === body.amount &&
       existing.transferType === body.transferType &&
+      existing.recipientType === body.recipientType &&
       existing.category === body.category &&
-      existing.receiverPhone === body.receiverPhone &&
+      existing.receiverIdentifier === receiverIdentifier &&
       existing.note === (body.note ?? null);
 
     if (!matches) {
@@ -95,8 +171,14 @@ export class TransactionsService {
   }
 
   private createReference(): string {
-    const timestamp = Date.now().toString(36).toUpperCase();
-    const entropy = randomUUID().replace(/-/g, '').slice(0, 12).toUpperCase();
+    const timestamp = Date.now()
+      .toString(36)
+      .toUpperCase();
+
+    const entropy = randomUUID()
+      .replace(/-/g, '')
+      .slice(0, 12)
+      .toUpperCase();
 
     return `BGT-${timestamp}-${entropy}`;
   }
