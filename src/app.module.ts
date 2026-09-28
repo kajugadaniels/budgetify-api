@@ -12,6 +12,7 @@ import { validateEnv } from './config/env.validation';
 import { googleConfig } from './config/google.config';
 import { PrismaModule } from './database/prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { TransactionsModule } from './modules/transactions/transactions.module';
 import { UsersModule } from './modules/users/users.module';
 
 const AUTH_PREFIX = `/${API_GLOBAL_PREFIX}/auth`;
@@ -80,6 +81,7 @@ function getRequestSignature(context: ExecutionContext): {
     PrismaModule,
     UsersModule,
     AuthModule,
+    TransactionsModule,
   ],
   providers: [
     {
