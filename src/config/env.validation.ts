@@ -8,6 +8,7 @@ const envSchema = Joi.object({
   FRONTEND_URL: Joi.string()
     .uri({ scheme: ['http', 'https'] })
     .optional(),
+  CORS_ALLOWED_ORIGINS: Joi.string().trim().optional(),
   MOBILE_APP_INVITE_URL: Joi.string()
     .pattern(/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\/.+$/)
     .optional(),

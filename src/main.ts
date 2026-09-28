@@ -13,11 +13,33 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
   const port = configService.getOrThrow<number>('app.port');
   const frontendUrl = configService.get<string>('FRONTEND_URL');
+  const configuredCorsOrigins = configService.get<string>(
+    'CORS_ALLOWED_ORIGINS',
+  );
+  const allowedCorsOrigins = (configuredCorsOrigins ?? frontendUrl ?? '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
 
   app.setGlobalPrefix(API_GLOBAL_PREFIX);
   app.enableShutdownHooks();
   app.enableCors({
-    origin: frontendUrl ?? true,
+    origin: (origin, callback) => {
+      const isAllowedOrigin = allowedCorsOrigins.some((allowedOrigin) => {
+        if (allowedOrigin.endsWith(':*')) {
+          return origin?.startsWith(allowedOrigin.slice(0, -1)) ?? false;
+        }
+
+        return origin === allowedOrigin;
+      });
+
+      if (origin === undefined || isAllowedOrigin) {
+        callback(null, true);
+        return;
+      }
+
+      callback(new Error(`Origin ${origin} is not allowed by CORS`), false);
+    },
     credentials: true,
   });
   app.useGlobalPipes(

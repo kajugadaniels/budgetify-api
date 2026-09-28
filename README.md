@@ -59,6 +59,7 @@ At minimum, configure:
 - `JWT_REFRESH_SECRET`
 - `OTP_HASH_SECRET`
 - `GOOGLE_CLIENT_ID` or `GOOGLE_CLIENT_IDS`
+- `CORS_ALLOWED_ORIGINS` for comma-separated browser origins
 - mail transport settings if you want OTP email delivery locally
 
 4. Apply existing migrations:
