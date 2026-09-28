@@ -32,7 +32,7 @@ the product.
 - Swagger
 - Joi validation
 - Cloudinary
-- Nodemailer
+- Resend
 
 ## Local Development
 
@@ -60,7 +60,8 @@ At minimum, configure:
 - `OTP_HASH_SECRET`
 - `GOOGLE_CLIENT_ID` or `GOOGLE_CLIENT_IDS`
 - `CORS_ALLOWED_ORIGINS` for comma-separated browser origins
-- mail transport settings if you want OTP email delivery locally
+- `RESEND_API_KEY`
+- `RESEND_FROM`
 
 4. Apply existing migrations:
 
