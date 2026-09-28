@@ -1,7 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
-import * as nodemailer from 'nodemailer';
-import type { Transporter } from 'nodemailer';
+import { Resend } from 'resend';
 
 import { emailConfig } from '../../config/email.config';
 import { buildAccountDeletionRequestEmail } from './templates/account-deletion-request.email';
@@ -12,21 +11,13 @@ import { buildPartnershipInviteEmail } from './templates/partnership-invite.emai
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
-  private readonly transporter: Transporter;
+  private readonly resend: Resend;
 
   constructor(
     @Inject(emailConfig.KEY)
     private readonly config: ConfigType<typeof emailConfig>,
   ) {
-    this.transporter = nodemailer.createTransport({
-      host: config.host,
-      port: config.port,
-      secure: config.secure,
-      auth: {
-        user: config.auth.user,
-        pass: config.auth.pass,
-      },
-    });
+    this.resend = new Resend(config.apiKey);
   }
 
   /**
@@ -80,12 +71,16 @@ export class EmailService {
 
   private async send(to: string, subject: string, html: string): Promise<void> {
     try {
-      await this.transporter.sendMail({
-        from: `"${this.config.from.name}" <${this.config.from.address}>`,
+      const { error } = await this.resend.emails.send({
+        from: this.config.from,
         to,
         subject,
         html,
       });
+
+      if (error) {
+        throw new Error(error.message);
+      }
     } catch (error) {
       // Log the error but re-throw so the caller can surface it.
       // The controller layer should not swallow delivery failures silently.
