@@ -178,6 +178,34 @@ enum LoanRepaymentAllocation {
   PRINCIPAL_FIRST
 }
 
+enum TransactionTransferType {
+  MOMO_TO_MOMO
+  MOMO_TO_EKASH
+}
+
+enum TransactionStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+  REVERSED
+}
+
+enum TransactionCategory {
+  TRANSPORT
+  GROCERIES
+  BILLS
+  RENT
+  HEALTHCARE
+  EDUCATION
+  FOOD_DINING
+  SHOPPING
+  FAMILY
+  ENTERTAINMENT
+  OTHER
+}
+
 // ─────────────────────────────────────────────────────────────
 // Core user models
 // ─────────────────────────────────────────────────────────────
@@ -213,6 +241,7 @@ model User {
   loginOtpChallenge   LoginOtpChallenge?
   sentPartnership     Partnership?       @relation("PartnershipOwner")
   receivedPartnership Partnership?       @relation("PartnershipPartner")
+  transactions        Transaction[]
 
   @@index([status])
   @@index([deletedAt])
@@ -357,6 +386,42 @@ model MobileMoneyTariff {
 
   @@index([provider, channel, network, active])
   @@index([active, minAmount, maxAmount])
+}
+
+model Transaction {
+  id                String                  @id @default(uuid()) @db.Uuid
+  userId            String                  @db.Uuid
+  reference         String                  @unique
+  idempotencyKey    String?
+  transferType      TransactionTransferType
+  status            TransactionStatus       @default(PENDING)
+  category          TransactionCategory
+  currency          Currency                @default(RWF)
+  amount            Int
+  feeAmount         Int
+  totalAmount       Int
+  receiverPhone     String
+  receiverName      String?                 @map("receiver_name")
+  note              String?
+  tariffVersion     String
+  tariffSource      String
+  providerReference String?                 @unique
+  failureCode       String?
+  failureReason     String?
+  processedAt       DateTime?
+  completedAt       DateTime?
+  failedAt          DateTime?
+  cancelledAt       DateTime?
+  reversedAt        DateTime?
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+  user              User                    @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@unique([userId, idempotencyKey])
+  @@index([userId, createdAt])
+  @@index([userId, status, createdAt])
+  @@index([status, createdAt])
+  @@index([transferType, createdAt])
 }
 
 model Loan {
