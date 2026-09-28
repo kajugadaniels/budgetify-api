@@ -1,6 +1,7 @@
 import {
   Currency,
   TransactionCategory,
+  TransactionRecipientType,
   TransactionStatus,
   TransactionTransferType,
 } from '@prisma/client';
@@ -34,8 +35,11 @@ export class TransactionResponseDto {
   @ApiProperty({ example: 25_250 })
   totalAmount!: number;
 
+  @ApiProperty({ enum: TransactionRecipientType })
+  recipientType!: TransactionRecipientType;
+
   @ApiProperty({ example: '+250788123456' })
-  receiverPhone!: string;
+  receiverIdentifier!: string;
 
   @ApiPropertyOptional({ nullable: true, example: null })
   receiverName!: string | null;
