@@ -10,10 +10,6 @@ import { Prisma, User, UserStatus } from '@prisma/client';
 import { PrismaService } from '../../database/prisma/prisma.service';
 import { EmailService } from '../email/email.service';
 import { UpdateUserProfileRequestDto } from './dto/update-user-profile.request.dto';
-import {
-  AvatarImageStorageService,
-  AvatarUploadFile,
-} from './services/avatar-image-storage.service';
 import { UserEntity } from './entities/user.entity';
 import { UsersRepository } from './users.repository';
 
@@ -38,7 +34,6 @@ export class UsersService {
 
   constructor(
     private readonly usersRepository: UsersRepository,
-    private readonly avatarImageStorageService: AvatarImageStorageService,
     private readonly prisma: PrismaService,
     private readonly emailService: EmailService,
   ) {}
@@ -194,32 +189,6 @@ export class UsersService {
         firstName: nextFirstName,
         lastName: nextLastName,
         fullName: this.buildFullName(nextFirstName, nextLastName),
-      },
-      db,
-    );
-  }
-
-  async updateProfileAvatar(
-    userId: string,
-    file: AvatarUploadFile | undefined,
-    db?: PrismaExecutor,
-  ): Promise<UserEntity> {
-    if (!file) {
-      throw new BadRequestException('Provide a profile image to update.');
-    }
-
-    const user = await this.findActiveByIdOrThrow(userId);
-    const displayName = user.fullName ?? user.email;
-    const uploadedAvatar = await this.avatarImageStorageService.uploadAvatar({
-      userId: user.id,
-      displayName,
-      file,
-    });
-
-    return this.usersRepository.update(
-      user.id,
-      {
-        avatarUrl: uploadedAvatar.imageUrl,
       },
       db,
     );
