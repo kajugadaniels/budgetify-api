@@ -100,6 +100,12 @@ export class TransactionsService {
     const raw = body.receiverIdentifier.trim();
 
     if (body.recipientType === TransactionRecipientType.PHONE) {
+      if (body.transferType === TransactionTransferType.MOMO_PAY) {
+        throw new BadRequestException(
+          'MoMo Pay requires a MoMo merchant code.',
+        );
+      }
+
       const compact = raw.replace(/[\s()+-]/g, '');
 
       if (/^07\d{8}$/.test(compact)) {
@@ -117,6 +123,24 @@ export class TransactionsService {
       throw new BadRequestException(
         'Receiver phone must be a valid Rwanda phone number.',
       );
+    }
+
+    if (body.recipientType === TransactionRecipientType.MOMO_CODE) {
+      if (body.transferType !== TransactionTransferType.MOMO_PAY) {
+        throw new BadRequestException(
+          'MoMo merchant codes are only supported through MoMo Pay.',
+        );
+      }
+
+      const momoCode = raw.replace(/\D/g, '');
+
+      if (!/^\d{3,12}$/.test(momoCode)) {
+        throw new BadRequestException(
+          'MoMo merchant code must contain between 3 and 12 digits.',
+        );
+      }
+
+      return momoCode;
     }
 
     if (body.transferType !== TransactionTransferType.MOMO_TO_EKASH) {
