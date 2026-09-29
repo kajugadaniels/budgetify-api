@@ -74,14 +74,17 @@ export class TransactionsService {
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
       ) {
-        const existing =
-          await this.transactionsRepository.findByIdempotencyKey(
-            userId,
-            body.idempotencyKey,
-          );
+        const existing = await this.transactionsRepository.findByIdempotencyKey(
+          userId,
+          body.idempotencyKey,
+        );
 
         if (existing) {
-          this.assertIdempotentRequestMatches(existing, body, receiverIdentifier);
+          this.assertIdempotentRequestMatches(
+            existing,
+            body,
+            receiverIdentifier,
+          );
 
           return existing;
         }
