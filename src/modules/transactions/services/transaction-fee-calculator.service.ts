@@ -7,6 +7,9 @@ import {
   MOMO_TO_EKASH_FLAT_FEE_RWF,
   MOMO_TO_EKASH_TARIFF_SOURCE,
   MOMO_TO_EKASH_TARIFF_VERSION,
+  MOMO_PAY_CUSTOMER_FEE_RWF,
+  MOMO_PAY_TARIFF_SOURCE,
+  MOMO_PAY_TARIFF_VERSION,
   MOMO_TO_MOMO_FEE_BANDS,
   MOMO_TO_MOMO_TARIFF_SOURCE,
   MOMO_TO_MOMO_TARIFF_VERSION,
@@ -53,6 +56,14 @@ export class TransactionFeeCalculatorService {
     amount: number,
     transferType: TransactionTransferType,
   ): { feeAmount: number; tariffVersion: string; tariffSource: string } {
+    if (transferType === TransactionTransferType.MOMO_PAY) {
+      return {
+        feeAmount: MOMO_PAY_CUSTOMER_FEE_RWF,
+        tariffVersion: MOMO_PAY_TARIFF_VERSION,
+        tariffSource: MOMO_PAY_TARIFF_SOURCE,
+      };
+    }
+
     if (transferType === TransactionTransferType.MOMO_TO_EKASH) {
       return {
         feeAmount: MOMO_TO_EKASH_FLAT_FEE_RWF,
