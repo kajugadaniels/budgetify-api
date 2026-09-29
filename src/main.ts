@@ -13,8 +13,7 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get<ConfigService>(ConfigService);
   const port = configService.getOrThrow<number>('app.port');
-  const host =
-    process.env.NODE_ENV === 'production' ? '127.0.0.1' : '0.0.0.0';
+  const host = process.env.NODE_ENV === 'production' ? '127.0.0.1' : '0.0.0.0';
   const frontendUrl = configService.get<string>('FRONTEND_URL');
   const configuredCorsOrigins = configService.get<string>(
     'CORS_ALLOWED_ORIGINS',
@@ -58,9 +57,7 @@ async function bootstrap() {
   setupSwagger(app);
 
   await app.listen(port, host);
-  logger.log(
-    `API running on http://${host}:${port}/${API_GLOBAL_PREFIX}`,
-  );
+  logger.log(`API running on http://${host}:${port}/${API_GLOBAL_PREFIX}`);
 }
 
 void bootstrap();
