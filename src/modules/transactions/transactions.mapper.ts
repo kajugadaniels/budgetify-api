@@ -3,9 +3,7 @@ import { Transaction } from '@prisma/client';
 import { TransactionResponseDto } from './dto/transaction.response.dto';
 
 export class TransactionsMapper {
-  static toResponse(
-    transaction: Transaction,
-  ): TransactionResponseDto {
+  static toResponse(transaction: Transaction): TransactionResponseDto {
     return {
       id: transaction.id,
       reference: transaction.reference,
