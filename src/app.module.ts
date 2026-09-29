@@ -45,9 +45,7 @@ function getRequestSignature(context: ExecutionContext): {
       cache: true,
       expandVariables: true,
       envFilePath:
-        process.env.NODE_ENV === 'production'
-          ? ['.env.production']
-          : ['.env'],
+        process.env.NODE_ENV === 'production' ? ['.env.production'] : ['.env'],
       load: [appConfig, authConfig, databaseConfig, emailConfig, googleConfig],
       validate: validateEnv,
     }),
