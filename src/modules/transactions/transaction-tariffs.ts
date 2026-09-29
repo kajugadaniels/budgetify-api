@@ -21,8 +21,10 @@ interface FeeBand {
 
 export const MOMO_TO_MOMO_TARIFF_VERSION = 'MTN_RWANDA_2026-09-28';
 export const MOMO_TO_EKASH_TARIFF_VERSION = 'BUDGETIFY_EKASH_2026-09-28';
+export const MOMO_PAY_TARIFF_VERSION = 'MTN_RWANDA_MOMO_PAY_2026-09-30';
 export const MOMO_TO_MOMO_TARIFF_SOURCE = 'MTN_RWANDA_PUBLIC_TARIFF';
 export const MOMO_TO_EKASH_TARIFF_SOURCE = 'BUDGETIFY_PRODUCT_RULE';
+export const MOMO_PAY_TARIFF_SOURCE = 'MTN_RWANDA_PUBLIC_TARIFF';
 
 export const MOMO_TO_MOMO_FEE_BANDS: readonly FeeBand[] = [
   { minAmount: 1, maxAmount: 1_000, feeAmount: 20 },
@@ -34,3 +36,4 @@ export const MOMO_TO_MOMO_FEE_BANDS: readonly FeeBand[] = [
 ] as const;
 
 export const MOMO_TO_EKASH_FLAT_FEE_RWF = 20;
+export const MOMO_PAY_CUSTOMER_FEE_RWF = 0;
