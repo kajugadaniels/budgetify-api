@@ -24,9 +24,7 @@ export class TransactionsController {
 
   @Post(TRANSACTIONS_ROUTES.quote)
   @ApiQuoteTransactionEndpoint()
-  quote(
-    @Body() body: TransactionQuoteRequestDto,
-  ): TransactionQuoteResponseDto {
+  quote(@Body() body: TransactionQuoteRequestDto): TransactionQuoteResponseDto {
     return this.transactionsService.quote(body);
   }
 
