@@ -5,6 +5,7 @@ import { Resend } from 'resend';
 import { emailConfig } from '../../config/email.config';
 import { buildAccountDeletionRequestEmail } from './templates/account-deletion-request.email';
 import { buildOtpLoginEmail } from './templates/otp-login.email';
+import { buildPasswordOtpEmail } from './templates/otp-password.email';
 import { buildOtpRegisterEmail } from './templates/otp-register.email';
 
 @Injectable()
@@ -38,6 +39,16 @@ export class EmailService {
    */
   async sendOtpRegisterEmail(to: string, otp: string): Promise<void> {
     const { subject, html } = buildOtpRegisterEmail(otp, to);
+    await this.send(to, subject, html);
+  }
+
+  async sendPasswordOtpEmail(
+    to: string,
+    otp: string,
+    firstName: string | null,
+    isRecovery: boolean,
+  ): Promise<void> {
+    const { subject, html } = buildPasswordOtpEmail(otp, firstName, isRecovery);
     await this.send(to, subject, html);
   }
 
