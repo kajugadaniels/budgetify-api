@@ -216,37 +216,39 @@ enum TransactionRecipientType {
 // ─────────────────────────────────────────────────────────────
 
 model User {
-  id                String              @id @default(uuid()) @db.Uuid
-  email             String              @unique
-  firstName         String?
-  lastName          String?
-  fullName          String?
-  avatarUrl         String?
-  isEmailVerified   Boolean             @default(false)
-  status            UserStatus          @default(ACTIVE)
-  lastLoginAt       DateTime?
-  accountDeletionRequestedAt DateTime?
+  id                          String               @id @default(uuid()) @db.Uuid
+  email                       String               @unique
+  firstName                   String?
+  lastName                    String?
+  fullName                    String?
+  avatarUrl                   String?
+  isEmailVerified             Boolean              @default(false)
+  status                      UserStatus           @default(ACTIVE)
+  lastLoginAt                 DateTime?
+  accountDeletionRequestedAt  DateTime?
   accountDeletionScheduledFor DateTime?
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
-  deletedAt         DateTime?
-  authIdentities    AuthIdentity[]
-  sessions          Session[]
-  incomes           Income[]
-  todos             Todo[]              @relation("TodoOwner")
-  responsibleTodos  Todo[]              @relation("TodoResponsibleUser")
-  expenses          Expense[]
-  todoRecordings    TodoRecording[]        @relation("TodoRecordingRecordedBy")
-  reversedTodoRecordings TodoRecording[]   @relation("TodoRecordingReversedBy")
-  loans             Loan[]
-  loanTransactions  LoanTransaction[]      @relation("LoanTransactionRecordedBy")
-  savings           Saving[]
-  savingTransactions SavingTransaction[]
-  moneyMovements    MoneyMovement[]
-  loginOtpChallenge   LoginOtpChallenge?
-  sentPartnership     Partnership?       @relation("PartnershipOwner")
-  receivedPartnership Partnership?       @relation("PartnershipPartner")
-  transactions        Transaction[]
+  createdAt                   DateTime             @default(now())
+  updatedAt                   DateTime             @updatedAt
+  deletedAt                   DateTime?
+  authIdentities              AuthIdentity[]
+  sessions                    Session[]
+  incomes                     Income[]
+  todos                       Todo[]               @relation("TodoOwner")
+  responsibleTodos            Todo[]               @relation("TodoResponsibleUser")
+  expenses                    Expense[]
+  todoRecordings              TodoRecording[]      @relation("TodoRecordingRecordedBy")
+  reversedTodoRecordings      TodoRecording[]      @relation("TodoRecordingReversedBy")
+  loans                       Loan[]
+  loanTransactions            LoanTransaction[]    @relation("LoanTransactionRecordedBy")
+  savings                     Saving[]
+  savingTransactions          SavingTransaction[]
+  moneyMovements              MoneyMovement[]
+  loginOtpChallenge           LoginOtpChallenge?
+  passwordCredential          UserPassword?
+  passwordSetupGrants         PasswordSetupGrant[]
+  sentPartnership             Partnership?         @relation("PartnershipOwner")
+  receivedPartnership         Partnership?         @relation("PartnershipPartner")
+  transactions                Transaction[]
 
   @@index([status])
   @@index([deletedAt])
@@ -320,22 +322,54 @@ model PendingUser {
   @@index([otpExpiresAt])
 }
 
+// Password credentials are isolated from the user profile so authentication
+// material is never selected accidentally with ordinary user data.
+model UserPassword {
+  id                String   @id @default(uuid()) @db.Uuid
+  userId            String   @unique @db.Uuid
+  passwordHash      String
+  passwordSalt      String
+  algorithm         String   @default("scrypt")
+  version           Int      @default(1)
+  passwordChangedAt DateTime @default(now())
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([passwordChangedAt])
+}
+
+// Opaque, single-use authorization issued only after a successful email OTP.
+// It permits initial password setup or recovery without authenticating a user.
+model PasswordSetupGrant {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @db.Uuid
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, consumedAt])
+  @@index([expiresAt])
+}
+
 model Income {
-  id        String         @id @default(uuid()) @db.Uuid
-  userId    String         @db.Uuid
-  label     String
-  amount    Decimal        @db.Decimal(15, 2)
-  currency  Currency       @default(RWF)
-  amountRwf Decimal        @default(0) @db.Decimal(15, 2)
-  category  IncomeCategory
-  date      DateTime
-  received  Boolean        @default(false)
-  createdAt DateTime       @default(now())
-  updatedAt DateTime       @updatedAt
-  deletedAt DateTime?
-  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                       String                          @id @default(uuid()) @db.Uuid
+  userId                   String                          @db.Uuid
+  label                    String
+  amount                   Decimal                         @db.Decimal(15, 2)
+  currency                 Currency                        @default(RWF)
+  amountRwf                Decimal                         @default(0) @db.Decimal(15, 2)
+  category                 IncomeCategory
+  date                     DateTime
+  received                 Boolean                         @default(false)
+  createdAt                DateTime                        @default(now())
+  updatedAt                DateTime                        @updatedAt
+  deletedAt                DateTime?
+  user                     User                            @relation(fields: [userId], references: [id], onDelete: Cascade)
   savingTransactionSources SavingTransactionIncomeSource[]
-  loanTransaction LoanTransaction?
+  loanTransaction          LoanTransaction?
 
   @@index([userId])
   @@index([deletedAt])
@@ -346,28 +380,28 @@ model Income {
 }
 
 model Expense {
-  id        String          @id @default(uuid()) @db.Uuid
-  userId    String          @db.Uuid
-  label     String
-  amount    Decimal         @db.Decimal(15, 2)
-  currency  Currency        @default(RWF)
-  amountRwf Decimal         @default(0) @db.Decimal(15, 2)
-  feeAmount Decimal         @default(0) @db.Decimal(15, 2)
-  feeAmountRwf Decimal      @default(0) @db.Decimal(15, 2)
-  totalAmountRwf Decimal    @default(0) @db.Decimal(15, 2)
-  paymentMethod ExpensePaymentMethod @default(CASH)
-  mobileMoneyChannel ExpenseMobileMoneyChannel?
+  id                  String                      @id @default(uuid()) @db.Uuid
+  userId              String                      @db.Uuid
+  label               String
+  amount              Decimal                     @db.Decimal(15, 2)
+  currency            Currency                    @default(RWF)
+  amountRwf           Decimal                     @default(0) @db.Decimal(15, 2)
+  feeAmount           Decimal                     @default(0) @db.Decimal(15, 2)
+  feeAmountRwf        Decimal                     @default(0) @db.Decimal(15, 2)
+  totalAmountRwf      Decimal                     @default(0) @db.Decimal(15, 2)
+  paymentMethod       ExpensePaymentMethod        @default(CASH)
+  mobileMoneyChannel  ExpenseMobileMoneyChannel?
   mobileMoneyProvider ExpenseMobileMoneyProvider?
-  mobileMoneyNetwork ExpenseMobileMoneyNetwork?
-  category  ExpenseCategory
-  date      DateTime
-  note      String?
-  createdAt DateTime        @default(now())
-  updatedAt DateTime        @updatedAt
-  deletedAt DateTime?
-  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  todoRecording TodoRecording?
-  loanTransaction LoanTransaction?
+  mobileMoneyNetwork  ExpenseMobileMoneyNetwork?
+  category            ExpenseCategory
+  date                DateTime
+  note                String?
+  createdAt           DateTime                    @default(now())
+  updatedAt           DateTime                    @updatedAt
+  deletedAt           DateTime?
+  user                User                        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  todoRecording       TodoRecording?
+  loanTransaction     LoanTransaction?
 
   @@index([userId])
   @@index([deletedAt])
@@ -378,16 +412,16 @@ model Expense {
 }
 
 model MobileMoneyTariff {
-  id         String                    @id @default(uuid()) @db.Uuid
-  provider   ExpenseMobileMoneyProvider
-  channel    ExpenseMobileMoneyChannel
-  network    ExpenseMobileMoneyNetwork?
-  minAmount  Decimal                   @db.Decimal(15, 2)
-  maxAmount  Decimal                   @db.Decimal(15, 2)
-  feeAmount  Decimal                   @db.Decimal(15, 2)
-  active     Boolean                   @default(true)
-  createdAt  DateTime                  @default(now())
-  updatedAt  DateTime                  @updatedAt
+  id        String                     @id @default(uuid()) @db.Uuid
+  provider  ExpenseMobileMoneyProvider
+  channel   ExpenseMobileMoneyChannel
+  network   ExpenseMobileMoneyNetwork?
+  minAmount Decimal                    @db.Decimal(15, 2)
+  maxAmount Decimal                    @db.Decimal(15, 2)
+  feeAmount Decimal                    @db.Decimal(15, 2)
+  active    Boolean                    @default(true)
+  createdAt DateTime                   @default(now())
+  updatedAt DateTime                   @updatedAt
 
   @@index([provider, channel, network, active])
   @@index([active, minAmount, maxAmount])
@@ -431,26 +465,26 @@ model Transaction {
 }
 
 model Loan {
-  id                String        @id @default(uuid()) @db.Uuid
-  userId            String        @db.Uuid
-  label             String
-  direction         LoanDirection @default(BORROWED)
-  type              LoanType      @default(OTHER)
-  status            LoanStatus    @default(ACTIVE)
-  counterpartyName  String
+  id                  String                  @id @default(uuid()) @db.Uuid
+  userId              String                  @db.Uuid
+  label               String
+  direction           LoanDirection           @default(BORROWED)
+  type                LoanType                @default(OTHER)
+  status              LoanStatus              @default(ACTIVE)
+  counterpartyName    String
   counterpartyContact String?
-  amount            Decimal       @db.Decimal(15, 2)
-  currency          Currency      @default(RWF)
-  amountRwf         Decimal       @default(0) @db.Decimal(15, 2)
+  amount              Decimal                 @db.Decimal(15, 2)
+  currency            Currency                @default(RWF)
+  amountRwf           Decimal                 @default(0) @db.Decimal(15, 2)
   repaymentAllocation LoanRepaymentAllocation @default(INTEREST_FIRST)
-  date              DateTime
-  dueDate           DateTime?     @db.Date
-  note              String?
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
-  deletedAt         DateTime?
-  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  transactions      LoanTransaction[]
+  date                DateTime
+  dueDate             DateTime?               @db.Date
+  note                String?
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
+  deletedAt           DateTime?
+  user                User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions        LoanTransaction[]
 
   @@index([userId])
   @@index([deletedAt])
@@ -462,31 +496,31 @@ model Loan {
 }
 
 model LoanTransaction {
-  id                    String              @id @default(uuid()) @db.Uuid
-  loanId                String              @db.Uuid
-  recordedByUserId      String              @db.Uuid
-  expenseId             String?             @unique @db.Uuid
-  incomeId              String?             @unique @db.Uuid
-  type                  LoanTransactionType
-  balanceEffect         LoanBalanceEffect
-  amount                Decimal             @db.Decimal(15, 2)
-  currency              Currency            @default(RWF)
-  amountRwf             Decimal             @db.Decimal(15, 2)
-  principalAmount       Decimal             @default(0) @db.Decimal(15, 2)
-  principalAmountRwf    Decimal             @default(0) @db.Decimal(15, 2)
-  interestAmount        Decimal             @default(0) @db.Decimal(15, 2)
-  interestAmountRwf     Decimal             @default(0) @db.Decimal(15, 2)
-  date                  DateTime            @db.Date
-  note                  String?
-  reversalOfTransactionId String?           @db.Uuid
-  createdAt             DateTime            @default(now())
-  updatedAt             DateTime            @updatedAt
-  loan                  Loan                @relation(fields: [loanId], references: [id], onDelete: Cascade)
-  recordedBy            User                @relation("LoanTransactionRecordedBy", fields: [recordedByUserId], references: [id], onDelete: Cascade)
-  expense               Expense?            @relation(fields: [expenseId], references: [id], onDelete: SetNull)
-  income                Income?             @relation(fields: [incomeId], references: [id], onDelete: SetNull)
-  reversalOfTransaction LoanTransaction?    @relation("LoanTransactionReversal", fields: [reversalOfTransactionId], references: [id])
-  reversals             LoanTransaction[]   @relation("LoanTransactionReversal")
+  id                      String              @id @default(uuid()) @db.Uuid
+  loanId                  String              @db.Uuid
+  recordedByUserId        String              @db.Uuid
+  expenseId               String?             @unique @db.Uuid
+  incomeId                String?             @unique @db.Uuid
+  type                    LoanTransactionType
+  balanceEffect           LoanBalanceEffect
+  amount                  Decimal             @db.Decimal(15, 2)
+  currency                Currency            @default(RWF)
+  amountRwf               Decimal             @db.Decimal(15, 2)
+  principalAmount         Decimal             @default(0) @db.Decimal(15, 2)
+  principalAmountRwf      Decimal             @default(0) @db.Decimal(15, 2)
+  interestAmount          Decimal             @default(0) @db.Decimal(15, 2)
+  interestAmountRwf       Decimal             @default(0) @db.Decimal(15, 2)
+  date                    DateTime            @db.Date
+  note                    String?
+  reversalOfTransactionId String?             @db.Uuid
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
+  loan                    Loan                @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  recordedBy              User                @relation("LoanTransactionRecordedBy", fields: [recordedByUserId], references: [id], onDelete: Cascade)
+  expense                 Expense?            @relation(fields: [expenseId], references: [id], onDelete: SetNull)
+  income                  Income?             @relation(fields: [incomeId], references: [id], onDelete: SetNull)
+  reversalOfTransaction   LoanTransaction?    @relation("LoanTransactionReversal", fields: [reversalOfTransactionId], references: [id])
+  reversals               LoanTransaction[]   @relation("LoanTransactionReversal")
 
   @@index([loanId, date])
   @@index([recordedByUserId, date])
@@ -497,25 +531,25 @@ model LoanTransaction {
 }
 
 model Saving {
-  id              String   @id @default(uuid()) @db.Uuid
-  userId          String   @db.Uuid
+  id              String              @id @default(uuid()) @db.Uuid
+  userId          String              @db.Uuid
   label           String
-  amount          Decimal  @db.Decimal(15, 2)
-  currency        Currency @default(RWF)
-  amountRwf       Decimal  @default(0) @db.Decimal(15, 2)
-  targetAmount    Decimal? @db.Decimal(15, 2)
+  amount          Decimal             @db.Decimal(15, 2)
+  currency        Currency            @default(RWF)
+  amountRwf       Decimal             @default(0) @db.Decimal(15, 2)
+  targetAmount    Decimal?            @db.Decimal(15, 2)
   targetCurrency  Currency?
-  targetAmountRwf Decimal? @db.Decimal(15, 2)
-  startDate       DateTime? @db.Date
-  endDate         DateTime? @db.Date
+  targetAmountRwf Decimal?            @db.Decimal(15, 2)
+  startDate       DateTime?           @db.Date
+  endDate         DateTime?           @db.Date
   date            DateTime
   note            String?
-  stillHave       Boolean  @default(true)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  stillHave       Boolean             @default(true)
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
   deletedAt       DateTime?
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  transactions SavingTransaction[]
+  user            User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions    SavingTransaction[]
 
   @@index([userId])
   @@index([deletedAt])
@@ -527,25 +561,25 @@ model Saving {
 }
 
 model SavingTransaction {
-  id                    String                @id @default(uuid()) @db.Uuid
-  savingId              String                @db.Uuid
-  userId                String                @db.Uuid
-  type                  SavingTransactionType
-  amount                Decimal               @db.Decimal(15, 2)
-  currency              Currency              @default(RWF)
-  amountRwf             Decimal               @db.Decimal(15, 2)
-  date                  DateTime
-  note                  String?
-  reversalOfTransactionId String?             @unique @db.Uuid
-  createdAt             DateTime              @default(now())
-  updatedAt             DateTime              @updatedAt
-  deletedAt             DateTime?
-  saving                Saving                @relation(fields: [savingId], references: [id], onDelete: Cascade)
-  user                  User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  incomeSources         SavingTransactionIncomeSource[]
-  moneyMovement         MoneyMovement?
-  reversalOfTransaction SavingTransaction?    @relation("SavingTransactionReversal", fields: [reversalOfTransactionId], references: [id], onDelete: SetNull)
-  reversedByTransaction SavingTransaction?    @relation("SavingTransactionReversal")
+  id                      String                          @id @default(uuid()) @db.Uuid
+  savingId                String                          @db.Uuid
+  userId                  String                          @db.Uuid
+  type                    SavingTransactionType
+  amount                  Decimal                         @db.Decimal(15, 2)
+  currency                Currency                        @default(RWF)
+  amountRwf               Decimal                         @db.Decimal(15, 2)
+  date                    DateTime
+  note                    String?
+  reversalOfTransactionId String?                         @unique @db.Uuid
+  createdAt               DateTime                        @default(now())
+  updatedAt               DateTime                        @updatedAt
+  deletedAt               DateTime?
+  saving                  Saving                          @relation(fields: [savingId], references: [id], onDelete: Cascade)
+  user                    User                            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  incomeSources           SavingTransactionIncomeSource[]
+  moneyMovement           MoneyMovement?
+  reversalOfTransaction   SavingTransaction?              @relation("SavingTransactionReversal", fields: [reversalOfTransactionId], references: [id], onDelete: SetNull)
+  reversedByTransaction   SavingTransaction?              @relation("SavingTransactionReversal")
 
   @@index([savingId])
   @@index([userId])
@@ -601,35 +635,35 @@ model AppSetting {
 }
 
 model Todo {
-  id                     String        @id @default(uuid()) @db.Uuid
-  userId                 String        @db.Uuid
-  responsibleUserId      String        @db.Uuid
-  name                   String
-  price                  Decimal       @db.Decimal(15, 2)
-  type                   TodoType      @default(WISHLIST)
-  priority               TodoPriority
-  status                 TodoStatus    @default(ACTIVE)
-  frequency              TodoFrequency @default(ONCE)
-  defaultExpenseCategory ExpenseCategory?
-  defaultPaymentMethod   ExpensePaymentMethod?
+  id                        String                     @id @default(uuid()) @db.Uuid
+  userId                    String                     @db.Uuid
+  responsibleUserId         String                     @db.Uuid
+  name                      String
+  price                     Decimal                    @db.Decimal(15, 2)
+  type                      TodoType                   @default(WISHLIST)
+  priority                  TodoPriority
+  status                    TodoStatus                 @default(ACTIVE)
+  frequency                 TodoFrequency              @default(ONCE)
+  defaultExpenseCategory    ExpenseCategory?
+  defaultPaymentMethod      ExpensePaymentMethod?
   defaultMobileMoneyChannel ExpenseMobileMoneyChannel?
   defaultMobileMoneyNetwork ExpenseMobileMoneyNetwork?
-  payee                  String?
-  expenseNote            String?
-  startDate              DateTime?     @db.Date
-  endDate                DateTime?     @db.Date
-  frequencyDays          Int[]         @default([])
-  occurrenceDates        String[]      @default([])
-  recordedOccurrenceDates String[]     @default([])
-  remainingAmount        Decimal?      @db.Decimal(15, 2)
-  createdAt              DateTime      @default(now())
-  updatedAt              DateTime      @updatedAt
-  deletedAt              DateTime?
-  user                   User          @relation("TodoOwner", fields: [userId], references: [id], onDelete: Cascade)
-  responsibleUser        User          @relation("TodoResponsibleUser", fields: [responsibleUserId], references: [id], onDelete: Restrict)
-  images                 TodoImage[]
-  occurrences            TodoOccurrence[]
-  recordings             TodoRecording[]
+  payee                     String?
+  expenseNote               String?
+  startDate                 DateTime?                  @db.Date
+  endDate                   DateTime?                  @db.Date
+  frequencyDays             Int[]                      @default([])
+  occurrenceDates           String[]                   @default([])
+  recordedOccurrenceDates   String[]                   @default([])
+  remainingAmount           Decimal?                   @db.Decimal(15, 2)
+  createdAt                 DateTime                   @default(now())
+  updatedAt                 DateTime                   @updatedAt
+  deletedAt                 DateTime?
+  user                      User                       @relation("TodoOwner", fields: [userId], references: [id], onDelete: Cascade)
+  responsibleUser           User                       @relation("TodoResponsibleUser", fields: [responsibleUserId], references: [id], onDelete: Restrict)
+  images                    TodoImage[]
+  occurrences               TodoOccurrence[]
+  recordings                TodoRecording[]
 
   @@index([userId])
   @@index([responsibleUserId])
@@ -643,30 +677,30 @@ model Todo {
 }
 
 model TodoRecording {
-  id                 String                    @id @default(uuid()) @db.Uuid
-  todoId             String                    @db.Uuid
-  expenseId          String?                   @unique @db.Uuid
-  todoOccurrenceId   String?                   @unique @db.Uuid
-  occurrenceDate     DateTime                  @db.Date
-  plannedAmount      Decimal                   @default(0) @db.Decimal(15, 2)
-  baseAmount         Decimal                   @db.Decimal(15, 2)
-  feeAmount          Decimal                   @db.Decimal(15, 2)
-  totalChargedAmount Decimal                   @db.Decimal(15, 2)
-  varianceAmount     Decimal                   @default(0) @db.Decimal(15, 2)
+  id                 String                     @id @default(uuid()) @db.Uuid
+  todoId             String                     @db.Uuid
+  expenseId          String?                    @unique @db.Uuid
+  todoOccurrenceId   String?                    @unique @db.Uuid
+  occurrenceDate     DateTime                   @db.Date
+  plannedAmount      Decimal                    @default(0) @db.Decimal(15, 2)
+  baseAmount         Decimal                    @db.Decimal(15, 2)
+  feeAmount          Decimal                    @db.Decimal(15, 2)
+  totalChargedAmount Decimal                    @db.Decimal(15, 2)
+  varianceAmount     Decimal                    @default(0) @db.Decimal(15, 2)
   expenseSource      TodoRecordingExpenseSource @default(GENERATED)
   paymentMethod      ExpensePaymentMethod
   mobileMoneyChannel ExpenseMobileMoneyChannel?
   mobileMoneyNetwork ExpenseMobileMoneyNetwork?
-  recordedAt         DateTime                  @default(now())
-  recordedByUserId   String                    @db.Uuid
+  recordedAt         DateTime                   @default(now())
+  recordedByUserId   String                     @db.Uuid
   reversedAt         DateTime?
   reversalReason     String?
-  reversedByUserId   String?                   @db.Uuid
-  todo               Todo                      @relation(fields: [todoId], references: [id], onDelete: Cascade)
-  occurrence         TodoOccurrence?           @relation(fields: [todoOccurrenceId], references: [id], onDelete: SetNull)
-  expense            Expense?                  @relation(fields: [expenseId], references: [id], onDelete: SetNull)
-  recordedBy         User                      @relation("TodoRecordingRecordedBy", fields: [recordedByUserId], references: [id], onDelete: Cascade)
-  reversedBy         User?                     @relation("TodoRecordingReversedBy", fields: [reversedByUserId], references: [id], onDelete: SetNull)
+  reversedByUserId   String?                    @db.Uuid
+  todo               Todo                       @relation(fields: [todoId], references: [id], onDelete: Cascade)
+  occurrence         TodoOccurrence?            @relation(fields: [todoOccurrenceId], references: [id], onDelete: SetNull)
+  expense            Expense?                   @relation(fields: [expenseId], references: [id], onDelete: SetNull)
+  recordedBy         User                       @relation("TodoRecordingRecordedBy", fields: [recordedByUserId], references: [id], onDelete: Cascade)
+  reversedBy         User?                      @relation("TodoRecordingReversedBy", fields: [reversedByUserId], references: [id], onDelete: SetNull)
 
   @@index([todoId, recordedAt(sort: Desc)])
   @@index([recordedByUserId])
@@ -711,19 +745,19 @@ model Partnership {
 }
 
 model TodoImage {
-  id        String   @id @default(uuid()) @db.Uuid
-  todoId    String   @db.Uuid
-  publicId  String   @unique
+  id        String    @id @default(uuid()) @db.Uuid
+  todoId    String    @db.Uuid
+  publicId  String    @unique
   imageUrl  String
   width     Int
   height    Int
   bytes     Int
   format    String
-  isPrimary Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  isPrimary Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
   deletedAt DateTime?
-  todo      Todo     @relation(fields: [todoId], references: [id], onDelete: Cascade)
+  todo      Todo      @relation(fields: [todoId], references: [id], onDelete: Cascade)
 
   @@index([todoId])
   @@index([deletedAt])
