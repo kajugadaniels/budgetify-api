@@ -1,4 +1,5 @@
 import { Logger, ValidationPipe } from '@nestjs/common';
+import type { CorsOptions } from '@nestjs/common/interfaces/external/cors-options.interface';
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 
@@ -10,20 +11,18 @@ import { setupSwagger } from './config/swagger.config';
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
   const app = await NestFactory.create(AppModule);
-  const configService = app.get(ConfigService);
+  const configService = app.get<ConfigService>(ConfigService);
   const port = configService.getOrThrow<number>('app.port');
   const frontendUrl = configService.get<string>('FRONTEND_URL');
   const configuredCorsOrigins = configService.get<string>(
     'CORS_ALLOWED_ORIGINS',
   );
-  const allowedCorsOrigins = (configuredCorsOrigins ?? frontendUrl ?? '')
+  const corsOrigins = configuredCorsOrigins ?? frontendUrl ?? '';
+  const allowedCorsOrigins: string[] = corsOrigins
     .split(',')
     .map((origin) => origin.trim())
     .filter(Boolean);
-
-  app.setGlobalPrefix(API_GLOBAL_PREFIX);
-  app.enableShutdownHooks();
-  app.enableCors({
+  const corsOptions: CorsOptions = {
     origin: (origin, callback) => {
       const isAllowedOrigin = allowedCorsOrigins.some((allowedOrigin) => {
         if (allowedOrigin.endsWith(':*')) {
@@ -41,7 +40,11 @@ async function bootstrap() {
       callback(new Error(`Origin ${origin} is not allowed by CORS`), false);
     },
     credentials: true,
-  });
+  };
+
+  app.setGlobalPrefix(API_GLOBAL_PREFIX);
+  app.enableShutdownHooks();
+  app.enableCors(corsOptions);
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
