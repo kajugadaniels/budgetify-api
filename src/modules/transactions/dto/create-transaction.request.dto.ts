@@ -73,14 +73,14 @@ export class CreateTransactionRequestDto {
 
   @ApiProperty({
     description:
-      'Recipient Rwanda phone number or numeric bank account identifier.',
+      'Recipient Rwanda phone number, numeric bank account, or MoMo merchant code.',
     example: '+250788123456',
   })
   @Transform(({ value }) => normalizeRecipientIdentifier(value))
   @IsString()
-  @Matches(/^\+?\d{6,34}$/, {
+  @Matches(/^\+?\d{3,34}$/, {
     message:
-      'Receiver identifier must be a valid phone number or bank account number.',
+      'Receiver identifier must be a valid phone number, bank account, or MoMo code.',
   })
   receiverIdentifier!: string;
 
