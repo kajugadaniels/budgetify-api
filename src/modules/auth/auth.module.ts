@@ -9,6 +9,7 @@ import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { GoogleAuthService } from './services/google-auth.service';
 import { OtpService } from './services/otp.service';
+import { PasswordAuthService } from './services/password-auth.service';
 import { SessionService } from './services/session.service';
 import { TokenService } from './services/token.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
@@ -25,6 +26,7 @@ import { JwtStrategy } from './strategies/jwt.strategy';
     AuthService,
     GoogleAuthService,
     OtpService,
+    PasswordAuthService,
     SessionService,
     TokenService,
     JwtStrategy,
