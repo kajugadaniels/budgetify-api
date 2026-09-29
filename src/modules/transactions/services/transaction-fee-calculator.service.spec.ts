@@ -46,6 +46,21 @@ describe('TransactionFeeCalculatorService', () => {
     );
   });
 
+  describe('MoMo Pay', () => {
+    it.each([1, 1_000, 150_000, 2_000_000, 10_000_000])(
+      'does not charge the customer an extra fee for %i RWF',
+      (amount) => {
+        const quote = calculator.calculate(
+          amount,
+          TransactionTransferType.MOMO_PAY,
+        );
+
+        expect(quote.feeAmount).toBe(0);
+        expect(quote.totalAmount).toBe(amount);
+      },
+    );
+  });
+
   it.each([0, -1, 10_000_001, 1.5, Number.NaN, Number.POSITIVE_INFINITY])(
     'rejects invalid amount %s',
     (amount) => {
