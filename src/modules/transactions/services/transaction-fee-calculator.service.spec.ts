@@ -35,10 +35,7 @@ describe('TransactionFeeCalculatorService', () => {
     it.each([1, 1_000, 150_000, 2_000_000, 10_000_000])(
       'charges the configured flat fee for %i RWF',
       (amount) => {
-        const quote = calculator.calculate(
-          amount,
-          TransactionTransferType.MOMO_TO_EKASH,
-        );
+        const quote = calculator.calculate(amount, TransactionTransferType.MOMO_TO_EKASH);
 
         expect(quote.feeAmount).toBe(20);
         expect(quote.totalAmount).toBe(amount + 20);
