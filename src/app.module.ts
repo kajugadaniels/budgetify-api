@@ -17,10 +17,15 @@ import { UsersModule } from './modules/users/users.module';
 
 const AUTH_PREFIX = `/${API_GLOBAL_PREFIX}/auth`;
 const OTP_INITIATE_PREFIX = `${AUTH_PREFIX}/email/initiate`;
+const PASSWORD_CHALLENGE_PREFIX = `${AUTH_PREFIX}/password/challenge`;
 
 const AUTH_LOGIN_PATHS = new Set([
   `${AUTH_PREFIX}/google`,
   `${AUTH_PREFIX}/email/verify`,
+  `${AUTH_PREFIX}/password/status`,
+  `${AUTH_PREFIX}/password/challenge/verify`,
+  `${AUTH_PREFIX}/password/set`,
+  `${AUTH_PREFIX}/password/login`,
 ]);
 
 function getRequestSignature(context: ExecutionContext): {
@@ -70,7 +75,11 @@ function getRequestSignature(context: ExecutionContext): {
           skipIf: (context) => {
             const { method, url } = getRequestSignature(context);
 
-            return !(method === 'POST' && url.startsWith(OTP_INITIATE_PREFIX));
+            return !(
+              method === 'POST' &&
+              (url.startsWith(OTP_INITIATE_PREFIX) ||
+                url === PASSWORD_CHALLENGE_PREFIX)
+            );
           },
         },
       ],
