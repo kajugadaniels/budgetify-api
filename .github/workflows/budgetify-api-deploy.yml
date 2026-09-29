@@ -26,12 +26,8 @@ jobs:
       JWT_REFRESH_SECRET: 12345678901234567890123456789012
       OTP_HASH_SECRET: 12345678901234567890123456789012
       GOOGLE_CLIENT_IDS: dummy-google-client-id
-      MAIL_HOST: smtp.example.com
-      MAIL_PORT: 587
-      MAIL_SECURE: false
-      MAIL_USER: no-reply@example.com
-      MAIL_PASS: dummy-password
-      MAIL_FROM: Budgetify <no-reply@example.com>
+      RESEND_API_KEY: re_ci_placeholder
+      RESEND_FROM: Budgetify <no-reply@example.com>
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -65,6 +61,9 @@ jobs:
     timeout-minutes: 20
     environment: production
     steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@v6
+
       - name: Configure SSH
         run: |
           install -m 700 -d ~/.ssh
@@ -72,6 +71,21 @@ jobs:
           chmod 600 ~/.ssh/budgetify_deploy_key
           printf '%s\n' "${{ secrets.SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
+
+      - name: Package exact commit
+        env:
+          GIT_SHA: ${{ github.sha }}
+        run: git archive --format=tar.gz --output="budgetify-api-${GIT_SHA}.tar.gz" "${GIT_SHA}"
+
+      - name: Upload release artifact
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          GIT_SHA: ${{ github.sha }}
+        run: |
+          scp -i ~/.ssh/budgetify_deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            "budgetify-api-${GIT_SHA}.tar.gz" \
+            "${DEPLOY_USER}@${DEPLOY_HOST}:/var/www/budgetify/incoming/"
 
       - name: Deploy exact commit
         env:
@@ -82,3 +96,9 @@ jobs:
           ssh -i ~/.ssh/budgetify_deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes \
             "${DEPLOY_USER}@${DEPLOY_HOST}" \
             "/var/www/budgetify/bin/budgetify-api-deploy.sh ${GIT_SHA}"
+
+      - name: Remove local deployment credentials
+        if: always()
+        run: |
+          rm -f ~/.ssh/budgetify_deploy_key
+          rm -f "budgetify-api-${{ github.sha }}.tar.gz"
