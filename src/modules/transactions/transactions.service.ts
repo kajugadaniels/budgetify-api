@@ -26,10 +26,7 @@ export class TransactionsService {
   ) {}
 
   quote(body: TransactionQuoteRequestDto): TransactionQuoteResponseDto {
-    return this.feeCalculator.calculate(
-      body.amount,
-      body.transferType,
-    );
+    return this.feeCalculator.calculate(body.amount, body.transferType);
   }
 
   async create(
@@ -39,27 +36,19 @@ export class TransactionsService {
     const receiverIdentifier = this.normalizeReceiverIdentifier(body);
 
     if (body.idempotencyKey) {
-      const existing =
-        await this.transactionsRepository.findByIdempotencyKey(
-          userId,
-          body.idempotencyKey,
-        );
+      const existing = await this.transactionsRepository.findByIdempotencyKey(
+        userId,
+        body.idempotencyKey,
+      );
 
       if (existing) {
-        this.assertIdempotentRequestMatches(
-          existing,
-          body,
-          receiverIdentifier,
-        );
+        this.assertIdempotentRequestMatches(existing, body, receiverIdentifier);
 
         return existing;
       }
     }
 
-    const quote = this.feeCalculator.calculate(
-      body.amount,
-      body.transferType,
-    );
+    const quote = this.feeCalculator.calculate(body.amount, body.transferType);
 
     try {
       return await this.transactionsRepository.create({
@@ -92,11 +81,7 @@ export class TransactionsService {
           );
 
         if (existing) {
-          this.assertIdempotentRequestMatches(
-            existing,
-            body,
-            receiverIdentifier,
-          );
+          this.assertIdempotentRequestMatches(existing, body, receiverIdentifier);
 
           return existing;
         }
@@ -131,9 +116,7 @@ export class TransactionsService {
       );
     }
 
-    if (
-      body.transferType !== TransactionTransferType.MOMO_TO_EKASH
-    ) {
+    if (body.transferType !== TransactionTransferType.MOMO_TO_EKASH) {
       throw new BadRequestException(
         'Bank account recipients are only supported through eKash.',
       );
@@ -171,14 +154,9 @@ export class TransactionsService {
   }
 
   private createReference(): string {
-    const timestamp = Date.now()
-      .toString(36)
-      .toUpperCase();
+    const timestamp = Date.now().toString(36).toUpperCase();
 
-    const entropy = randomUUID()
-      .replace(/-/g, '')
-      .slice(0, 12)
-      .toUpperCase();
+    const entropy = randomUUID().replace(/-/g, '').slice(0, 12).toUpperCase();
 
     return `BGT-${timestamp}-${entropy}`;
   }
