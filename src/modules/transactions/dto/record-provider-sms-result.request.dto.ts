@@ -19,6 +19,11 @@ const PROVIDER_RESULT_STATUSES = [
   TransactionStatus.CANCELLED,
 ] as const;
 
+type ProviderResultStatus =
+  | typeof TransactionStatus.COMPLETED
+  | typeof TransactionStatus.FAILED
+  | typeof TransactionStatus.CANCELLED;
+
 function normalizeRequiredText(value: unknown): unknown {
   if (typeof value !== 'string') {
     return value;
@@ -71,10 +76,7 @@ export class RecordProviderSmsResultRequestDto {
     example: TransactionStatus.COMPLETED,
   })
   @IsIn(PROVIDER_RESULT_STATUSES)
-  status!:
-    | TransactionStatus.COMPLETED
-    | TransactionStatus.FAILED
-    | TransactionStatus.CANCELLED;
+  status!: ProviderResultStatus;
 
   @ApiProperty({
     description: 'Transaction occurrence time reported by the provider SMS.',
