@@ -159,21 +159,29 @@ export class TransactionAnalyticsComparisonResponseDto {
 export class TransactionAnalyticsConfirmationResponseDto {
   @ApiProperty({
     description:
-      'Completed transactions backed by a provider SMS or provider API lifecycle event.',
-    example: 14,
+      'Completed transactions whose result was derived from structured provider SMS evidence parsed on the user device. This is client-supplied evidence and is not independent provider API verification.',
+    example: 10,
   })
-  providerConfirmed!: number;
+  smsEvidence!: number;
 
   @ApiProperty({
-    description: 'Completed transactions manually confirmed through Budgetify.',
+    description:
+      'Completed transactions independently backed by a provider API lifecycle result.',
     example: 4,
+  })
+  providerApiConfirmed!: number;
+
+  @ApiProperty({
+    description:
+      'Completed transactions manually confirmed through Budgetify and without stronger provider API or SMS evidence.',
+    example: 3,
   })
   manuallyConfirmed!: number;
 
   @ApiProperty({
     description:
-      'Completed transactions whose confirmation provenance cannot be classified from the lifecycle ledger.',
-    example: 0,
+      'Completed transactions whose completion provenance cannot be classified from the lifecycle ledger.',
+    example: 1,
   })
   unclassified!: number;
 }
