@@ -15,6 +15,7 @@ import {
 import { randomUUID } from 'node:crypto';
 
 import { ListReceivedTransactionsQueryDto } from './dto/list-received-transactions.query.dto';
+import { RecordReceivedManualRequestDto } from './dto/record-received-manual.request.dto';
 import { RecordReceivedProviderSmsRequestDto } from './dto/record-received-provider-sms.request.dto';
 import { ReceivedTransactionsRepository } from './received-transactions.repository';
 
@@ -410,36 +411,6 @@ export class ReceivedTransactionsService {
     }
   }
 
-  private normalizeSenderIdentifier(value?: string): string | null {
-    if (!value) {
-      return null;
-    }
-
-    const compact = value.replace(/[\s()+-]/g, '');
-
-    if (/^07\d{8}$/.test(compact)) {
-      return `+250${compact.slice(1)}`;
-    }
-
-    if (/^2507\d{8}$/.test(compact)) {
-      return `+${compact}`;
-    }
-
-    if (/^7\d{8}$/.test(compact)) {
-      return `+250${compact}`;
-    }
-
-    return value;
-  }
-
-  private createReference(): string {
-    const timestamp = Date.now().toString(36).toUpperCase();
-
-    const entropy = randomUUID().replace(/-/g, '').slice(0, 12).toUpperCase();
-
-    return `BGR-${timestamp}-${entropy}`;
-  }
-
   private assertManualInput(
     body: RecordReceivedManualRequestDto,
     occurredAt: Date,
@@ -492,5 +463,35 @@ export class ReceivedTransactionsService {
         'This provider reference is already assigned to a different received transaction.',
       );
     }
+  }
+
+  private normalizeSenderIdentifier(value?: string): string | null {
+    if (!value) {
+      return null;
+    }
+
+    const compact = value.replace(/[\s()+-]/g, '');
+
+    if (/^07\d{8}$/.test(compact)) {
+      return `+250${compact.slice(1)}`;
+    }
+
+    if (/^2507\d{8}$/.test(compact)) {
+      return `+${compact}`;
+    }
+
+    if (/^7\d{8}$/.test(compact)) {
+      return `+250${compact}`;
+    }
+
+    return value;
+  }
+
+  private createReference(): string {
+    const timestamp = Date.now().toString(36).toUpperCase();
+
+    const entropy = randomUUID().replace(/-/g, '').slice(0, 12).toUpperCase();
+
+    return `BGR-${timestamp}-${entropy}`;
   }
 }
