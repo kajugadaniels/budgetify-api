@@ -38,7 +38,8 @@ describe('TransactionAnalyticsService', () => {
       cancelledTransactions: 1,
       reversedTransactions: 0,
 
-      providerConfirmed: 3,
+      smsEvidence: 2,
+      providerApiConfirmed: 1,
       manuallyConfirmed: 1,
 
       categories: [
@@ -153,7 +154,8 @@ describe('TransactionAnalyticsService', () => {
     });
 
     expect(result.confirmation).toEqual({
-      providerConfirmed: 3,
+      smsEvidence: 2,
+      providerApiConfirmed: 1,
       manuallyConfirmed: 1,
       unclassified: 0,
     });
@@ -212,7 +214,8 @@ describe('TransactionAnalyticsService', () => {
       cancelledTransactions: 0,
       reversedTransactions: 0,
 
-      providerConfirmed: 1,
+      smsEvidence: 1,
+      providerApiConfirmed: 0,
       manuallyConfirmed: 0,
 
       categories: [],
@@ -253,7 +256,8 @@ describe('TransactionAnalyticsService', () => {
       cancelledTransactions: 0,
       reversedTransactions: 0,
 
-      providerConfirmed: 0,
+      smsEvidence: 0,
+      providerApiConfirmed: 0,
       manuallyConfirmed: 0,
 
       categories: [],
