@@ -31,6 +31,9 @@ import { TransactionAnalyticsService } from './services/transaction-analytics.se
 import { TransactionsMapper } from './transactions.mapper';
 import { TRANSACTIONS_ROUTES } from './transactions.routes';
 import { TransactionsService } from './transactions.service';
+import { ListTransactionHistoryQueryDto } from './dto/list-transaction-history.query.dto';
+import { TransactionHistoryResponseDto } from './dto/transaction-history.response.dto';
+import { TransactionHistoryService } from './services/transaction-history.service';
 import {
   ApiCreateTransactionEndpoint,
   ApiGetTransactionAnalyticsEndpoint,
@@ -50,6 +53,8 @@ export class TransactionsController {
     private readonly transactionsService: TransactionsService,
 
     private readonly analyticsService: TransactionAnalyticsService,
+
+    private readonly historyService: TransactionHistoryService,
   ) {}
 
   @Get()
@@ -82,6 +87,18 @@ export class TransactionsController {
     query: TransactionAnalyticsQueryDto,
   ): Promise<TransactionAnalyticsResponseDto> {
     return this.analyticsService.getAnalytics(user.userId, query);
+  }
+
+  @Get(TRANSACTIONS_ROUTES.history)
+  @ApiGetTransactionHistoryEndpoint()
+  async getHistory(
+    @CurrentUser()
+    user: AuthenticatedRequestUser,
+
+    @Query()
+    query: ListTransactionHistoryQueryDto,
+  ): Promise<TransactionHistoryResponseDto> {
+    return this.historyService.list(user.userId, query);
   }
 
   @Get(TRANSACTIONS_ROUTES.detail)
