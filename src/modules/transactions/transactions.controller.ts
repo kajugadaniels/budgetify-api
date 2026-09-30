@@ -21,10 +21,12 @@ import { TransactionResponseDto } from './dto/transaction.response.dto';
 import { TransactionsMapper } from './transactions.mapper';
 import { TRANSACTIONS_ROUTES } from './transactions.routes';
 import { TransactionsService } from './transactions.service';
+import { RecordProviderSmsResultRequestDto } from './dto/record-provider-sms-result.request.dto';
 import {
   ApiCreateTransactionEndpoint,
   ApiQuoteTransactionEndpoint,
   ApiRecordUssdOpenedEndpoint,
+  ApiRecordProviderSmsResultEndpoint,
 } from './transactions.swagger';
 
 @ApiTags('Transactions')
@@ -70,6 +72,26 @@ export class TransactionsController {
     body: RecordUssdOpenedRequestDto,
   ): Promise<TransactionResponseDto> {
     const transaction = await this.transactionsService.recordUssdOpened(
+      user.userId,
+      transactionId,
+      body,
+    );
+
+    return TransactionsMapper.toResponse(transaction);
+  }
+
+  @Post(TRANSACTIONS_ROUTES.providerSmsResult)
+  @HttpCode(HttpStatus.OK)
+  @ApiRecordProviderSmsResultEndpoint()
+  async recordProviderSmsResult(
+    @CurrentUser()
+    user: AuthenticatedRequestUser,
+    @Param('transactionId', new ParseUUIDPipe())
+    transactionId: string,
+    @Body()
+    body: RecordProviderSmsResultRequestDto,
+  ): Promise<TransactionResponseDto> {
+    const transaction = await this.transactionsService.recordProviderSmsResult(
       user.userId,
       transactionId,
       body,
