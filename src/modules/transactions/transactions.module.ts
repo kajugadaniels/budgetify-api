@@ -8,6 +8,8 @@ import { TransactionAnalyticsRepository } from './transaction-analytics.reposito
 import { TransactionsController } from './transactions.controller';
 import { TransactionsRepository } from './transactions.repository';
 import { TransactionsService } from './transactions.service';
+import { TransactionHistoryService } from './services/transaction-history.service';
+import { TransactionHistoryRepository } from './transaction-history.repository';
 
 @Module({
   imports: [
@@ -21,8 +23,10 @@ import { TransactionsService } from './transactions.service';
   providers: [
     TransactionsRepository,
     TransactionAnalyticsRepository,
+    TransactionHistoryRepository,
     TransactionsService,
     TransactionAnalyticsService,
+    TransactionHistoryService,
     TransactionFeeCalculatorService,
     JwtAuthGuard,
   ],
@@ -30,6 +34,7 @@ import { TransactionsService } from './transactions.service';
   exports: [
     TransactionsService,
     TransactionAnalyticsService,
+    TransactionHistoryService,
     TransactionFeeCalculatorService,
   ],
 })
