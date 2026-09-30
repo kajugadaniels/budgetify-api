@@ -2,17 +2,23 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  NotFoundException,
 } from '@nestjs/common';
 import {
   Currency,
   Prisma,
   Transaction,
+  TransactionEventSource,
+  TransactionEventType,
   TransactionRecipientType,
+  TransactionStatus,
   TransactionTransferType,
 } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 
+import { PrismaService } from '../../database/prisma/prisma.service';
 import { CreateTransactionRequestDto } from './dto/create-transaction.request.dto';
+import { RecordUssdOpenedRequestDto } from './dto/record-ussd-opened.request.dto';
 import { TransactionQuoteRequestDto } from './dto/transaction-quote.request.dto';
 import { TransactionQuoteResponseDto } from './dto/transaction-quote.response.dto';
 import { TransactionFeeCalculatorService } from './services/transaction-fee-calculator.service';
@@ -23,6 +29,7 @@ export class TransactionsService {
   constructor(
     private readonly transactionsRepository: TransactionsRepository,
     private readonly feeCalculator: TransactionFeeCalculatorService,
+    private readonly prisma: PrismaService,
   ) {}
 
   quote(body: TransactionQuoteRequestDto): TransactionQuoteResponseDto {
@@ -51,22 +58,41 @@ export class TransactionsService {
     const quote = this.feeCalculator.calculate(body.amount, body.transferType);
 
     try {
-      return await this.transactionsRepository.create({
-        userId,
-        reference: this.createReference(),
-        idempotencyKey: body.idempotencyKey,
-        transferType: body.transferType,
-        recipientType: body.recipientType,
-        category: body.category,
-        currency: Currency.RWF,
-        amount: quote.amount,
-        feeAmount: quote.feeAmount,
-        totalAmount: quote.totalAmount,
-        receiverIdentifier,
-        receiverName: null,
-        note: body.note,
-        tariffVersion: quote.tariffVersion,
-        tariffSource: quote.tariffSource,
+      return await this.prisma.$transaction(async (tx) => {
+        const transaction = await this.transactionsRepository.create(
+          {
+            userId,
+            reference: this.createReference(),
+            idempotencyKey: body.idempotencyKey,
+            transferType: body.transferType,
+            recipientType: body.recipientType,
+            category: body.category,
+            currency: Currency.RWF,
+            amount: quote.amount,
+            feeAmount: quote.feeAmount,
+            totalAmount: quote.totalAmount,
+            receiverIdentifier,
+            receiverName: null,
+            note: body.note,
+            tariffVersion: quote.tariffVersion,
+            tariffSource: quote.tariffSource,
+          },
+          tx,
+        );
+
+        await this.transactionsRepository.createEvent(
+          {
+            transactionId: transaction.id,
+            type: TransactionEventType.CREATED,
+            source: TransactionEventSource.SYSTEM,
+            fromStatus: null,
+            toStatus: TransactionStatus.PENDING,
+            occurredAt: transaction.createdAt,
+          },
+          tx,
+        );
+
+        return transaction;
       });
     } catch (error) {
       if (
@@ -92,6 +118,108 @@ export class TransactionsService {
 
       throw error;
     }
+  }
+
+  async recordUssdOpened(
+    userId: string,
+    transactionId: string,
+    body: RecordUssdOpenedRequestDto,
+  ): Promise<Transaction> {
+    return this.prisma.$transaction(async (tx) => {
+      let transaction = await this.transactionsRepository.findOwnedById(
+        userId,
+        transactionId,
+        tx,
+      );
+
+      if (!transaction) {
+        throw new NotFoundException('Transaction not found.');
+      }
+
+      const existingEvent =
+        await this.transactionsRepository.findEventByClientEventId(
+          transaction.id,
+          body.clientEventId,
+          tx,
+        );
+
+      if (existingEvent) {
+        if (
+          existingEvent.type !== TransactionEventType.USSD_OPENED ||
+          existingEvent.source !== TransactionEventSource.MOBILE_APP
+        ) {
+          throw new ConflictException(
+            'This client event ID was already used for another transaction event.',
+          );
+        }
+
+        return transaction;
+      }
+
+      this.assertUssdCanBeOpened(transaction.status);
+
+      let eventFromStatus = transaction.status;
+
+      const occurredAt = new Date();
+
+      if (transaction.status === TransactionStatus.PENDING) {
+        const transitioned =
+          await this.transactionsRepository.transitionPendingToProcessing(
+            userId,
+            transaction.id,
+            occurredAt,
+            tx,
+          );
+
+        transaction = await this.transactionsRepository.findOwnedById(
+          userId,
+          transaction.id,
+          tx,
+        );
+
+        if (!transaction) {
+          throw new NotFoundException('Transaction not found.');
+        }
+
+        this.assertUssdCanBeOpened(transaction.status);
+
+        if (transaction.status !== TransactionStatus.PROCESSING) {
+          throw new ConflictException(
+            'Transaction could not be moved to processing.',
+          );
+        }
+
+        if (!transitioned) {
+          eventFromStatus = transaction.status;
+        }
+      }
+
+      await this.transactionsRepository.upsertUssdOpenedEvent(
+        {
+          transactionId: transaction.id,
+          clientEventId: body.clientEventId,
+          fromStatus: eventFromStatus,
+          toStatus: transaction.status,
+          occurredAt,
+        },
+        tx,
+      );
+
+      return transaction;
+    });
+  }
+
+  private assertUssdCanBeOpened(status: TransactionStatus): void {
+    if (
+      status === TransactionStatus.PENDING ||
+      status === TransactionStatus.PROCESSING
+    ) {
+      return;
+    }
+
+    throw new ConflictException(
+      `USSD cannot be opened for a ${status.toLowerCase()} transaction.`,
+    );
   }
 
   private normalizeReceiverIdentifier(
