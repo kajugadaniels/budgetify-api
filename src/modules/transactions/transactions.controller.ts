@@ -38,6 +38,7 @@ import {
   ApiCreateTransactionEndpoint,
   ApiGetTransactionAnalyticsEndpoint,
   ApiGetTransactionEndpoint,
+  ApiGetTransactionHistoryEndpoint,
   ApiListTransactionsEndpoint,
   ApiQuoteTransactionEndpoint,
   ApiRecordManualResultEndpoint,
