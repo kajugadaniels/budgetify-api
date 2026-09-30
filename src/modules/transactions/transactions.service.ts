@@ -18,16 +18,18 @@ import { randomUUID } from 'node:crypto';
 
 import { PrismaService } from '../../database/prisma/prisma.service';
 import { CreateTransactionRequestDto } from './dto/create-transaction.request.dto';
+import { ListTransactionsQueryDto } from './dto/list-transactions.query.dto';
+import { RecordManualResultRequestDto } from './dto/record-manual-result.request.dto';
+import { RecordProviderSmsResultRequestDto } from './dto/record-provider-sms-result.request.dto';
 import { RecordUssdOpenedRequestDto } from './dto/record-ussd-opened.request.dto';
 import { TransactionQuoteRequestDto } from './dto/transaction-quote.request.dto';
 import { TransactionQuoteResponseDto } from './dto/transaction-quote.response.dto';
 import { TransactionFeeCalculatorService } from './services/transaction-fee-calculator.service';
 import { TransactionsRepository } from './transactions.repository';
-import { RecordProviderSmsResultRequestDto } from './dto/record-provider-sms-result.request.dto';
-import { ListTransactionsQueryDto } from './dto/list-transactions.query.dto';
 
 interface TransactionListResult {
   items: Transaction[];
+
   pagination: {
     page: number;
     limit: number;
@@ -40,6 +42,7 @@ interface TransactionListResult {
 
 interface TransactionDetailResult {
   transaction: Transaction;
+
   events: Awaited<
     ReturnType<TransactionsRepository['findEventsByTransactionId']>
   >;
@@ -49,7 +52,9 @@ interface TransactionDetailResult {
 export class TransactionsService {
   constructor(
     private readonly transactionsRepository: TransactionsRepository,
+
     private readonly feeCalculator: TransactionFeeCalculatorService,
+
     private readonly prisma: PrismaService,
   ) {}
 
@@ -89,12 +94,15 @@ export class TransactionsService {
 
     return {
       items: result.items,
+
       pagination: {
         page: query.page,
         limit: query.limit,
         total: result.total,
         totalPages,
+
         hasNextPage: query.page * query.limit < result.total,
+
         hasPreviousPage: query.page > 1,
       },
     };
@@ -153,19 +161,33 @@ export class TransactionsService {
         const transaction = await this.transactionsRepository.create(
           {
             userId,
+
             reference: this.createReference(),
+
             idempotencyKey: body.idempotencyKey,
+
             transferType: body.transferType,
+
             recipientType: body.recipientType,
+
             category: body.category,
+
             currency: Currency.RWF,
+
             amount: quote.amount,
+
             feeAmount: quote.feeAmount,
+
             totalAmount: quote.totalAmount,
+
             receiverIdentifier,
+
             receiverName: null,
+
             note: body.note,
+
             tariffVersion: quote.tariffVersion,
+
             tariffSource: quote.tariffSource,
           },
           tx,
@@ -174,10 +196,15 @@ export class TransactionsService {
         await this.transactionsRepository.createEvent(
           {
             transactionId: transaction.id,
+
             type: TransactionEventType.CREATED,
+
             source: TransactionEventSource.SYSTEM,
+
             fromStatus: null,
+
             toStatus: TransactionStatus.PENDING,
+
             occurredAt: transaction.createdAt,
           },
           tx,
@@ -288,9 +315,13 @@ export class TransactionsService {
       await this.transactionsRepository.upsertUssdOpenedEvent(
         {
           transactionId: transaction.id,
+
           clientEventId: body.clientEventId,
+
           fromStatus: eventFromStatus,
+
           toStatus: transaction.status,
+
           occurredAt,
         },
         tx,
@@ -298,19 +329,6 @@ export class TransactionsService {
 
       return transaction;
     });
-  }
-
-  private assertUssdCanBeOpened(status: TransactionStatus): void {
-    if (
-      status === TransactionStatus.PENDING ||
-      status === TransactionStatus.PROCESSING
-    ) {
-      return;
-    }
-
-    throw new ConflictException(
-      `USSD cannot be opened for a ${status.toLowerCase()} transaction.`,
-    );
   }
 
   async recordProviderSmsResult(
@@ -367,14 +385,23 @@ export class TransactionsService {
           await this.transactionsRepository.transitionToProviderResult(
             {
               userId,
+
               transactionId: transaction.id,
+
               expectedStatus: transaction.status,
+
               toStatus: body.status,
+
               occurredAt,
+
               processedAt: transaction.processedAt ?? occurredAt,
+
               providerReference: body.providerReference,
+
               receiverName: body.receiverName,
+
               failureCode: body.failureCode,
+
               failureReason: body.failureReason,
             },
             tx,
@@ -413,12 +440,19 @@ export class TransactionsService {
           await this.transactionsRepository.upsertProviderResultEvent(
             {
               transactionId: transaction.id,
+
               clientEventId: body.clientEventId,
+
               fromStatus,
+
               toStatus: body.status,
+
               occurredAt,
+
               providerReference: body.providerReference,
+
               failureCode: body.failureCode,
+
               failureReason: body.failureReason,
             },
             tx,
@@ -450,6 +484,145 @@ export class TransactionsService {
 
       throw error;
     }
+  }
+
+  async recordManualResult(
+    userId: string,
+    transactionId: string,
+    body: RecordManualResultRequestDto,
+  ): Promise<Transaction> {
+    return this.prisma.$transaction(async (tx) => {
+      let transaction = await this.transactionsRepository.findOwnedById(
+        userId,
+        transactionId,
+        tx,
+      );
+
+      if (!transaction) {
+        throw new NotFoundException('Transaction not found.');
+      }
+
+      const existingEvent =
+        await this.transactionsRepository.findEventByClientEventId(
+          transaction.id,
+          body.clientEventId,
+          tx,
+        );
+
+      if (existingEvent) {
+        this.assertManualResultEventMatches(existingEvent, body);
+
+        return transaction;
+      }
+
+      this.assertManualResultCanBeRecorded(transaction.status);
+
+      const occurredAt = new Date();
+
+      const fromStatus = transaction.status;
+
+      const transitioned =
+        await this.transactionsRepository.transitionToManualResult(
+          {
+            userId,
+
+            transactionId: transaction.id,
+
+            expectedStatus: transaction.status,
+
+            toStatus: body.status,
+
+            occurredAt,
+
+            processedAt: transaction.processedAt ?? occurredAt,
+          },
+          tx,
+        );
+
+      if (!transitioned) {
+        transaction = await this.transactionsRepository.findOwnedById(
+          userId,
+          transaction.id,
+          tx,
+        );
+
+        if (!transaction) {
+          throw new NotFoundException('Transaction not found.');
+        }
+
+        const raceEvent =
+          await this.transactionsRepository.findEventByClientEventId(
+            transaction.id,
+            body.clientEventId,
+            tx,
+          );
+
+        if (raceEvent) {
+          this.assertManualResultEventMatches(raceEvent, body);
+
+          return transaction;
+        }
+
+        throw new ConflictException(
+          'Transaction status changed while the manual result was being recorded.',
+        );
+      }
+
+      const event = await this.transactionsRepository.upsertManualResultEvent(
+        {
+          transactionId: transaction.id,
+
+          clientEventId: body.clientEventId,
+
+          fromStatus,
+
+          toStatus: body.status,
+
+          occurredAt,
+        },
+        tx,
+      );
+
+      this.assertManualResultEventMatches(event, body);
+
+      transaction = await this.transactionsRepository.findOwnedById(
+        userId,
+        transaction.id,
+        tx,
+      );
+
+      if (!transaction) {
+        throw new NotFoundException('Transaction not found.');
+      }
+
+      return transaction;
+    });
+  }
+
+  private assertUssdCanBeOpened(status: TransactionStatus): void {
+    if (
+      status === TransactionStatus.PENDING ||
+      status === TransactionStatus.PROCESSING
+    ) {
+      return;
+    }
+
+    throw new ConflictException(
+      `USSD cannot be opened for a ${status.toLowerCase()} transaction.`,
+    );
+  }
+
+  private assertManualResultCanBeRecorded(status: TransactionStatus): void {
+    if (
+      status === TransactionStatus.PENDING ||
+      status === TransactionStatus.PROCESSING
+    ) {
+      return;
+    }
+
+    throw new ConflictException(
+      `A manual result cannot be recorded for a ${status.toLowerCase()} transaction.`,
+    );
   }
 
   private normalizeReceiverIdentifier(
@@ -604,10 +777,15 @@ export class TransactionsService {
   private assertProviderResultEventMatches(
     event: {
       type: TransactionEventType;
+
       source: TransactionEventSource;
+
       toStatus: TransactionStatus | null;
+
       providerReference: string | null;
+
       failureCode: string | null;
+
       failureReason: string | null;
     },
     body: RecordProviderSmsResultRequestDto,
@@ -623,6 +801,37 @@ export class TransactionsService {
     if (!matches) {
       throw new ConflictException(
         'This client event ID was already used for a different provider result.',
+      );
+    }
+  }
+
+  private assertManualResultEventMatches(
+    event: {
+      type: TransactionEventType;
+
+      source: TransactionEventSource;
+
+      toStatus: TransactionStatus | null;
+
+      providerReference: string | null;
+
+      failureCode: string | null;
+
+      failureReason: string | null;
+    },
+    body: RecordManualResultRequestDto,
+  ): void {
+    const matches =
+      event.type === TransactionEventType.STATUS_CHANGED &&
+      event.source === TransactionEventSource.MOBILE_APP &&
+      event.toStatus === body.status &&
+      event.providerReference === null &&
+      event.failureCode === null &&
+      event.failureReason === null;
+
+    if (!matches) {
+      throw new ConflictException(
+        'This client event ID was already used for a different manual result.',
       );
     }
   }
