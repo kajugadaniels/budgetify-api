@@ -18,6 +18,10 @@ type ProviderResultStatus =
   | typeof TransactionStatus.FAILED
   | typeof TransactionStatus.CANCELLED;
 
+type ManualResultStatus =
+  | typeof TransactionStatus.COMPLETED
+  | typeof TransactionStatus.FAILED;
+
 type PrismaExecutor = Prisma.TransactionClient | PrismaService;
 
 interface UssdOpenedEventInput {
@@ -50,6 +54,23 @@ interface ProviderResultEventInput {
   providerReference?: string;
   failureCode?: string;
   failureReason?: string;
+}
+
+interface ManualResultTransitionInput {
+  userId: string;
+  transactionId: string;
+  expectedStatus: TransactionStatus;
+  toStatus: ManualResultStatus;
+  occurredAt: Date;
+  processedAt: Date;
+}
+
+interface ManualResultEventInput {
+  transactionId: string;
+  clientEventId: string;
+  fromStatus: TransactionStatus;
+  toStatus: ManualResultStatus;
+  occurredAt: Date;
 }
 
 interface ListOwnedTransactionsInput {
@@ -214,6 +235,41 @@ export class TransactionsRepository {
     return result.count === 1;
   }
 
+  async transitionToManualResult(
+    input: ManualResultTransitionInput,
+    db: PrismaExecutor = this.prisma,
+  ): Promise<boolean> {
+    const isCompleted = input.toStatus === TransactionStatus.COMPLETED;
+
+    const isFailed = input.toStatus === TransactionStatus.FAILED;
+
+    const result = await db.transaction.updateMany({
+      where: {
+        id: input.transactionId,
+        userId: input.userId,
+        status: input.expectedStatus,
+      },
+      data: {
+        status: input.toStatus,
+
+        processedAt: input.processedAt,
+
+        // Manual confirmation has no
+        // provider-supplied failure data.
+        failureCode: null,
+        failureReason: null,
+
+        completedAt: isCompleted ? input.occurredAt : null,
+
+        failedAt: isFailed ? input.occurredAt : null,
+
+        cancelledAt: null,
+      },
+    });
+
+    return result.count === 1;
+  }
+
   async upsertUssdOpenedEvent(
     input: UssdOpenedEventInput,
     db: PrismaExecutor = this.prisma,
@@ -227,11 +283,17 @@ export class TransactionsRepository {
       },
       create: {
         transactionId: input.transactionId,
+
         type: TransactionEventType.USSD_OPENED,
+
         source: TransactionEventSource.MOBILE_APP,
+
         clientEventId: input.clientEventId,
+
         fromStatus: input.fromStatus,
+
         toStatus: input.toStatus,
+
         occurredAt: input.occurredAt,
       },
       update: {},
@@ -251,14 +313,53 @@ export class TransactionsRepository {
       },
       create: {
         transactionId: input.transactionId,
+
         type: TransactionEventType.PROVIDER_RESULT_RECEIVED,
+
         source: TransactionEventSource.PROVIDER_SMS,
+
         clientEventId: input.clientEventId,
+
         fromStatus: input.fromStatus,
+
         toStatus: input.toStatus,
+
         providerReference: input.providerReference,
+
         failureCode: input.failureCode,
+
         failureReason: input.failureReason,
+
+        occurredAt: input.occurredAt,
+      },
+      update: {},
+    });
+  }
+
+  async upsertManualResultEvent(
+    input: ManualResultEventInput,
+    db: PrismaExecutor = this.prisma,
+  ): Promise<TransactionEvent> {
+    return db.transactionEvent.upsert({
+      where: {
+        transactionId_clientEventId: {
+          transactionId: input.transactionId,
+          clientEventId: input.clientEventId,
+        },
+      },
+      create: {
+        transactionId: input.transactionId,
+
+        type: TransactionEventType.STATUS_CHANGED,
+
+        source: TransactionEventSource.MOBILE_APP,
+
+        clientEventId: input.clientEventId,
+
+        fromStatus: input.fromStatus,
+
+        toStatus: input.toStatus,
+
         occurredAt: input.occurredAt,
       },
       update: {},
@@ -320,24 +421,28 @@ export class TransactionsRepository {
               {
                 reference: {
                   contains: input.search,
+
                   mode: 'insensitive',
                 },
               },
               {
                 receiverIdentifier: {
                   contains: input.search,
+
                   mode: 'insensitive',
                 },
               },
               {
                 receiverName: {
                   contains: input.search,
+
                   mode: 'insensitive',
                 },
               },
               {
                 providerReference: {
                   contains: input.search,
+
                   mode: 'insensitive',
                 },
               },
@@ -351,6 +456,7 @@ export class TransactionsRepository {
     const [items, total] = await Promise.all([
       db.transaction.findMany({
         where,
+
         orderBy: [
           {
             createdAt: 'desc',
@@ -359,6 +465,7 @@ export class TransactionsRepository {
             id: 'desc',
           },
         ],
+
         skip,
         take: input.limit,
       }),
