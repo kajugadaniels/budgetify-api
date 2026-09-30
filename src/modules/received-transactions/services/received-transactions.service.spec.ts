@@ -218,4 +218,112 @@ describe('ReceivedTransactionsService', () => {
       service.getDetail(receivedTransaction.userId, receivedTransaction.id),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
+
+  const manualReceivedTransaction: ReceivedTransaction = {
+    ...receivedTransaction,
+
+    clientEventId: 'manual-received-1759263000000-b19cd563fe834202',
+
+    evidenceSource: ReceivedTransactionEvidenceSource.MANUAL,
+
+    providerReference: null,
+  };
+
+  it('records a manually reported received payment', async () => {
+    repository.findByClientEventId.mockResolvedValue(null);
+
+    repository.create.mockResolvedValue(manualReceivedTransaction);
+
+    const result = await service.recordManual(
+      manualReceivedTransaction.userId,
+      {
+        clientEventId: manualReceivedTransaction.clientEventId,
+
+        amount: 25_000,
+
+        occurredAt: '2026-09-30T19:35:20.000Z',
+
+        senderIdentifier: '0788123456',
+
+        senderName: 'Jean Claude',
+      },
+    );
+
+    expect(result).toEqual(manualReceivedTransaction);
+
+    const createInput = repository.create.mock.calls[0][0];
+
+    expect(createInput.status).toBe(ReceivedTransactionStatus.COMPLETED);
+
+    expect(createInput.classification).toBe(
+      ReceivedTransactionClassification.UNCLASSIFIED,
+    );
+
+    expect(createInput.evidenceSource).toBe(
+      ReceivedTransactionEvidenceSource.MANUAL,
+    );
+
+    expect(createInput.providerReference).toBeNull();
+
+    expect(createInput.senderIdentifier).toBe('+250788123456');
+  });
+
+  it('reuses the same manually recorded client event', async () => {
+    repository.findByClientEventId.mockResolvedValue(manualReceivedTransaction);
+
+    const result = await service.recordManual(
+      manualReceivedTransaction.userId,
+      {
+        clientEventId: manualReceivedTransaction.clientEventId,
+
+        amount: 25_000,
+
+        occurredAt: '2026-09-30T19:35:20.000Z',
+
+        senderIdentifier: '0788123456',
+
+        senderName: 'Jean Claude',
+      },
+    );
+
+    expect(result).toEqual(manualReceivedTransaction);
+
+    expect(repository.create).not.toHaveBeenCalled();
+  });
+
+  it('requires sender information for a manual received payment', async () => {
+    await expect(
+      service.recordManual(receivedTransaction.userId, {
+        clientEventId: 'manual-received-1759263000000-aa21cd563fe834202',
+
+        amount: 25_000,
+
+        occurredAt: '2026-09-30T19:35:20.000Z',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(repository.create).not.toHaveBeenCalled();
+  });
+
+  it('deduplicates manual entry by an optional provider reference', async () => {
+    repository.findByClientEventId.mockResolvedValue(null);
+
+    repository.findByProviderReference.mockResolvedValue(receivedTransaction);
+
+    const result = await service.recordManual(receivedTransaction.userId, {
+      clientEventId: 'manual-received-1759263000000-cc21cd563fe834202',
+
+      amount: 25_000,
+
+      occurredAt: '2026-09-30T19:35:20.000Z',
+
+      senderName: 'Jean Claude',
+
+      providerReference: '18473920531',
+    });
+
+    expect(result).toEqual(receivedTransaction);
+
+    expect(repository.create).not.toHaveBeenCalled();
+  });
 });
