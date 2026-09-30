@@ -85,7 +85,9 @@ export class TransactionAnalyticsService {
       }));
 
     const classifiedConfirmations =
-      current.providerConfirmed + current.manuallyConfirmed;
+      current.smsEvidence +
+      current.providerApiConfirmed +
+      current.manuallyConfirmed;
 
     return {
       currency: Currency.RWF,
@@ -125,7 +127,9 @@ export class TransactionAnalyticsService {
       comparison: this.buildComparison(current.completed, previous),
 
       confirmation: {
-        providerConfirmed: current.providerConfirmed,
+        smsEvidence: current.smsEvidence,
+
+        providerApiConfirmed: current.providerApiConfirmed,
 
         manuallyConfirmed: current.manuallyConfirmed,
 
