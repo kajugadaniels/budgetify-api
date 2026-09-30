@@ -20,6 +20,36 @@ interface UssdOpenedEventInput {
   occurredAt: Date;
 }
 
+interface ProviderResultTransitionInput {
+  userId: string;
+  transactionId: string;
+  expectedStatus: TransactionStatus;
+  toStatus:
+    | TransactionStatus.COMPLETED
+    | TransactionStatus.FAILED
+    | TransactionStatus.CANCELLED;
+  occurredAt: Date;
+  processedAt: Date;
+  providerReference?: string;
+  receiverName?: string;
+  failureCode?: string;
+  failureReason?: string;
+}
+
+interface ProviderResultEventInput {
+  transactionId: string;
+  clientEventId: string;
+  fromStatus: TransactionStatus;
+  toStatus:
+    | TransactionStatus.COMPLETED
+    | TransactionStatus.FAILED
+    | TransactionStatus.CANCELLED;
+  occurredAt: Date;
+  providerReference?: string;
+  failureCode?: string;
+  failureReason?: string;
+}
+
 @Injectable()
 export class TransactionsRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -48,6 +78,17 @@ export class TransactionsRepository {
       where: {
         id: transactionId,
         userId,
+      },
+    });
+  }
+
+  async findByProviderReference(
+    providerReference: string,
+    db: PrismaExecutor = this.prisma,
+  ): Promise<Transaction | null> {
+    return db.transaction.findUnique({
+      where: {
+        providerReference,
       },
     });
   }
@@ -106,6 +147,53 @@ export class TransactionsRepository {
     return result.count === 1;
   }
 
+  async transitionToProviderResult(
+    input: ProviderResultTransitionInput,
+    db: PrismaExecutor = this.prisma,
+  ): Promise<boolean> {
+    const isCompleted = input.toStatus === TransactionStatus.COMPLETED;
+
+    const isFailed = input.toStatus === TransactionStatus.FAILED;
+
+    const isCancelled = input.toStatus === TransactionStatus.CANCELLED;
+
+    const result = await db.transaction.updateMany({
+      where: {
+        id: input.transactionId,
+        userId: input.userId,
+        status: input.expectedStatus,
+      },
+      data: {
+        status: input.toStatus,
+        processedAt: input.processedAt,
+
+        ...(input.providerReference !== undefined
+          ? {
+              providerReference: input.providerReference,
+            }
+          : {}),
+
+        ...(input.receiverName !== undefined
+          ? {
+              receiverName: input.receiverName,
+            }
+          : {}),
+
+        failureCode: isCompleted ? null : (input.failureCode ?? null),
+
+        failureReason: isCompleted ? null : (input.failureReason ?? null),
+
+        completedAt: isCompleted ? input.occurredAt : null,
+
+        failedAt: isFailed ? input.occurredAt : null,
+
+        cancelledAt: isCancelled ? input.occurredAt : null,
+      },
+    });
+
+    return result.count === 1;
+  }
+
   async upsertUssdOpenedEvent(
     input: UssdOpenedEventInput,
     db: PrismaExecutor = this.prisma,
@@ -124,6 +212,33 @@ export class TransactionsRepository {
         clientEventId: input.clientEventId,
         fromStatus: input.fromStatus,
         toStatus: input.toStatus,
+        occurredAt: input.occurredAt,
+      },
+      update: {},
+    });
+  }
+
+  async upsertProviderResultEvent(
+    input: ProviderResultEventInput,
+    db: PrismaExecutor = this.prisma,
+  ): Promise<TransactionEvent> {
+    return db.transactionEvent.upsert({
+      where: {
+        transactionId_clientEventId: {
+          transactionId: input.transactionId,
+          clientEventId: input.clientEventId,
+        },
+      },
+      create: {
+        transactionId: input.transactionId,
+        type: TransactionEventType.PROVIDER_RESULT_RECEIVED,
+        source: TransactionEventSource.PROVIDER_SMS,
+        clientEventId: input.clientEventId,
+        fromStatus: input.fromStatus,
+        toStatus: input.toStatus,
+        providerReference: input.providerReference,
+        failureCode: input.failureCode,
+        failureReason: input.failureReason,
         occurredAt: input.occurredAt,
       },
       update: {},
