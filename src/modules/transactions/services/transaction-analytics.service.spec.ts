@@ -92,17 +92,25 @@ describe('TransactionAnalyticsService', () => {
       to: '2026-09-20T23:59:59.999Z',
     });
 
-    expect(repository.getPeriodData).toHaveBeenCalledWith({
-      userId: 'user-1',
-      from: new Date('2026-09-11T00:00:00.000Z'),
-      to: new Date('2026-09-20T23:59:59.999Z'),
-    });
+    expect(repository.getPeriodData.mock.calls).toEqual([
+      [
+        {
+          userId: 'user-1',
+          from: new Date('2026-09-11T00:00:00.000Z'),
+          to: new Date('2026-09-20T23:59:59.999Z'),
+        },
+      ],
+    ]);
 
-    expect(repository.getCompletedTotals).toHaveBeenCalledWith({
-      userId: 'user-1',
-      from: new Date('2026-09-01T00:00:00.000Z'),
-      to: new Date('2026-09-10T23:59:59.999Z'),
-    });
+    expect(repository.getCompletedTotals.mock.calls).toEqual([
+      [
+        {
+          userId: 'user-1',
+          from: new Date('2026-09-01T00:00:00.000Z'),
+          to: new Date('2026-09-10T23:59:59.999Z'),
+        },
+      ],
+    ]);
 
     expect(result.period).toEqual({
       from: '2026-09-11T00:00:00.000Z',
@@ -281,8 +289,8 @@ describe('TransactionAnalyticsService', () => {
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
 
-    expect(repository.getPeriodData).not.toHaveBeenCalled();
+    expect(repository.getPeriodData.mock.calls).toHaveLength(0);
 
-    expect(repository.getCompletedTotals).not.toHaveBeenCalled();
+    expect(repository.getCompletedTotals.mock.calls).toHaveLength(0);
   });
 });
