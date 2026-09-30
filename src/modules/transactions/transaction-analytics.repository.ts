@@ -48,7 +48,8 @@ export interface TransactionAnalyticsPeriodData {
   cancelledTransactions: number;
   reversedTransactions: number;
 
-  providerConfirmed: number;
+  smsEvidence: number;
+  providerApiConfirmed: number;
   manuallyConfirmed: number;
 
   categories: TransactionCategoryAnalyticsRow[];
@@ -88,6 +89,24 @@ export class TransactionAnalyticsRepository {
   ): Promise<TransactionAnalyticsPeriodData> {
     const completedWhere = this.completedTransactionsWhere(input);
 
+    const providerApiCompletionEvent: Prisma.TransactionEventWhereInput = {
+      type: TransactionEventType.PROVIDER_RESULT_RECEIVED,
+      source: TransactionEventSource.PROVIDER_API,
+      toStatus: TransactionStatus.COMPLETED,
+    };
+
+    const smsCompletionEvent: Prisma.TransactionEventWhereInput = {
+      type: TransactionEventType.PROVIDER_RESULT_RECEIVED,
+      source: TransactionEventSource.PROVIDER_SMS,
+      toStatus: TransactionStatus.COMPLETED,
+    };
+
+    const manualCompletionEvent: Prisma.TransactionEventWhereInput = {
+      type: TransactionEventType.STATUS_CHANGED,
+      source: TransactionEventSource.MOBILE_APP,
+      toStatus: TransactionStatus.COMPLETED,
+    };
+
     const [
       completed,
       categoryGroups,
@@ -97,7 +116,8 @@ export class TransactionAnalyticsRepository {
       failedTransactions,
       cancelledTransactions,
       reversedTransactions,
-      providerConfirmed,
+      smsEvidence,
+      providerApiConfirmed,
       manuallyConfirmed,
     ] = await Promise.all([
       this.getCompletedTotals(input),
@@ -183,44 +203,62 @@ export class TransactionAnalyticsRepository {
         },
       }),
 
-      this.prisma.transactionEvent.count({
+      // SMS evidence is client-observed evidence parsed from the
+      // device. If a transaction also has provider API evidence,
+      // the stronger provider API provenance takes precedence.
+      this.prisma.transaction.count({
         where: {
-          type: TransactionEventType.PROVIDER_RESULT_RECEIVED,
-          source: {
-            in: [
-              TransactionEventSource.PROVIDER_SMS,
-              TransactionEventSource.PROVIDER_API,
-            ],
-          },
-          toStatus: TransactionStatus.COMPLETED,
-          transaction: {
-            is: {
-              userId: input.userId,
-              status: TransactionStatus.COMPLETED,
-              completedAt: {
-                gte: input.from,
-                lte: input.to,
+          ...completedWhere,
+
+          AND: [
+            {
+              events: {
+                some: smsCompletionEvent,
               },
             },
+            {
+              events: {
+                none: providerApiCompletionEvent,
+              },
+            },
+          ],
+        },
+      }),
+
+      // Provider API evidence has the highest provenance priority.
+      this.prisma.transaction.count({
+        where: {
+          ...completedWhere,
+
+          events: {
+            some: providerApiCompletionEvent,
           },
         },
       }),
 
-      this.prisma.transactionEvent.count({
+      // Manual confirmation is counted only when the transaction
+      // does not also have SMS or provider API completion evidence.
+      this.prisma.transaction.count({
         where: {
-          type: TransactionEventType.STATUS_CHANGED,
-          source: TransactionEventSource.MOBILE_APP,
-          toStatus: TransactionStatus.COMPLETED,
-          transaction: {
-            is: {
-              userId: input.userId,
-              status: TransactionStatus.COMPLETED,
-              completedAt: {
-                gte: input.from,
-                lte: input.to,
+          ...completedWhere,
+
+          AND: [
+            {
+              events: {
+                some: manualCompletionEvent,
               },
             },
-          },
+            {
+              events: {
+                none: providerApiCompletionEvent,
+              },
+            },
+            {
+              events: {
+                none: smsCompletionEvent,
+              },
+            },
+          ],
         },
       }),
     ]);
@@ -234,7 +272,8 @@ export class TransactionAnalyticsRepository {
       cancelledTransactions,
       reversedTransactions,
 
-      providerConfirmed,
+      smsEvidence,
+      providerApiConfirmed,
       manuallyConfirmed,
 
       categories: categoryGroups.map((group) => ({
