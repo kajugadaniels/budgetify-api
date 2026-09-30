@@ -193,6 +193,20 @@ enum TransactionStatus {
   REVERSED
 }
 
+enum TransactionEventType {
+  CREATED
+  USSD_OPENED
+  PROVIDER_RESULT_RECEIVED
+  STATUS_CHANGED
+}
+
+enum TransactionEventSource {
+  SYSTEM
+  MOBILE_APP
+  PROVIDER_SMS
+  PROVIDER_API
+}
+
 enum TransactionCategory {
   TRANSPORT
   GROCERIES
@@ -457,13 +471,37 @@ model Transaction {
   reversedAt         DateTime?
   createdAt          DateTime                 @default(now())
   updatedAt          DateTime                 @updatedAt
-  user               User                     @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  user   User               @relation(fields: [userId], references: [id], onDelete: Restrict)
+  events TransactionEvent[]
 
   @@unique([userId, idempotencyKey])
   @@index([userId, createdAt])
   @@index([userId, status, createdAt])
   @@index([status, createdAt])
   @@index([transferType, createdAt])
+}
+
+model TransactionEvent {
+  id                String                 @id @default(uuid()) @db.Uuid
+  transactionId     String                 @db.Uuid
+  type              TransactionEventType
+  source            TransactionEventSource
+  fromStatus        TransactionStatus?
+  toStatus          TransactionStatus?
+  clientEventId     String?
+  providerReference String?
+  failureCode       String?
+  failureReason     String?
+  occurredAt        DateTime
+  createdAt         DateTime               @default(now())
+
+  transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+
+  @@unique([transactionId, clientEventId])
+  @@index([transactionId, occurredAt])
+  @@index([type, occurredAt])
+  @@index([source, occurredAt])
 }
 
 model Loan {
