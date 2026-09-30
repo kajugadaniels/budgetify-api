@@ -10,6 +10,11 @@ import {
 
 import { PrismaService } from '../../database/prisma/prisma.service';
 
+type ProviderResultStatus =
+  | typeof TransactionStatus.COMPLETED
+  | typeof TransactionStatus.FAILED
+  | typeof TransactionStatus.CANCELLED;
+
 type PrismaExecutor = Prisma.TransactionClient | PrismaService;
 
 interface UssdOpenedEventInput {
@@ -24,10 +29,7 @@ interface ProviderResultTransitionInput {
   userId: string;
   transactionId: string;
   expectedStatus: TransactionStatus;
-  toStatus:
-    | TransactionStatus.COMPLETED
-    | TransactionStatus.FAILED
-    | TransactionStatus.CANCELLED;
+  toStatus: ProviderResultStatus;
   occurredAt: Date;
   processedAt: Date;
   providerReference?: string;
@@ -40,10 +42,7 @@ interface ProviderResultEventInput {
   transactionId: string;
   clientEventId: string;
   fromStatus: TransactionStatus;
-  toStatus:
-    | TransactionStatus.COMPLETED
-    | TransactionStatus.FAILED
-    | TransactionStatus.CANCELLED;
+  toStatus: ProviderResultStatus;
   occurredAt: Date;
   providerReference?: string;
   failureCode?: string;
