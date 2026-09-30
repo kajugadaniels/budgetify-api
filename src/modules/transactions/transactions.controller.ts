@@ -16,24 +16,26 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthenticatedRequestUser } from '../../common/interfaces/authenticated-request.interface';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CreateTransactionRequestDto } from './dto/create-transaction.request.dto';
+import { ListTransactionsQueryDto } from './dto/list-transactions.query.dto';
+import { RecordManualResultRequestDto } from './dto/record-manual-result.request.dto';
+import { RecordProviderSmsResultRequestDto } from './dto/record-provider-sms-result.request.dto';
 import { RecordUssdOpenedRequestDto } from './dto/record-ussd-opened.request.dto';
+import { TransactionDetailResponseDto } from './dto/transaction-detail.response.dto';
+import { TransactionListResponseDto } from './dto/transaction-list.response.dto';
 import { TransactionQuoteRequestDto } from './dto/transaction-quote.request.dto';
 import { TransactionQuoteResponseDto } from './dto/transaction-quote.response.dto';
 import { TransactionResponseDto } from './dto/transaction.response.dto';
 import { TransactionsMapper } from './transactions.mapper';
 import { TRANSACTIONS_ROUTES } from './transactions.routes';
 import { TransactionsService } from './transactions.service';
-import { RecordProviderSmsResultRequestDto } from './dto/record-provider-sms-result.request.dto';
-import { ListTransactionsQueryDto } from './dto/list-transactions.query.dto';
-import { TransactionDetailResponseDto } from './dto/transaction-detail.response.dto';
-import { TransactionListResponseDto } from './dto/transaction-list.response.dto';
 import {
   ApiCreateTransactionEndpoint,
-  ApiQuoteTransactionEndpoint,
-  ApiRecordUssdOpenedEndpoint,
-  ApiRecordProviderSmsResultEndpoint,
   ApiGetTransactionEndpoint,
   ApiListTransactionsEndpoint,
+  ApiQuoteTransactionEndpoint,
+  ApiRecordManualResultEndpoint,
+  ApiRecordProviderSmsResultEndpoint,
+  ApiRecordUssdOpenedEndpoint,
 } from './transactions.swagger';
 
 @ApiTags('Transactions')
@@ -47,6 +49,7 @@ export class TransactionsController {
   async list(
     @CurrentUser()
     user: AuthenticatedRequestUser,
+
     @Query()
     query: ListTransactionsQueryDto,
   ): Promise<TransactionListResponseDto> {
@@ -56,6 +59,7 @@ export class TransactionsController {
       items: result.items.map((transaction) =>
         TransactionsMapper.toResponse(transaction),
       ),
+
       pagination: result.pagination,
     };
   }
@@ -65,6 +69,7 @@ export class TransactionsController {
   async getDetail(
     @CurrentUser()
     user: AuthenticatedRequestUser,
+
     @Param('transactionId', new ParseUUIDPipe())
     transactionId: string,
   ): Promise<TransactionDetailResponseDto> {
@@ -93,6 +98,7 @@ export class TransactionsController {
   async create(
     @CurrentUser()
     user: AuthenticatedRequestUser,
+
     @Body()
     body: CreateTransactionRequestDto,
   ): Promise<TransactionResponseDto> {
@@ -110,8 +116,10 @@ export class TransactionsController {
   async recordUssdOpened(
     @CurrentUser()
     user: AuthenticatedRequestUser,
+
     @Param('transactionId', new ParseUUIDPipe())
     transactionId: string,
+
     @Body()
     body: RecordUssdOpenedRequestDto,
   ): Promise<TransactionResponseDto> {
@@ -130,12 +138,36 @@ export class TransactionsController {
   async recordProviderSmsResult(
     @CurrentUser()
     user: AuthenticatedRequestUser,
+
     @Param('transactionId', new ParseUUIDPipe())
     transactionId: string,
+
     @Body()
     body: RecordProviderSmsResultRequestDto,
   ): Promise<TransactionResponseDto> {
     const transaction = await this.transactionsService.recordProviderSmsResult(
+      user.userId,
+      transactionId,
+      body,
+    );
+
+    return TransactionsMapper.toResponse(transaction);
+  }
+
+  @Post(TRANSACTIONS_ROUTES.manualResult)
+  @HttpCode(HttpStatus.OK)
+  @ApiRecordManualResultEndpoint()
+  async recordManualResult(
+    @CurrentUser()
+    user: AuthenticatedRequestUser,
+
+    @Param('transactionId', new ParseUUIDPipe())
+    transactionId: string,
+
+    @Body()
+    body: RecordManualResultRequestDto,
+  ): Promise<TransactionResponseDto> {
+    const transaction = await this.transactionsService.recordManualResult(
       user.userId,
       transactionId,
       body,
