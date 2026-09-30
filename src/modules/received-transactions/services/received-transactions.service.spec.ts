@@ -55,6 +55,16 @@ describe('ReceivedTransactionsService', () => {
     updatedAt: new Date('2026-09-30T19:35:30.000Z'),
   };
 
+  const manualReceivedTransaction: ReceivedTransaction = {
+    ...receivedTransaction,
+
+    clientEventId: 'manual-received-1759263000000-b19cd563fe834202',
+
+    evidenceSource: ReceivedTransactionEvidenceSource.MANUAL,
+
+    providerReference: null,
+  };
+
   beforeEach(() => {
     repository = {
       findOwnedById: jest.fn(),
@@ -219,16 +229,6 @@ describe('ReceivedTransactionsService', () => {
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
-  const manualReceivedTransaction: ReceivedTransaction = {
-    ...receivedTransaction,
-
-    clientEventId: 'manual-received-1759263000000-b19cd563fe834202',
-
-    evidenceSource: ReceivedTransactionEvidenceSource.MANUAL,
-
-    providerReference: null,
-  };
-
   it('records a manually reported received payment', async () => {
     repository.findByClientEventId.mockResolvedValue(null);
 
@@ -250,6 +250,8 @@ describe('ReceivedTransactionsService', () => {
     );
 
     expect(result).toEqual(manualReceivedTransaction);
+
+    expect(repository.create.mock.calls).toHaveLength(1);
 
     const createInput = repository.create.mock.calls[0][0];
 
@@ -288,7 +290,7 @@ describe('ReceivedTransactionsService', () => {
 
     expect(result).toEqual(manualReceivedTransaction);
 
-    expect(repository.create).not.toHaveBeenCalled();
+    expect(repository.create.mock.calls).toHaveLength(0);
   });
 
   it('requires sender information for a manual received payment', async () => {
@@ -302,7 +304,7 @@ describe('ReceivedTransactionsService', () => {
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
 
-    expect(repository.create).not.toHaveBeenCalled();
+    expect(repository.create.mock.calls).toHaveLength(0);
   });
 
   it('deduplicates manual entry by an optional provider reference', async () => {
@@ -324,6 +326,6 @@ describe('ReceivedTransactionsService', () => {
 
     expect(result).toEqual(receivedTransaction);
 
-    expect(repository.create).not.toHaveBeenCalled();
+    expect(repository.create.mock.calls).toHaveLength(0);
   });
 });
