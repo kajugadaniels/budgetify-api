@@ -230,6 +230,130 @@ export class ReceivedTransactionsService {
     }
   }
 
+  async recordManual(
+    userId: string,
+    body: RecordReceivedManualRequestDto,
+  ): Promise<ReceivedTransaction> {
+    const occurredAt = new Date(body.occurredAt);
+
+    this.assertManualInput(body, occurredAt);
+
+    const senderIdentifier = this.normalizeSenderIdentifier(
+      body.senderIdentifier,
+    );
+
+    const existingByClientEvent =
+      await this.receivedTransactionsRepository.findByClientEventId(
+        userId,
+        body.clientEventId,
+      );
+
+    if (existingByClientEvent) {
+      this.assertManualClientEventMatches(
+        existingByClientEvent,
+        body,
+        occurredAt,
+      );
+
+      return existingByClientEvent;
+    }
+
+    if (body.providerReference) {
+      const existingByProviderReference =
+        await this.receivedTransactionsRepository.findByProviderReference(
+          userId,
+          body.providerReference,
+        );
+
+      if (existingByProviderReference) {
+        this.assertManualProviderReferenceMatches(
+          existingByProviderReference,
+          body,
+          occurredAt,
+        );
+
+        return existingByProviderReference;
+      }
+    }
+
+    try {
+      return await this.receivedTransactionsRepository.create({
+        userId,
+
+        reference: this.createReference(),
+
+        clientEventId: body.clientEventId,
+
+        status: ReceivedTransactionStatus.COMPLETED,
+
+        classification: ReceivedTransactionClassification.UNCLASSIFIED,
+
+        evidenceSource: ReceivedTransactionEvidenceSource.MANUAL,
+
+        currency: Currency.RWF,
+
+        amount: body.amount,
+
+        senderIdentifier,
+
+        senderName: body.senderName ?? null,
+
+        providerReference: body.providerReference ?? null,
+
+        occurredAt,
+
+        reversedAt: null,
+
+        note: null,
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        const racedByClientEvent =
+          await this.receivedTransactionsRepository.findByClientEventId(
+            userId,
+            body.clientEventId,
+          );
+
+        if (racedByClientEvent) {
+          this.assertManualClientEventMatches(
+            racedByClientEvent,
+            body,
+            occurredAt,
+          );
+
+          return racedByClientEvent;
+        }
+
+        if (body.providerReference) {
+          const racedByProviderReference =
+            await this.receivedTransactionsRepository.findByProviderReference(
+              userId,
+              body.providerReference,
+            );
+
+          if (racedByProviderReference) {
+            this.assertManualProviderReferenceMatches(
+              racedByProviderReference,
+              body,
+              occurredAt,
+            );
+
+            return racedByProviderReference;
+          }
+        }
+
+        throw new ConflictException(
+          'Received transaction has already been recorded.',
+        );
+      }
+
+      throw error;
+    }
+  }
+
   private assertProviderSmsInput(
     body: RecordReceivedProviderSmsRequestDto,
     occurredAt: Date,
@@ -314,5 +438,59 @@ export class ReceivedTransactionsService {
     const entropy = randomUUID().replace(/-/g, '').slice(0, 12).toUpperCase();
 
     return `BGR-${timestamp}-${entropy}`;
+  }
+
+  private assertManualInput(
+    body: RecordReceivedManualRequestDto,
+    occurredAt: Date,
+  ): void {
+    if (!body.senderIdentifier && !body.senderName) {
+      throw new BadRequestException(
+        'A manually recorded received transaction must include a sender name or sender identifier.',
+      );
+    }
+
+    const maximumFutureTime = Date.now() + 5 * 60 * 1000;
+
+    if (occurredAt.getTime() > maximumFutureTime) {
+      throw new BadRequestException(
+        'Received transaction time cannot be in the future.',
+      );
+    }
+  }
+
+  private assertManualClientEventMatches(
+    existing: ReceivedTransaction,
+    body: RecordReceivedManualRequestDto,
+    occurredAt: Date,
+  ): void {
+    const matches =
+      existing.evidenceSource === ReceivedTransactionEvidenceSource.MANUAL &&
+      existing.providerReference === (body.providerReference ?? null) &&
+      existing.amount === body.amount &&
+      existing.occurredAt.getTime() === occurredAt.getTime();
+
+    if (!matches) {
+      throw new ConflictException(
+        'This client event ID was already used for a different received transaction.',
+      );
+    }
+  }
+
+  private assertManualProviderReferenceMatches(
+    existing: ReceivedTransaction,
+    body: RecordReceivedManualRequestDto,
+    occurredAt: Date,
+  ): void {
+    const matches =
+      existing.providerReference === body.providerReference &&
+      existing.amount === body.amount &&
+      existing.occurredAt.getTime() === occurredAt.getTime();
+
+    if (!matches) {
+      throw new ConflictException(
+        'This provider reference is already assigned to a different received transaction.',
+      );
+    }
   }
 }
