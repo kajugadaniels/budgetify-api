@@ -17,6 +17,7 @@ import { TransactionDetailResponseDto } from './dto/transaction-detail.response.
 import { TransactionListResponseDto } from './dto/transaction-list.response.dto';
 import { TransactionQuoteResponseDto } from './dto/transaction-quote.response.dto';
 import { TransactionResponseDto } from './dto/transaction.response.dto';
+import { TransactionHistoryResponseDto } from './dto/transaction-history.response.dto';
 
 export function ApiQuoteTransactionEndpoint(): MethodDecorator {
   return applyDecorators(
@@ -339,6 +340,37 @@ export function ApiGetTransactionEndpoint(): MethodDecorator {
 
     ApiNotFoundResponse({
       description: 'Transaction was not found for the authenticated user.',
+
+      type: ApiErrorResponseDto,
+    }),
+
+    ApiUnauthorizedResponse({
+      description: 'Access token is missing, invalid, or expired.',
+
+      type: ApiErrorResponseDto,
+    }),
+  );
+}
+
+export function ApiGetTransactionHistoryEndpoint(): MethodDecorator {
+  return applyDecorators(
+    ApiBearerAuth('access-token'),
+
+    ApiOperation({
+      summary: 'Get unified sent and received money history',
+
+      description:
+        'Returns a newest-first money timeline containing sent and received transactions. Direction, status, transfer type, search, and pagination are supported. Transfer type applies only to sent transactions.',
+    }),
+
+    ApiOkResponse({
+      description: 'Unified money history retrieved successfully.',
+
+      type: TransactionHistoryResponseDto,
+    }),
+
+    ApiBadRequestResponse({
+      description: 'History pagination or filter combination is invalid.',
 
       type: ApiErrorResponseDto,
     }),
