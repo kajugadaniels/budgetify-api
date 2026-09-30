@@ -1,8 +1,15 @@
 export const TRANSACTIONS_ROUTES = {
   base: 'transactions',
+
+  analytics: 'analytics',
+
   quote: 'quote',
+
   detail: ':transactionId',
+
   ussdOpened: ':transactionId/ussd-opened',
+
   providerSmsResult: ':transactionId/provider-sms-result',
+
   manualResult: ':transactionId/manual-result',
 } as const;
