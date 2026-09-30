@@ -53,6 +53,51 @@ export class TransactionResponseDto {
   @ApiProperty({ example: 'MTN_RWANDA_PUBLIC_TARIFF' })
   tariffSource!: string;
 
+  @ApiPropertyOptional({
+    nullable: true,
+    example: '18473920531',
+  })
+  providerReference!: string | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    example: null,
+  })
+  failureCode!: string | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    example: null,
+  })
+  failureReason!: string | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    format: 'date-time',
+  })
+  processedAt!: Date | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    format: 'date-time',
+  })
+  completedAt!: Date | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    format: 'date-time',
+  })
+  failedAt!: Date | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    format: 'date-time',
+  })
+  cancelledAt!: Date | null;
+
   @ApiProperty({ format: 'date-time' })
   createdAt!: Date;
+
+  @ApiProperty({ format: 'date-time' })
+  updatedAt!: Date;
 }
