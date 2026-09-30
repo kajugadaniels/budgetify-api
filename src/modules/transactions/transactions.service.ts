@@ -24,6 +24,26 @@ import { TransactionQuoteResponseDto } from './dto/transaction-quote.response.dt
 import { TransactionFeeCalculatorService } from './services/transaction-fee-calculator.service';
 import { TransactionsRepository } from './transactions.repository';
 import { RecordProviderSmsResultRequestDto } from './dto/record-provider-sms-result.request.dto';
+import { ListTransactionsQueryDto } from './dto/list-transactions.query.dto';
+
+interface TransactionListResult {
+  items: Transaction[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+    hasNextPage: boolean;
+    hasPreviousPage: boolean;
+  };
+}
+
+interface TransactionDetailResult {
+  transaction: Transaction;
+  events: Awaited<
+    ReturnType<TransactionsRepository['findEventsByTransactionId']>
+  >;
+}
 
 @Injectable()
 export class TransactionsService {
@@ -32,6 +52,76 @@ export class TransactionsService {
     private readonly feeCalculator: TransactionFeeCalculatorService,
     private readonly prisma: PrismaService,
   ) {}
+
+  async list(
+    userId: string,
+    query: ListTransactionsQueryDto,
+  ): Promise<TransactionListResult> {
+    const createdFrom = query.from ? new Date(query.from) : undefined;
+
+    const createdTo = query.to ? new Date(query.to) : undefined;
+
+    if (
+      createdFrom &&
+      createdTo &&
+      createdFrom.getTime() > createdTo.getTime()
+    ) {
+      throw new BadRequestException(
+        'From date must be earlier than or equal to the to date.',
+      );
+    }
+
+    const result = await this.transactionsRepository.listOwned({
+      userId,
+      page: query.page,
+      limit: query.limit,
+      status: query.status,
+      transferType: query.transferType,
+      recipientType: query.recipientType,
+      category: query.category,
+      createdFrom,
+      createdTo,
+      search: query.search,
+    });
+
+    const totalPages =
+      result.total === 0 ? 0 : Math.ceil(result.total / query.limit);
+
+    return {
+      items: result.items,
+      pagination: {
+        page: query.page,
+        limit: query.limit,
+        total: result.total,
+        totalPages,
+        hasNextPage: query.page * query.limit < result.total,
+        hasPreviousPage: query.page > 1,
+      },
+    };
+  }
+
+  async getDetail(
+    userId: string,
+    transactionId: string,
+  ): Promise<TransactionDetailResult> {
+    const transaction = await this.transactionsRepository.findOwnedById(
+      userId,
+      transactionId,
+    );
+
+    if (!transaction) {
+      throw new NotFoundException('Transaction not found.');
+    }
+
+    const events = await this.transactionsRepository.findEventsByTransactionId(
+      transaction.id,
+    );
+
+    return {
+      transaction,
+      events,
+    };
+  }
 
   quote(body: TransactionQuoteRequestDto): TransactionQuoteResponseDto {
     return this.feeCalculator.calculate(body.amount, body.transferType);
