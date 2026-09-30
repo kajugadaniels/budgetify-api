@@ -20,16 +20,20 @@ import { ListTransactionsQueryDto } from './dto/list-transactions.query.dto';
 import { RecordManualResultRequestDto } from './dto/record-manual-result.request.dto';
 import { RecordProviderSmsResultRequestDto } from './dto/record-provider-sms-result.request.dto';
 import { RecordUssdOpenedRequestDto } from './dto/record-ussd-opened.request.dto';
+import { TransactionAnalyticsQueryDto } from './dto/transaction-analytics.query.dto';
+import { TransactionAnalyticsResponseDto } from './dto/transaction-analytics.response.dto';
 import { TransactionDetailResponseDto } from './dto/transaction-detail.response.dto';
 import { TransactionListResponseDto } from './dto/transaction-list.response.dto';
 import { TransactionQuoteRequestDto } from './dto/transaction-quote.request.dto';
 import { TransactionQuoteResponseDto } from './dto/transaction-quote.response.dto';
 import { TransactionResponseDto } from './dto/transaction.response.dto';
+import { TransactionAnalyticsService } from './services/transaction-analytics.service';
 import { TransactionsMapper } from './transactions.mapper';
 import { TRANSACTIONS_ROUTES } from './transactions.routes';
 import { TransactionsService } from './transactions.service';
 import {
   ApiCreateTransactionEndpoint,
+  ApiGetTransactionAnalyticsEndpoint,
   ApiGetTransactionEndpoint,
   ApiListTransactionsEndpoint,
   ApiQuoteTransactionEndpoint,
@@ -42,7 +46,11 @@ import {
 @Controller(TRANSACTIONS_ROUTES.base)
 @UseGuards(JwtAuthGuard)
 export class TransactionsController {
-  constructor(private readonly transactionsService: TransactionsService) {}
+  constructor(
+    private readonly transactionsService: TransactionsService,
+
+    private readonly analyticsService: TransactionAnalyticsService,
+  ) {}
 
   @Get()
   @ApiListTransactionsEndpoint()
@@ -62,6 +70,18 @@ export class TransactionsController {
 
       pagination: result.pagination,
     };
+  }
+
+  @Get(TRANSACTIONS_ROUTES.analytics)
+  @ApiGetTransactionAnalyticsEndpoint()
+  async getAnalytics(
+    @CurrentUser()
+    user: AuthenticatedRequestUser,
+
+    @Query()
+    query: TransactionAnalyticsQueryDto,
+  ): Promise<TransactionAnalyticsResponseDto> {
+    return this.analyticsService.getAnalytics(user.userId, query);
   }
 
   @Get(TRANSACTIONS_ROUTES.detail)
