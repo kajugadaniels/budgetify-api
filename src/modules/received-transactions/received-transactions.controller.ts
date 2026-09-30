@@ -22,10 +22,12 @@ import { RecordReceivedProviderSmsRequestDto } from './dto/record-received-provi
 import { ReceivedTransactionsMapper } from './received-transactions.mapper';
 import { RECEIVED_TRANSACTIONS_ROUTES } from './received-transactions.routes';
 import { ReceivedTransactionsService } from './received-transactions.service';
+import { RecordReceivedManualRequestDto } from './dto/record-received-manual.request.dto';
 import {
   ApiGetReceivedTransactionEndpoint,
   ApiListReceivedTransactionsEndpoint,
   ApiRecordReceivedProviderSmsEndpoint,
+  ApiRecordReceivedManualEndpoint,
 } from './received-transactions.swagger';
 
 @ApiTags('Received Transactions')
@@ -90,6 +92,24 @@ export class ReceivedTransactionsController {
     const transaction = await this.receivedTransactionsService.getDetail(
       user.userId,
       receivedTransactionId,
+    );
+
+    return ReceivedTransactionsMapper.toResponse(transaction);
+  }
+
+  @Post(RECEIVED_TRANSACTIONS_ROUTES.manual)
+  @HttpCode(HttpStatus.OK)
+  @ApiRecordReceivedManualEndpoint()
+  async recordManual(
+    @CurrentUser()
+    user: AuthenticatedRequestUser,
+
+    @Body()
+    body: RecordReceivedManualRequestDto,
+  ): Promise<ReceivedTransactionResponseDto> {
+    const transaction = await this.receivedTransactionsService.recordManual(
+      user.userId,
+      body,
     );
 
     return ReceivedTransactionsMapper.toResponse(transaction);
