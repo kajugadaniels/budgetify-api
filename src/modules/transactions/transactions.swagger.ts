@@ -101,3 +101,40 @@ export function ApiRecordUssdOpenedEndpoint(): MethodDecorator {
     }),
   );
 }
+
+export function ApiRecordProviderSmsResultEndpoint(): MethodDecorator {
+  return applyDecorators(
+    ApiBearerAuth('access-token'),
+    ApiParam({
+      name: 'transactionId',
+      format: 'uuid',
+      description: 'Transaction being reconciled with a provider SMS result.',
+    }),
+    ApiOperation({
+      summary: 'Record a provider SMS transaction result',
+      description:
+        'Reconciles a pending or processing transaction with structured evidence extracted from a provider SMS. The raw SMS message is not stored.',
+    }),
+    ApiOkResponse({
+      description: 'Provider result recorded successfully.',
+      type: TransactionResponseDto,
+    }),
+    ApiBadRequestResponse({
+      description: 'Provider result data is invalid or inconsistent.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiNotFoundResponse({
+      description: 'Transaction was not found for the authenticated user.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiConflictResponse({
+      description:
+        'The provider result conflicts with the transaction or has already been used elsewhere.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiUnauthorizedResponse({
+      description: 'Access token is missing, invalid, or expired.',
+      type: ApiErrorResponseDto,
+    }),
+  );
+}
