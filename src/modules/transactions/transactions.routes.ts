@@ -3,6 +3,8 @@ export const TRANSACTIONS_ROUTES = {
 
   analytics: 'analytics',
 
+  history: 'history',
+
   quote: 'quote',
 
   detail: ':transactionId',
