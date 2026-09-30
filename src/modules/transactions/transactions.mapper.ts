@@ -20,7 +20,15 @@ export class TransactionsMapper {
       note: transaction.note,
       tariffVersion: transaction.tariffVersion,
       tariffSource: transaction.tariffSource,
+      providerReference: transaction.providerReference,
+      failureCode: transaction.failureCode,
+      failureReason: transaction.failureReason,
+      processedAt: transaction.processedAt,
+      completedAt: transaction.completedAt,
+      failedAt: transaction.failedAt,
+      cancelledAt: transaction.cancelledAt,
       createdAt: transaction.createdAt,
+      updatedAt: transaction.updatedAt,
     };
   }
 }
