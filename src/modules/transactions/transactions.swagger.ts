@@ -12,6 +12,7 @@ import {
 } from '@nestjs/swagger';
 
 import { ApiErrorResponseDto } from '../../common/dto/api-error-response.dto';
+import { TransactionAnalyticsResponseDto } from './dto/transaction-analytics.response.dto';
 import { TransactionDetailResponseDto } from './dto/transaction-detail.response.dto';
 import { TransactionListResponseDto } from './dto/transaction-list.response.dto';
 import { TransactionQuoteResponseDto } from './dto/transaction-quote.response.dto';
@@ -230,6 +231,38 @@ export function ApiRecordManualResultEndpoint(): MethodDecorator {
     ApiConflictResponse({
       description:
         'The transaction already has a final status or the client event ID belongs to another event.',
+
+      type: ApiErrorResponseDto,
+    }),
+
+    ApiUnauthorizedResponse({
+      description: 'Access token is missing, invalid, or expired.',
+
+      type: ApiErrorResponseDto,
+    }),
+  );
+}
+
+export function ApiGetTransactionAnalyticsEndpoint(): MethodDecorator {
+  return applyDecorators(
+    ApiBearerAuth('access-token'),
+
+    ApiOperation({
+      summary: 'Get transaction analytics',
+
+      description:
+        'Returns transaction analytics for the authenticated user over an inclusive date range. Monetary totals and breakdowns include only transactions that are currently COMPLETED and whose completedAt timestamp falls inside the period. Reversed, failed, cancelled, pending, and processing transactions never contribute to spending totals. The response also includes lifecycle status counts, confirmation provenance, category and transfer-type breakdowns, and comparison with the immediately preceding equal-length period.',
+    }),
+
+    ApiOkResponse({
+      description: 'Transaction analytics retrieved successfully.',
+
+      type: TransactionAnalyticsResponseDto,
+    }),
+
+    ApiBadRequestResponse({
+      description:
+        'Analytics dates are invalid or the from date occurs after the to date.',
 
       type: ApiErrorResponseDto,
     }),
