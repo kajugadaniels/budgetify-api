@@ -4,8 +4,10 @@ import {
   ApiBearerAuth,
   ApiConflictResponse,
   ApiCreatedResponse,
-  ApiOperation,
+  ApiNotFoundResponse,
   ApiOkResponse,
+  ApiOperation,
+  ApiParam,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 
@@ -54,6 +56,43 @@ export function ApiCreateTransactionEndpoint(): MethodDecorator {
     }),
     ApiConflictResponse({
       description: 'Idempotency key belongs to a different transaction.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiUnauthorizedResponse({
+      description: 'Access token is missing, invalid, or expired.',
+      type: ApiErrorResponseDto,
+    }),
+  );
+}
+
+export function ApiRecordUssdOpenedEndpoint(): MethodDecorator {
+  return applyDecorators(
+    ApiBearerAuth('access-token'),
+    ApiParam({
+      name: 'transactionId',
+      format: 'uuid',
+      description: 'Transaction that initiated the USSD transfer.',
+    }),
+    ApiOperation({
+      summary: 'Record that a USSD transfer was opened',
+      description:
+        'Idempotently records a successful USSD launch from the mobile app. A pending transaction moves to processing. This endpoint does not mark the payment as completed.',
+    }),
+    ApiOkResponse({
+      description: 'USSD launch recorded successfully.',
+      type: TransactionResponseDto,
+    }),
+    ApiBadRequestResponse({
+      description: 'Transaction ID or client event ID is invalid.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiNotFoundResponse({
+      description: 'Transaction was not found for the authenticated user.',
+      type: ApiErrorResponseDto,
+    }),
+    ApiConflictResponse({
+      description:
+        'The transaction is already in a terminal state or the client event ID was used for another event.',
       type: ApiErrorResponseDto,
     }),
     ApiUnauthorizedResponse({
