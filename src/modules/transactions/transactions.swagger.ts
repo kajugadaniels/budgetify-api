@@ -14,10 +14,10 @@ import {
 import { ApiErrorResponseDto } from '../../common/dto/api-error-response.dto';
 import { TransactionAnalyticsResponseDto } from './dto/transaction-analytics.response.dto';
 import { TransactionDetailResponseDto } from './dto/transaction-detail.response.dto';
+import { TransactionHistoryResponseDto } from './dto/transaction-history.response.dto';
 import { TransactionListResponseDto } from './dto/transaction-list.response.dto';
 import { TransactionQuoteResponseDto } from './dto/transaction-quote.response.dto';
 import { TransactionResponseDto } from './dto/transaction.response.dto';
-import { TransactionHistoryResponseDto } from './dto/transaction-history.response.dto';
 
 export function ApiQuoteTransactionEndpoint(): MethodDecorator {
   return applyDecorators(
@@ -148,24 +148,24 @@ export function ApiRecordProviderSmsResultEndpoint(): MethodDecorator {
 
       format: 'uuid',
 
-      description: 'Transaction being reconciled with a provider SMS result.',
+      description: 'Transaction being reconciled with provider SMS evidence.',
     }),
 
     ApiOperation({
-      summary: 'Record a provider SMS transaction result',
+      summary: 'Record provider SMS transaction evidence',
 
       description:
-        'Reconciles a pending or processing transaction with structured evidence extracted from a provider SMS. The raw SMS message is not stored.',
+        'Reconciles a pending or processing transaction with structured evidence parsed by the mobile app from a provider SMS. Raw SMS content is not stored. This client-observed SMS evidence must not be interpreted as independent provider API verification.',
     }),
 
     ApiOkResponse({
-      description: 'Provider result recorded successfully.',
+      description: 'SMS transaction evidence recorded successfully.',
 
       type: TransactionResponseDto,
     }),
 
     ApiBadRequestResponse({
-      description: 'Provider result data is invalid or inconsistent.',
+      description: 'SMS evidence is invalid or inconsistent.',
 
       type: ApiErrorResponseDto,
     }),
@@ -178,7 +178,7 @@ export function ApiRecordProviderSmsResultEndpoint(): MethodDecorator {
 
     ApiConflictResponse({
       description:
-        'The provider result conflicts with the transaction or has already been used elsewhere.',
+        'The SMS evidence conflicts with the transaction or has already been used elsewhere.',
 
       type: ApiErrorResponseDto,
     }),
@@ -249,14 +249,14 @@ export function ApiGetTransactionAnalyticsEndpoint(): MethodDecorator {
     ApiBearerAuth('access-token'),
 
     ApiOperation({
-      summary: 'Get transaction analytics',
+      summary: 'Get sent and received money analytics',
 
       description:
-        'Returns transaction analytics for the authenticated user over an inclusive date range. Monetary totals and breakdowns include only transactions that are currently COMPLETED and whose completedAt timestamp falls inside the period. Reversed, failed, cancelled, pending, and processing transactions never contribute to spending totals. The response also includes lifecycle status counts, confirmation provenance, category and transfer-type breakdowns, and comparison with the immediately preceding equal-length period.',
+        'Returns combined sent and received money analytics for the authenticated user over an inclusive date range. Outgoing monetary totals include transactions that are currently COMPLETED and whose completedAt timestamp falls inside the selected period. Received monetary totals include received transactions that are currently COMPLETED and whose occurredAt timestamp falls inside the period. Reversed transactions are excluded from monetary totals. Net cash movement is received money minus the full outgoing debit including fees. The response also includes lifecycle counts, outgoing completion provenance, received evidence provenance, outgoing category and transfer-type breakdowns, received classification breakdowns, and comparisons with the immediately preceding equal-length period.',
     }),
 
     ApiOkResponse({
-      description: 'Transaction analytics retrieved successfully.',
+      description: 'Money analytics retrieved successfully.',
 
       type: TransactionAnalyticsResponseDto,
     }),
