@@ -25,13 +25,15 @@ import { UpdateReceivedTransactionClassificationRequestDto } from './dto/update-
 import { ReceivedTransactionsMapper } from './received-transactions.mapper';
 import { RECEIVED_TRANSACTIONS_ROUTES } from './received-transactions.routes';
 import { ReceivedTransactionsService } from './received-transactions.service';
+import { ApiUpdateReceivedTransactionClassificationEndpoint } from './swagger/received-transaction-classification.swagger';
 import {
   ApiGetReceivedTransactionEndpoint,
   ApiListReceivedTransactionsEndpoint,
+} from './swagger/received-transaction-query.swagger';
+import {
   ApiRecordReceivedManualEndpoint,
   ApiRecordReceivedProviderSmsEndpoint,
-  ApiUpdateReceivedTransactionClassificationEndpoint,
-} from './received-transactions.swagger';
+} from './swagger/received-transaction-recording.swagger';
 
 @ApiTags('Received Transactions')
 @Controller(RECEIVED_TRANSACTIONS_ROUTES.base)
