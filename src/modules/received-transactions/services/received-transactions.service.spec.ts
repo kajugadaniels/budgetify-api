@@ -75,6 +75,8 @@ describe('ReceivedTransactionsService', () => {
 
       create: jest.fn(),
 
+      updateOwnedClassification: jest.fn(),
+
       listOwned: jest.fn(),
     } as unknown as jest.Mocked<ReceivedTransactionsRepository>;
 
@@ -226,6 +228,104 @@ describe('ReceivedTransactionsService', () => {
 
     await expect(
       service.getDetail(receivedTransaction.userId, receivedTransaction.id),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('updates the financial classification of an owned received transaction', async () => {
+    const classifiedTransaction: ReceivedTransaction = {
+      ...receivedTransaction,
+
+      classification: ReceivedTransactionClassification.REIMBURSEMENT,
+
+      updatedAt: new Date('2026-10-01T08:00:00.000Z'),
+    };
+
+    repository.findOwnedById.mockResolvedValue(receivedTransaction);
+
+    repository.updateOwnedClassification.mockResolvedValue(
+      classifiedTransaction,
+    );
+
+    const result = await service.updateClassification(
+      receivedTransaction.userId,
+      receivedTransaction.id,
+      {
+        classification: ReceivedTransactionClassification.REIMBURSEMENT,
+      },
+    );
+
+    expect(repository.updateOwnedClassification.mock.calls).toEqual([
+      [
+        receivedTransaction.userId,
+
+        receivedTransaction.id,
+
+        ReceivedTransactionClassification.REIMBURSEMENT,
+      ],
+    ]);
+
+    expect(result.classification).toBe(
+      ReceivedTransactionClassification.REIMBURSEMENT,
+    );
+
+    expect(result.amount).toBe(receivedTransaction.amount);
+
+    expect(result.evidenceSource).toBe(receivedTransaction.evidenceSource);
+
+    expect(result.status).toBe(receivedTransaction.status);
+  });
+
+  it('does not write when the received transaction already has the requested classification', async () => {
+    const classifiedTransaction: ReceivedTransaction = {
+      ...receivedTransaction,
+
+      classification: ReceivedTransactionClassification.INCOME,
+    };
+
+    repository.findOwnedById.mockResolvedValue(classifiedTransaction);
+
+    const result = await service.updateClassification(
+      classifiedTransaction.userId,
+      classifiedTransaction.id,
+      {
+        classification: ReceivedTransactionClassification.INCOME,
+      },
+    );
+
+    expect(result).toEqual(classifiedTransaction);
+
+    expect(repository.updateOwnedClassification.mock.calls).toHaveLength(0);
+  });
+
+  it('rejects classification updates for a received transaction the user does not own', async () => {
+    repository.findOwnedById.mockResolvedValue(null);
+
+    await expect(
+      service.updateClassification(
+        receivedTransaction.userId,
+        receivedTransaction.id,
+        {
+          classification: ReceivedTransactionClassification.OTHER,
+        },
+      ),
+    ).rejects.toBeInstanceOf(NotFoundException);
+
+    expect(repository.updateOwnedClassification.mock.calls).toHaveLength(0);
+  });
+
+  it('returns not found if the transaction disappears before the classification write completes', async () => {
+    repository.findOwnedById.mockResolvedValue(receivedTransaction);
+
+    repository.updateOwnedClassification.mockResolvedValue(null);
+
+    await expect(
+      service.updateClassification(
+        receivedTransaction.userId,
+        receivedTransaction.id,
+        {
+          classification: ReceivedTransactionClassification.OWN_TRANSFER,
+        },
+      ),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
