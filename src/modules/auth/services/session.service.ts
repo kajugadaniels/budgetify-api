@@ -9,26 +9,39 @@ import { JwtRefreshPayload } from '../interfaces/jwt-refresh-payload.interface';
 import { TokenPair } from '../interfaces/token-pair.interface';
 import { TokenService } from './token.service';
 
-type SessionWithUser = Prisma.SessionGetPayload<{ include: { user: true } }>;
+type SessionWithUser = Prisma.SessionGetPayload<{
+  include: {
+    user: true;
+  };
+}>;
+
+type PrismaExecutor = Prisma.TransactionClient | PrismaService;
 
 @Injectable()
 export class SessionService {
   constructor(
     private readonly prisma: PrismaService,
+
     private readonly tokenService: TokenService,
+
     private readonly usersService: UsersService,
   ) {}
 
   async createAuthenticatedSession(params: {
     user: User;
+
     metadata: RequestMetadata;
+
     db?: Prisma.TransactionClient;
   }): Promise<TokenPair> {
     const db = params.db ?? this.prisma;
+
     const sessionId = randomUUID();
+
     const tokenPair = await this.tokenService.createTokenPair(
       {
         userId: params.user.id,
+
         email: params.user.email,
       },
       sessionId,
@@ -37,12 +50,17 @@ export class SessionService {
     await db.session.create({
       data: {
         id: sessionId,
+
         userId: params.user.id,
+
         refreshTokenHash: this.tokenService.hashRefreshToken(
           tokenPair.refreshToken,
         ),
+
         userAgent: params.metadata.userAgent,
+
         ipAddress: params.metadata.ipAddress,
+
         expiresAt: tokenPair.refreshTokenExpiresAt,
       },
     });
@@ -54,35 +72,50 @@ export class SessionService {
     payload: JwtRefreshPayload,
     refreshToken: string,
     metadata: RequestMetadata,
-  ): Promise<{ user: User; tokens: TokenPair }> {
+  ): Promise<{
+    user: User;
+
+    tokens: TokenPair;
+  }> {
     return this.prisma.$transaction(async (tx) => {
       const session = await tx.session.findUnique({
-        where: { id: payload.sessionId },
-        include: { user: true },
+        where: {
+          id: payload.sessionId,
+        },
+
+        include: {
+          user: true,
+        },
       });
 
       this.assertSessionCanRefresh(session, payload.sub, refreshToken);
-      const userWithActivityApplied =
-        await this.usersService.recordAuthenticatedActivityOrThrow(
-          session.user.id,
-          tx,
-        );
+
+      const user = await this.usersService.recordAuthenticatedActivityOrThrow(
+        session.user.id,
+        tx,
+      );
 
       await tx.session.update({
-        where: { id: session.id },
+        where: {
+          id: session.id,
+        },
+
         data: {
           revokedAt: new Date(),
         },
       });
 
       const tokens = await this.createAuthenticatedSession({
-        user: userWithActivityApplied,
+        user,
+
         metadata,
+
         db: tx,
       });
 
       return {
-        user: userWithActivityApplied,
+        user,
+
         tokens,
       };
     });
@@ -94,7 +127,9 @@ export class SessionService {
   ): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
       const session = await tx.session.findUnique({
-        where: { id: payload.sessionId },
+        where: {
+          id: payload.sessionId,
+        },
       });
 
       if (
@@ -111,11 +146,32 @@ export class SessionService {
       }
 
       await tx.session.update({
-        where: { id: session.id },
+        where: {
+          id: session.id,
+        },
+
         data: {
           revokedAt: new Date(),
         },
       });
+    });
+  }
+
+  async revokeAllForUser(
+    userId: string,
+    revokedAt: Date,
+    db: PrismaExecutor = this.prisma,
+  ): Promise<void> {
+    await db.session.updateMany({
+      where: {
+        userId,
+
+        revokedAt: null,
+      },
+
+      data: {
+        revokedAt,
+      },
     });
   }
 
