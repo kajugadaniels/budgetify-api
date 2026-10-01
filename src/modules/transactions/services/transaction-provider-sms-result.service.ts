@@ -14,12 +14,18 @@ import {
 
 import { PrismaService } from '../../../database/prisma/prisma.service';
 import { RecordProviderSmsResultRequestDto } from '../dto/record-provider-sms-result.request.dto';
-import { TransactionsRepository } from '../transactions.repository';
+import { TransactionEventRepository } from '../repositories/transaction-event.repository';
+import { TransactionReadRepository } from '../repositories/transaction-read.repository';
+import { TransactionWriteRepository } from '../repositories/transaction-write.repository';
 
 @Injectable()
 export class TransactionProviderSmsResultService {
   constructor(
-    private readonly transactionsRepository: TransactionsRepository,
+    private readonly transactionReadRepository: TransactionReadRepository,
+
+    private readonly transactionWriteRepository: TransactionWriteRepository,
+
+    private readonly transactionEventRepository: TransactionEventRepository,
 
     private readonly prisma: PrismaService,
   ) {}
@@ -31,7 +37,7 @@ export class TransactionProviderSmsResultService {
   ): Promise<Transaction> {
     try {
       return await this.prisma.$transaction(async (tx) => {
-        let transaction = await this.transactionsRepository.findOwnedById(
+        let transaction = await this.transactionReadRepository.findOwnedById(
           userId,
           transactionId,
           tx,
@@ -44,7 +50,7 @@ export class TransactionProviderSmsResultService {
         const occurredAt = new Date(body.occurredAt);
 
         const existingEvent =
-          await this.transactionsRepository.findEventByClientEventId(
+          await this.transactionEventRepository.findByClientEventId(
             transaction.id,
             body.clientEventId,
             tx,
@@ -60,7 +66,7 @@ export class TransactionProviderSmsResultService {
 
         if (body.providerReference) {
           const referenceOwner =
-            await this.transactionsRepository.findByProviderReference(
+            await this.transactionReadRepository.findByProviderReference(
               body.providerReference,
               tx,
             );
@@ -75,7 +81,7 @@ export class TransactionProviderSmsResultService {
         const fromStatus = transaction.status;
 
         const transitioned =
-          await this.transactionsRepository.transitionToProviderResult(
+          await this.transactionWriteRepository.transitionToProviderResult(
             {
               userId,
 
@@ -101,7 +107,7 @@ export class TransactionProviderSmsResultService {
           );
 
         if (!transitioned) {
-          transaction = await this.transactionsRepository.findOwnedById(
+          transaction = await this.transactionReadRepository.findOwnedById(
             userId,
             transaction.id,
             tx,
@@ -112,7 +118,7 @@ export class TransactionProviderSmsResultService {
           }
 
           const raceEvent =
-            await this.transactionsRepository.findEventByClientEventId(
+            await this.transactionEventRepository.findByClientEventId(
               transaction.id,
               body.clientEventId,
               tx,
@@ -130,7 +136,7 @@ export class TransactionProviderSmsResultService {
         }
 
         const event =
-          await this.transactionsRepository.upsertProviderResultEvent(
+          await this.transactionEventRepository.upsertProviderSmsResult(
             {
               transactionId: transaction.id,
 
@@ -153,7 +159,7 @@ export class TransactionProviderSmsResultService {
 
         this.assertEventMatches(event, body);
 
-        transaction = await this.transactionsRepository.findOwnedById(
+        transaction = await this.transactionReadRepository.findOwnedById(
           userId,
           transaction.id,
           tx,
