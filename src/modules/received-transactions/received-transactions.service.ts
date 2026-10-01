@@ -17,6 +17,7 @@ import { randomUUID } from 'node:crypto';
 import { ListReceivedTransactionsQueryDto } from './dto/list-received-transactions.query.dto';
 import { RecordReceivedManualRequestDto } from './dto/record-received-manual.request.dto';
 import { RecordReceivedProviderSmsRequestDto } from './dto/record-received-provider-sms.request.dto';
+import { UpdateReceivedTransactionClassificationRequestDto } from './dto/update-received-transaction-classification.request.dto';
 import { ReceivedTransactionsRepository } from './received-transactions.repository';
 
 interface ReceivedTransactionListResult {
@@ -117,6 +118,38 @@ export class ReceivedTransactionsService {
     }
 
     return transaction;
+  }
+
+  async updateClassification(
+    userId: string,
+    receivedTransactionId: string,
+    body: UpdateReceivedTransactionClassificationRequestDto,
+  ): Promise<ReceivedTransaction> {
+    const existing = await this.receivedTransactionsRepository.findOwnedById(
+      userId,
+      receivedTransactionId,
+    );
+
+    if (!existing) {
+      throw new NotFoundException('Received transaction not found.');
+    }
+
+    if (existing.classification === body.classification) {
+      return existing;
+    }
+
+    const updated =
+      await this.receivedTransactionsRepository.updateOwnedClassification(
+        userId,
+        receivedTransactionId,
+        body.classification,
+      );
+
+    if (!updated) {
+      throw new NotFoundException('Received transaction not found.');
+    }
+
+    return updated;
   }
 
   async recordProviderSms(
