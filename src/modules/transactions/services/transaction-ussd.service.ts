@@ -12,12 +12,18 @@ import {
 
 import { PrismaService } from '../../../database/prisma/prisma.service';
 import { RecordUssdOpenedRequestDto } from '../dto/record-ussd-opened.request.dto';
-import { TransactionsRepository } from '../transactions.repository';
+import { TransactionEventRepository } from '../repositories/transaction-event.repository';
+import { TransactionReadRepository } from '../repositories/transaction-read.repository';
+import { TransactionWriteRepository } from '../repositories/transaction-write.repository';
 
 @Injectable()
 export class TransactionUssdService {
   constructor(
-    private readonly transactionsRepository: TransactionsRepository,
+    private readonly transactionReadRepository: TransactionReadRepository,
+
+    private readonly transactionWriteRepository: TransactionWriteRepository,
+
+    private readonly transactionEventRepository: TransactionEventRepository,
 
     private readonly prisma: PrismaService,
   ) {}
@@ -28,7 +34,7 @@ export class TransactionUssdService {
     body: RecordUssdOpenedRequestDto,
   ): Promise<Transaction> {
     return this.prisma.$transaction(async (tx) => {
-      let transaction = await this.transactionsRepository.findOwnedById(
+      let transaction = await this.transactionReadRepository.findOwnedById(
         userId,
         transactionId,
         tx,
@@ -39,7 +45,7 @@ export class TransactionUssdService {
       }
 
       const existingEvent =
-        await this.transactionsRepository.findEventByClientEventId(
+        await this.transactionEventRepository.findByClientEventId(
           transaction.id,
           body.clientEventId,
           tx,
@@ -66,14 +72,14 @@ export class TransactionUssdService {
 
       if (transaction.status === TransactionStatus.PENDING) {
         const transitioned =
-          await this.transactionsRepository.transitionPendingToProcessing(
+          await this.transactionWriteRepository.transitionPendingToProcessing(
             userId,
             transaction.id,
             occurredAt,
             tx,
           );
 
-        transaction = await this.transactionsRepository.findOwnedById(
+        transaction = await this.transactionReadRepository.findOwnedById(
           userId,
           transaction.id,
           tx,
@@ -96,7 +102,7 @@ export class TransactionUssdService {
         }
       }
 
-      await this.transactionsRepository.upsertUssdOpenedEvent(
+      await this.transactionEventRepository.upsertUssdOpened(
         {
           transactionId: transaction.id,
 
