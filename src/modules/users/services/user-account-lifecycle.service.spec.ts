@@ -112,15 +112,14 @@ describe('UserAccountLifecycleService', () => {
   it('schedules account deletion for an active user', async () => {
     usersRepository.findById.mockResolvedValue(user);
 
-    usersRepository.update.mockImplementation(
-      async (_id, data) =>
-        ({
-          ...user,
+    usersRepository.update.mockImplementation((_id, data) =>
+      Promise.resolve({
+        ...user,
 
-          accountDeletionRequestedAt: data.accountDeletionRequestedAt as Date,
+        accountDeletionRequestedAt: data.accountDeletionRequestedAt as Date,
 
-          accountDeletionScheduledFor: data.accountDeletionScheduledFor as Date,
-        }) as User,
+        accountDeletionScheduledFor: data.accountDeletionScheduledFor as Date,
+      } as User),
     );
 
     emailService.sendAccountDeletionRequestEmail.mockResolvedValue(undefined);
