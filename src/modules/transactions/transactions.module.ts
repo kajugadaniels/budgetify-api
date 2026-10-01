@@ -2,6 +2,9 @@ import { Module } from '@nestjs/common';
 import { PassportModule } from '@nestjs/passport';
 
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { OutgoingTransactionAnalyticsRepository } from './repositories/analytics/outgoing-transaction-analytics.repository';
+import { ReceivedTransactionAnalyticsRepository } from './repositories/analytics/received-transaction-analytics.repository';
+import { TransactionLifecycleAnalyticsRepository } from './repositories/analytics/transaction-lifecycle-analytics.repository';
 import { TransactionEventRepository } from './repositories/transaction-event.repository';
 import { TransactionReadRepository } from './repositories/transaction-read.repository';
 import { TransactionWriteRepository } from './repositories/transaction-write.repository';
@@ -13,7 +16,6 @@ import { TransactionManualResultService } from './services/transaction-manual-re
 import { TransactionProviderSmsResultService } from './services/transaction-provider-sms-result.service';
 import { TransactionQueryService } from './services/transaction-query.service';
 import { TransactionUssdService } from './services/transaction-ussd.service';
-import { TransactionAnalyticsRepository } from './transaction-analytics.repository';
 import { TransactionHistoryRepository } from './transaction-history.repository';
 import { TransactionsController } from './transactions.controller';
 import { TransactionsService } from './transactions.service';
@@ -34,7 +36,11 @@ import { TransactionsService } from './transactions.service';
 
     TransactionEventRepository,
 
-    TransactionAnalyticsRepository,
+    OutgoingTransactionAnalyticsRepository,
+
+    ReceivedTransactionAnalyticsRepository,
+
+    TransactionLifecycleAnalyticsRepository,
 
     TransactionHistoryRepository,
 
