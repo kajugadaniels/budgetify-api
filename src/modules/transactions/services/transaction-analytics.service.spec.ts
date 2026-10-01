@@ -9,26 +9,84 @@ import {
   CompletedReceivedTransactionTotals,
   CompletedTransactionTotals,
   TransactionAnalyticsPeriodData,
-  TransactionAnalyticsRepository,
-} from '../transaction-analytics.repository';
+} from '../analytics/transaction-analytics.types';
+import { OutgoingTransactionAnalyticsRepository } from '../repositories/analytics/outgoing-transaction-analytics.repository';
+import { ReceivedTransactionAnalyticsRepository } from '../repositories/analytics/received-transaction-analytics.repository';
+import { TransactionLifecycleAnalyticsRepository } from '../repositories/analytics/transaction-lifecycle-analytics.repository';
 import { TransactionAnalyticsService } from './transaction-analytics.service';
 
 describe('TransactionAnalyticsService', () => {
-  let repository: jest.Mocked<TransactionAnalyticsRepository>;
+  let outgoingRepository: jest.Mocked<OutgoingTransactionAnalyticsRepository>;
+
+  let receivedRepository: jest.Mocked<ReceivedTransactionAnalyticsRepository>;
+
+  let lifecycleRepository: jest.Mocked<TransactionLifecycleAnalyticsRepository>;
 
   let service: TransactionAnalyticsService;
 
   beforeEach(() => {
-    repository = {
+    outgoingRepository = {
       getPeriodData: jest.fn(),
 
       getCompletedTotals: jest.fn(),
+    } as unknown as jest.Mocked<OutgoingTransactionAnalyticsRepository>;
 
-      getCompletedReceivedTotals: jest.fn(),
-    } as unknown as jest.Mocked<TransactionAnalyticsRepository>;
+    receivedRepository = {
+      getPeriodData: jest.fn(),
 
-    service = new TransactionAnalyticsService(repository);
+      getCompletedTotals: jest.fn(),
+    } as unknown as jest.Mocked<ReceivedTransactionAnalyticsRepository>;
+
+    lifecycleRepository = {
+      getPeriodData: jest.fn(),
+    } as unknown as jest.Mocked<TransactionLifecycleAnalyticsRepository>;
+
+    service = new TransactionAnalyticsService(
+      outgoingRepository,
+
+      receivedRepository,
+
+      lifecycleRepository,
+    );
   });
+
+  function mockCurrentPeriod(current: TransactionAnalyticsPeriodData): void {
+    outgoingRepository.getPeriodData.mockResolvedValue({
+      completed: current.completed,
+
+      categories: current.categories,
+
+      transferTypes: current.transferTypes,
+    });
+
+    receivedRepository.getPeriodData.mockResolvedValue({
+      received: current.received,
+
+      receivedReversedTransactions: current.receivedReversedTransactions,
+
+      receivedEvidence: current.receivedEvidence,
+
+      receivedClassifications: current.receivedClassifications,
+    });
+
+    lifecycleRepository.getPeriodData.mockResolvedValue({
+      pendingTransactions: current.pendingTransactions,
+
+      processingTransactions: current.processingTransactions,
+
+      failedTransactions: current.failedTransactions,
+
+      cancelledTransactions: current.cancelledTransactions,
+
+      reversedTransactions: current.reversedTransactions,
+
+      smsEvidence: current.smsEvidence,
+
+      providerApiConfirmed: current.providerApiConfirmed,
+
+      manuallyConfirmed: current.manuallyConfirmed,
+    });
+  }
 
   it('builds combined sent and received analytics with equal-period comparison', async () => {
     const current: TransactionAnalyticsPeriodData = {
@@ -165,11 +223,11 @@ describe('TransactionAnalyticsService', () => {
       receivedAmount: 50000,
     };
 
-    repository.getPeriodData.mockResolvedValue(current);
+    mockCurrentPeriod(current);
 
-    repository.getCompletedTotals.mockResolvedValue(previousSent);
+    outgoingRepository.getCompletedTotals.mockResolvedValue(previousSent);
 
-    repository.getCompletedReceivedTotals.mockResolvedValue(previousReceived);
+    receivedRepository.getCompletedTotals.mockResolvedValue(previousReceived);
 
     const result = await service.getAnalytics('user-1', {
       from: '2026-09-11T00:00:00.000Z',
@@ -177,19 +235,27 @@ describe('TransactionAnalyticsService', () => {
       to: '2026-09-20T23:59:59.999Z',
     });
 
-    expect(repository.getPeriodData.mock.calls).toEqual([
-      [
-        {
-          userId: 'user-1',
+    const currentRange = {
+      userId: 'user-1',
 
-          from: new Date('2026-09-11T00:00:00.000Z'),
+      from: new Date('2026-09-11T00:00:00.000Z'),
 
-          to: new Date('2026-09-20T23:59:59.999Z'),
-        },
-      ],
+      to: new Date('2026-09-20T23:59:59.999Z'),
+    };
+
+    expect(outgoingRepository.getPeriodData.mock.calls).toEqual([
+      [currentRange],
     ]);
 
-    expect(repository.getCompletedTotals.mock.calls).toEqual([
+    expect(receivedRepository.getPeriodData.mock.calls).toEqual([
+      [currentRange],
+    ]);
+
+    expect(lifecycleRepository.getPeriodData.mock.calls).toEqual([
+      [currentRange],
+    ]);
+
+    expect(outgoingRepository.getCompletedTotals.mock.calls).toEqual([
       [
         {
           userId: 'user-1',
@@ -201,7 +267,7 @@ describe('TransactionAnalyticsService', () => {
       ],
     ]);
 
-    expect(repository.getCompletedReceivedTotals.mock.calls).toEqual([
+    expect(receivedRepository.getCompletedTotals.mock.calls).toEqual([
       [
         {
           userId: 'user-1',
@@ -391,7 +457,7 @@ describe('TransactionAnalyticsService', () => {
   });
 
   it('returns null percentage changes for new sent and received activity', async () => {
-    repository.getPeriodData.mockResolvedValue({
+    mockCurrentPeriod({
       completed: {
         transactions: 1,
 
@@ -441,7 +507,7 @@ describe('TransactionAnalyticsService', () => {
       receivedClassifications: [],
     });
 
-    repository.getCompletedTotals.mockResolvedValue({
+    outgoingRepository.getCompletedTotals.mockResolvedValue({
       transactions: 0,
 
       sentAmount: 0,
@@ -451,7 +517,7 @@ describe('TransactionAnalyticsService', () => {
       totalDebited: 0,
     });
 
-    repository.getCompletedReceivedTotals.mockResolvedValue({
+    receivedRepository.getCompletedTotals.mockResolvedValue({
       transactions: 0,
 
       receivedAmount: 0,
@@ -481,7 +547,7 @@ describe('TransactionAnalyticsService', () => {
   });
 
   it('returns zero percentage change when both periods contain zero', async () => {
-    repository.getPeriodData.mockResolvedValue({
+    mockCurrentPeriod({
       completed: {
         transactions: 0,
 
@@ -531,7 +597,7 @@ describe('TransactionAnalyticsService', () => {
       receivedClassifications: [],
     });
 
-    repository.getCompletedTotals.mockResolvedValue({
+    outgoingRepository.getCompletedTotals.mockResolvedValue({
       transactions: 0,
 
       sentAmount: 0,
@@ -541,7 +607,7 @@ describe('TransactionAnalyticsService', () => {
       totalDebited: 0,
     });
 
-    repository.getCompletedReceivedTotals.mockResolvedValue({
+    receivedRepository.getCompletedTotals.mockResolvedValue({
       transactions: 0,
 
       receivedAmount: 0,
@@ -579,10 +645,14 @@ describe('TransactionAnalyticsService', () => {
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
 
-    expect(repository.getPeriodData.mock.calls).toHaveLength(0);
+    expect(outgoingRepository.getPeriodData.mock.calls).toHaveLength(0);
 
-    expect(repository.getCompletedTotals.mock.calls).toHaveLength(0);
+    expect(receivedRepository.getPeriodData.mock.calls).toHaveLength(0);
 
-    expect(repository.getCompletedReceivedTotals.mock.calls).toHaveLength(0);
+    expect(lifecycleRepository.getPeriodData.mock.calls).toHaveLength(0);
+
+    expect(outgoingRepository.getCompletedTotals.mock.calls).toHaveLength(0);
+
+    expect(receivedRepository.getCompletedTotals.mock.calls).toHaveLength(0);
   });
 });
