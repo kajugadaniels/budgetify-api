@@ -1,18 +1,25 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { Currency } from '@prisma/client';
 
-import { TransactionAnalyticsQueryDto } from '../dto/transaction-analytics.query.dto';
-import { TransactionAnalyticsResponseDto } from '../dto/transaction-analytics.response.dto';
 import {
   CompletedReceivedTransactionTotals,
   CompletedTransactionTotals,
-  TransactionAnalyticsRepository,
-} from '../transaction-analytics.repository';
+  TransactionAnalyticsPeriodData,
+} from '../analytics/transaction-analytics.types';
+import { TransactionAnalyticsQueryDto } from '../dto/transaction-analytics.query.dto';
+import { TransactionAnalyticsResponseDto } from '../dto/transaction-analytics.response.dto';
+import { OutgoingTransactionAnalyticsRepository } from '../repositories/analytics/outgoing-transaction-analytics.repository';
+import { ReceivedTransactionAnalyticsRepository } from '../repositories/analytics/received-transaction-analytics.repository';
+import { TransactionLifecycleAnalyticsRepository } from '../repositories/analytics/transaction-lifecycle-analytics.repository';
 
 @Injectable()
 export class TransactionAnalyticsService {
   constructor(
-    private readonly analyticsRepository: TransactionAnalyticsRepository,
+    private readonly outgoingAnalyticsRepository: OutgoingTransactionAnalyticsRepository,
+
+    private readonly receivedAnalyticsRepository: ReceivedTransactionAnalyticsRepository,
+
+    private readonly lifecycleAnalyticsRepository: TransactionLifecycleAnalyticsRepository,
   ) {}
 
   async getAnalytics(
@@ -31,31 +38,56 @@ export class TransactionAnalyticsService {
 
     const previousTo = new Date(from.getTime() - 1);
 
-    const [current, previousSent, previousReceived] = await Promise.all([
-      this.analyticsRepository.getPeriodData({
-        userId,
+    const [outgoing, received, lifecycle, previousSent, previousReceived] =
+      await Promise.all([
+        this.outgoingAnalyticsRepository.getPeriodData({
+          userId,
 
-        from,
+          from,
 
-        to,
-      }),
+          to,
+        }),
 
-      this.analyticsRepository.getCompletedTotals({
-        userId,
+        this.receivedAnalyticsRepository.getPeriodData({
+          userId,
 
-        from: previousFrom,
+          from,
 
-        to: previousTo,
-      }),
+          to,
+        }),
 
-      this.analyticsRepository.getCompletedReceivedTotals({
-        userId,
+        this.lifecycleAnalyticsRepository.getPeriodData({
+          userId,
 
-        from: previousFrom,
+          from,
 
-        to: previousTo,
-      }),
-    ]);
+          to,
+        }),
+
+        this.outgoingAnalyticsRepository.getCompletedTotals({
+          userId,
+
+          from: previousFrom,
+
+          to: previousTo,
+        }),
+
+        this.receivedAnalyticsRepository.getCompletedTotals({
+          userId,
+
+          from: previousFrom,
+
+          to: previousTo,
+        }),
+      ]);
+
+    const current: TransactionAnalyticsPeriodData = {
+      ...outgoing,
+
+      ...received,
+
+      ...lifecycle,
+    };
 
     const completedSentAmount = current.completed.sentAmount;
 
