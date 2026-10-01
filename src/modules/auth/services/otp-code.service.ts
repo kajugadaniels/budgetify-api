@@ -3,6 +3,7 @@ import type { ConfigType } from '@nestjs/config';
 import { createHmac, randomInt, timingSafeEqual } from 'node:crypto';
 
 import { authConfig } from '../../../config/auth.config';
+import { OTP_CODE_LENGTH, OTP_CODE_SPACE } from '../constants/otp.constants';
 
 @Injectable()
 export class OtpCodeService {
@@ -12,7 +13,9 @@ export class OtpCodeService {
   ) {}
 
   generate(): string {
-    return randomInt(0, 1_000_000).toString().padStart(6, '0');
+    return randomInt(0, OTP_CODE_SPACE)
+      .toString()
+      .padStart(OTP_CODE_LENGTH, '0');
   }
 
   hash(otp: string): string {
