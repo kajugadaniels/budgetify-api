@@ -6,7 +6,8 @@ import {
 import { Transaction } from '@prisma/client';
 
 import { ListTransactionsQueryDto } from '../dto/list-transactions.query.dto';
-import { TransactionsRepository } from '../transactions.repository';
+import { TransactionEventRepository } from '../repositories/transaction-event.repository';
+import { TransactionReadRepository } from '../repositories/transaction-read.repository';
 
 export interface TransactionListResult {
   items: Transaction[];
@@ -30,14 +31,16 @@ export interface TransactionDetailResult {
   transaction: Transaction;
 
   events: Awaited<
-    ReturnType<TransactionsRepository['findEventsByTransactionId']>
+    ReturnType<TransactionEventRepository['findByTransactionId']>
   >;
 }
 
 @Injectable()
 export class TransactionQueryService {
   constructor(
-    private readonly transactionsRepository: TransactionsRepository,
+    private readonly transactionReadRepository: TransactionReadRepository,
+
+    private readonly transactionEventRepository: TransactionEventRepository,
   ) {}
 
   async list(
@@ -58,7 +61,7 @@ export class TransactionQueryService {
       );
     }
 
-    const result = await this.transactionsRepository.listOwned({
+    const result = await this.transactionReadRepository.listOwned({
       userId,
 
       page: query.page,
@@ -106,7 +109,7 @@ export class TransactionQueryService {
     userId: string,
     transactionId: string,
   ): Promise<TransactionDetailResult> {
-    const transaction = await this.transactionsRepository.findOwnedById(
+    const transaction = await this.transactionReadRepository.findOwnedById(
       userId,
       transactionId,
     );
@@ -115,7 +118,7 @@ export class TransactionQueryService {
       throw new NotFoundException('Transaction not found.');
     }
 
-    const events = await this.transactionsRepository.findEventsByTransactionId(
+    const events = await this.transactionEventRepository.findByTransactionId(
       transaction.id,
     );
 
