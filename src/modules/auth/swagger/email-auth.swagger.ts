@@ -10,6 +10,7 @@ import {
 } from '@nestjs/swagger';
 
 import { ApiErrorResponseDto } from '../../../common/dto/api-error-response.dto';
+import { OTP_CODE_LENGTH } from '../constants/otp.constants';
 import { AuthResponseDto } from '../dto/auth-response.dto';
 import { EmailInitiateRequestDto } from '../dto/email-initiate.request.dto';
 import { EmailInitiateResponseDto } from '../dto/email-initiate-response.dto';
@@ -21,7 +22,7 @@ export function ApiEmailInitiateEndpoint(): MethodDecorator {
       summary: 'Initiate email OTP authentication',
 
       description:
-        'Accepts an email address and dispatches a 6-digit OTP. ' +
+        `Accepts an email address and dispatches a ${OTP_CODE_LENGTH}-digit OTP. ` +
         'If the email belongs to an existing account, a sign-in OTP is sent. ' +
         'If the email is new, the address is registered as a pending user and an ' +
         'onboarding OTP is sent. The "action" field in the response tells the ' +
@@ -64,7 +65,7 @@ export function ApiEmailVerifyEndpoint(): MethodDecorator {
       summary: 'Verify email OTP and complete authentication',
 
       description:
-        'Validates the 6-digit OTP for the given email. ' +
+        `Validates the ${OTP_CODE_LENGTH}-digit OTP for the given email. ` +
         'For returning users, creates a session and returns JWT tokens. ' +
         'For new users, finalises account creation and returns JWT tokens. ' +
         'The OTP is deleted on success and is single-use.',
