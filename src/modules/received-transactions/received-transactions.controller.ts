@@ -6,6 +6,7 @@ import {
   HttpStatus,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   Query,
   UseGuards,
@@ -18,16 +19,18 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ListReceivedTransactionsQueryDto } from './dto/list-received-transactions.query.dto';
 import { ReceivedTransactionListResponseDto } from './dto/received-transaction-list.response.dto';
 import { ReceivedTransactionResponseDto } from './dto/received-transaction.response.dto';
+import { RecordReceivedManualRequestDto } from './dto/record-received-manual.request.dto';
 import { RecordReceivedProviderSmsRequestDto } from './dto/record-received-provider-sms.request.dto';
+import { UpdateReceivedTransactionClassificationRequestDto } from './dto/update-received-transaction-classification.request.dto';
 import { ReceivedTransactionsMapper } from './received-transactions.mapper';
 import { RECEIVED_TRANSACTIONS_ROUTES } from './received-transactions.routes';
 import { ReceivedTransactionsService } from './received-transactions.service';
-import { RecordReceivedManualRequestDto } from './dto/record-received-manual.request.dto';
 import {
   ApiGetReceivedTransactionEndpoint,
   ApiListReceivedTransactionsEndpoint,
-  ApiRecordReceivedProviderSmsEndpoint,
   ApiRecordReceivedManualEndpoint,
+  ApiRecordReceivedProviderSmsEndpoint,
+  ApiUpdateReceivedTransactionClassificationEndpoint,
 } from './received-transactions.swagger';
 
 @ApiTags('Received Transactions')
@@ -80,23 +83,6 @@ export class ReceivedTransactionsController {
     return ReceivedTransactionsMapper.toResponse(transaction);
   }
 
-  @Get(RECEIVED_TRANSACTIONS_ROUTES.detail)
-  @ApiGetReceivedTransactionEndpoint()
-  async getDetail(
-    @CurrentUser()
-    user: AuthenticatedRequestUser,
-
-    @Param('receivedTransactionId', new ParseUUIDPipe())
-    receivedTransactionId: string,
-  ): Promise<ReceivedTransactionResponseDto> {
-    const transaction = await this.receivedTransactionsService.getDetail(
-      user.userId,
-      receivedTransactionId,
-    );
-
-    return ReceivedTransactionsMapper.toResponse(transaction);
-  }
-
   @Post(RECEIVED_TRANSACTIONS_ROUTES.manual)
   @HttpCode(HttpStatus.OK)
   @ApiRecordReceivedManualEndpoint()
@@ -110,6 +96,46 @@ export class ReceivedTransactionsController {
     const transaction = await this.receivedTransactionsService.recordManual(
       user.userId,
       body,
+    );
+
+    return ReceivedTransactionsMapper.toResponse(transaction);
+  }
+
+  @Patch(RECEIVED_TRANSACTIONS_ROUTES.classification)
+  @HttpCode(HttpStatus.OK)
+  @ApiUpdateReceivedTransactionClassificationEndpoint()
+  async updateClassification(
+    @CurrentUser()
+    user: AuthenticatedRequestUser,
+
+    @Param('receivedTransactionId', new ParseUUIDPipe())
+    receivedTransactionId: string,
+
+    @Body()
+    body: UpdateReceivedTransactionClassificationRequestDto,
+  ): Promise<ReceivedTransactionResponseDto> {
+    const transaction =
+      await this.receivedTransactionsService.updateClassification(
+        user.userId,
+        receivedTransactionId,
+        body,
+      );
+
+    return ReceivedTransactionsMapper.toResponse(transaction);
+  }
+
+  @Get(RECEIVED_TRANSACTIONS_ROUTES.detail)
+  @ApiGetReceivedTransactionEndpoint()
+  async getDetail(
+    @CurrentUser()
+    user: AuthenticatedRequestUser,
+
+    @Param('receivedTransactionId', new ParseUUIDPipe())
+    receivedTransactionId: string,
+  ): Promise<ReceivedTransactionResponseDto> {
+    const transaction = await this.receivedTransactionsService.getDetail(
+      user.userId,
+      receivedTransactionId,
     );
 
     return ReceivedTransactionsMapper.toResponse(transaction);
