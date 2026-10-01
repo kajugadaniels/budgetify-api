@@ -19,13 +19,19 @@ import { PrismaService } from '../../../database/prisma/prisma.service';
 import { CreateTransactionRequestDto } from '../dto/create-transaction.request.dto';
 import { TransactionQuoteRequestDto } from '../dto/transaction-quote.request.dto';
 import { TransactionQuoteResponseDto } from '../dto/transaction-quote.response.dto';
-import { TransactionsRepository } from '../transactions.repository';
+import { TransactionEventRepository } from '../repositories/transaction-event.repository';
+import { TransactionReadRepository } from '../repositories/transaction-read.repository';
+import { TransactionWriteRepository } from '../repositories/transaction-write.repository';
 import { TransactionFeeCalculatorService } from './transaction-fee-calculator.service';
 
 @Injectable()
 export class TransactionCreationService {
   constructor(
-    private readonly transactionsRepository: TransactionsRepository,
+    private readonly transactionReadRepository: TransactionReadRepository,
+
+    private readonly transactionWriteRepository: TransactionWriteRepository,
+
+    private readonly transactionEventRepository: TransactionEventRepository,
 
     private readonly feeCalculator: TransactionFeeCalculatorService,
 
@@ -43,10 +49,11 @@ export class TransactionCreationService {
     const receiverIdentifier = this.normalizeReceiverIdentifier(body);
 
     if (body.idempotencyKey) {
-      const existing = await this.transactionsRepository.findByIdempotencyKey(
-        userId,
-        body.idempotencyKey,
-      );
+      const existing =
+        await this.transactionReadRepository.findByIdempotencyKey(
+          userId,
+          body.idempotencyKey,
+        );
 
       if (existing) {
         this.assertIdempotentRequestMatches(existing, body, receiverIdentifier);
@@ -59,7 +66,7 @@ export class TransactionCreationService {
 
     try {
       return await this.prisma.$transaction(async (tx) => {
-        const transaction = await this.transactionsRepository.create(
+        const transaction = await this.transactionWriteRepository.create(
           {
             userId,
 
@@ -94,7 +101,7 @@ export class TransactionCreationService {
           tx,
         );
 
-        await this.transactionsRepository.createEvent(
+        await this.transactionEventRepository.create(
           {
             transactionId: transaction.id,
 
@@ -119,10 +126,11 @@ export class TransactionCreationService {
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
       ) {
-        const existing = await this.transactionsRepository.findByIdempotencyKey(
-          userId,
-          body.idempotencyKey,
-        );
+        const existing =
+          await this.transactionReadRepository.findByIdempotencyKey(
+            userId,
+            body.idempotencyKey,
+          );
 
         if (existing) {
           this.assertIdempotentRequestMatches(
