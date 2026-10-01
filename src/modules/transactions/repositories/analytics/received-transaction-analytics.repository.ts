@@ -5,7 +5,7 @@ import {
   ReceivedTransactionStatus,
 } from '@prisma/client';
 
-import { PrismaService } from '../../../database/prisma/prisma.service';
+import { PrismaService } from '../../../../../database/prisma/prisma.service';
 import {
   AnalyticsRangeInput,
   CompletedReceivedTransactionTotals,
