@@ -16,6 +16,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthenticatedRequestUser } from '../../common/interfaces/authenticated-request.interface';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CreateTransactionRequestDto } from './dto/create-transaction.request.dto';
+import { ListTransactionHistoryQueryDto } from './dto/list-transaction-history.query.dto';
 import { ListTransactionsQueryDto } from './dto/list-transactions.query.dto';
 import { RecordManualResultRequestDto } from './dto/record-manual-result.request.dto';
 import { RecordProviderSmsResultRequestDto } from './dto/record-provider-sms-result.request.dto';
@@ -23,28 +24,33 @@ import { RecordUssdOpenedRequestDto } from './dto/record-ussd-opened.request.dto
 import { TransactionAnalyticsQueryDto } from './dto/transaction-analytics.query.dto';
 import { TransactionAnalyticsResponseDto } from './dto/transaction-analytics.response.dto';
 import { TransactionDetailResponseDto } from './dto/transaction-detail.response.dto';
+import { TransactionHistoryResponseDto } from './dto/transaction-history.response.dto';
 import { TransactionListResponseDto } from './dto/transaction-list.response.dto';
 import { TransactionQuoteRequestDto } from './dto/transaction-quote.request.dto';
 import { TransactionQuoteResponseDto } from './dto/transaction-quote.response.dto';
 import { TransactionResponseDto } from './dto/transaction.response.dto';
 import { TransactionAnalyticsService } from './services/transaction-analytics.service';
-import { TransactionsMapper } from './transactions.mapper';
-import { TRANSACTIONS_ROUTES } from './transactions.routes';
-import { TransactionsService } from './transactions.service';
-import { ListTransactionHistoryQueryDto } from './dto/list-transaction-history.query.dto';
-import { TransactionHistoryResponseDto } from './dto/transaction-history.response.dto';
 import { TransactionHistoryService } from './services/transaction-history.service';
 import {
   ApiCreateTransactionEndpoint,
-  ApiGetTransactionAnalyticsEndpoint,
-  ApiGetTransactionEndpoint,
-  ApiGetTransactionHistoryEndpoint,
-  ApiListTransactionsEndpoint,
   ApiQuoteTransactionEndpoint,
+} from './swagger/transaction-creation.swagger';
+import {
+  ApiGetTransactionAnalyticsEndpoint,
+  ApiGetTransactionHistoryEndpoint,
+} from './swagger/transaction-insights.swagger';
+import {
   ApiRecordManualResultEndpoint,
   ApiRecordProviderSmsResultEndpoint,
   ApiRecordUssdOpenedEndpoint,
-} from './transactions.swagger';
+} from './swagger/transaction-lifecycle.swagger';
+import {
+  ApiGetTransactionEndpoint,
+  ApiListTransactionsEndpoint,
+} from './swagger/transaction-query.swagger';
+import { TransactionsMapper } from './transactions.mapper';
+import { TRANSACTIONS_ROUTES } from './transactions.routes';
+import { TransactionsService } from './transactions.service';
 
 @ApiTags('Transactions')
 @Controller(TRANSACTIONS_ROUTES.base)
