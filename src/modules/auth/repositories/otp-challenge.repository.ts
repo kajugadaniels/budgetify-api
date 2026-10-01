@@ -1,15 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import {
-  LoginOtpChallenge,
-  PendingUser,
-  Prisma,
-} from '@prisma/client';
+import { LoginOtpChallenge, PendingUser, Prisma } from '@prisma/client';
 
 import { PrismaService } from '../../../database/prisma/prisma.service';
 
-type PrismaExecutor =
-  | Prisma.TransactionClient
-  | PrismaService;
+type PrismaExecutor = Prisma.TransactionClient | PrismaService;
 
 interface CreateOtpChallengeInput {
   otpHash: string;
@@ -19,9 +13,7 @@ interface CreateOtpChallengeInput {
 
 @Injectable()
 export class OtpChallengeRepository {
-  constructor(
-    private readonly prisma: PrismaService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async upsertLoginChallenge(
     userId: string,
@@ -35,25 +27,19 @@ export class OtpChallengeRepository {
       create: {
         userId,
 
-        otpHash:
-          input.otpHash,
+        otpHash: input.otpHash,
 
-        otpExpiresAt:
-          input.otpExpiresAt,
+        otpExpiresAt: input.otpExpiresAt,
 
-        attemptCount:
-          0,
+        attemptCount: 0,
       },
 
       update: {
-        otpHash:
-          input.otpHash,
+        otpHash: input.otpHash,
 
-        otpExpiresAt:
-          input.otpExpiresAt,
+        otpExpiresAt: input.otpExpiresAt,
 
-        attemptCount:
-          0,
+        attemptCount: 0,
       },
     });
   }
@@ -70,25 +56,19 @@ export class OtpChallengeRepository {
       create: {
         email,
 
-        otpHash:
-          input.otpHash,
+        otpHash: input.otpHash,
 
-        otpExpiresAt:
-          input.otpExpiresAt,
+        otpExpiresAt: input.otpExpiresAt,
 
-        attemptCount:
-          0,
+        attemptCount: 0,
       },
 
       update: {
-        otpHash:
-          input.otpHash,
+        otpHash: input.otpHash,
 
-        otpExpiresAt:
-          input.otpExpiresAt,
+        otpExpiresAt: input.otpExpiresAt,
 
-        attemptCount:
-          0,
+        attemptCount: 0,
       },
     });
   }
@@ -137,9 +117,7 @@ export class OtpChallengeRepository {
     });
   }
 
-  async incrementAttemptsByHash(
-    otpHash: string,
-  ): Promise<void> {
+  async incrementAttemptsByHash(otpHash: string): Promise<void> {
     await this.prisma.loginOtpChallenge.updateMany({
       where: {
         otpHash,
@@ -147,8 +125,7 @@ export class OtpChallengeRepository {
 
       data: {
         attemptCount: {
-          increment:
-            1,
+          increment: 1,
         },
       },
     });
@@ -160,8 +137,7 @@ export class OtpChallengeRepository {
 
       data: {
         attemptCount: {
-          increment:
-            1,
+          increment: 1,
         },
       },
     });
