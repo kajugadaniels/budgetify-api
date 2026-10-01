@@ -12,12 +12,18 @@ import {
 
 import { PrismaService } from '../../../database/prisma/prisma.service';
 import { RecordManualResultRequestDto } from '../dto/record-manual-result.request.dto';
-import { TransactionsRepository } from '../transactions.repository';
+import { TransactionEventRepository } from '../repositories/transaction-event.repository';
+import { TransactionReadRepository } from '../repositories/transaction-read.repository';
+import { TransactionWriteRepository } from '../repositories/transaction-write.repository';
 
 @Injectable()
 export class TransactionManualResultService {
   constructor(
-    private readonly transactionsRepository: TransactionsRepository,
+    private readonly transactionReadRepository: TransactionReadRepository,
+
+    private readonly transactionWriteRepository: TransactionWriteRepository,
+
+    private readonly transactionEventRepository: TransactionEventRepository,
 
     private readonly prisma: PrismaService,
   ) {}
@@ -28,7 +34,7 @@ export class TransactionManualResultService {
     body: RecordManualResultRequestDto,
   ): Promise<Transaction> {
     return this.prisma.$transaction(async (tx) => {
-      let transaction = await this.transactionsRepository.findOwnedById(
+      let transaction = await this.transactionReadRepository.findOwnedById(
         userId,
         transactionId,
         tx,
@@ -39,7 +45,7 @@ export class TransactionManualResultService {
       }
 
       const existingEvent =
-        await this.transactionsRepository.findEventByClientEventId(
+        await this.transactionEventRepository.findByClientEventId(
           transaction.id,
           body.clientEventId,
           tx,
@@ -58,7 +64,7 @@ export class TransactionManualResultService {
       const fromStatus = transaction.status;
 
       const transitioned =
-        await this.transactionsRepository.transitionToManualResult(
+        await this.transactionWriteRepository.transitionToManualResult(
           {
             userId,
 
@@ -76,7 +82,7 @@ export class TransactionManualResultService {
         );
 
       if (!transitioned) {
-        transaction = await this.transactionsRepository.findOwnedById(
+        transaction = await this.transactionReadRepository.findOwnedById(
           userId,
           transaction.id,
           tx,
@@ -87,7 +93,7 @@ export class TransactionManualResultService {
         }
 
         const raceEvent =
-          await this.transactionsRepository.findEventByClientEventId(
+          await this.transactionEventRepository.findByClientEventId(
             transaction.id,
             body.clientEventId,
             tx,
@@ -104,7 +110,7 @@ export class TransactionManualResultService {
         );
       }
 
-      const event = await this.transactionsRepository.upsertManualResultEvent(
+      const event = await this.transactionEventRepository.upsertManualResult(
         {
           transactionId: transaction.id,
 
@@ -121,7 +127,7 @@ export class TransactionManualResultService {
 
       this.assertEventMatches(event, body);
 
-      transaction = await this.transactionsRepository.findOwnedById(
+      transaction = await this.transactionReadRepository.findOwnedById(
         userId,
         transaction.id,
         tx,
