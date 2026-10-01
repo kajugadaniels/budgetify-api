@@ -7,6 +7,9 @@ import { UsersModule } from '../users/users.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { AuthSessionManagementService } from './services/auth-session-management.service';
+import { EmailOtpAuthService } from './services/email-otp-auth.service';
+import { GoogleAuthFlowService } from './services/google-auth-flow.service';
 import { GoogleAuthService } from './services/google-auth.service';
 import { OtpService } from './services/otp.service';
 import { PasswordAuthService } from './services/password-auth.service';
@@ -17,19 +20,39 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 @Module({
   imports: [
     JwtModule.register({}),
-    PassportModule.register({ defaultStrategy: 'jwt' }),
+
+    PassportModule.register({
+      defaultStrategy: 'jwt',
+    }),
+
     UsersModule,
+
     EmailModule,
   ],
+
   controllers: [AuthController],
+
   providers: [
-    AuthService,
     GoogleAuthService,
+
+    GoogleAuthFlowService,
+
+    EmailOtpAuthService,
+
+    AuthSessionManagementService,
+
     OtpService,
+
     PasswordAuthService,
+
     SessionService,
+
     TokenService,
+
+    AuthService,
+
     JwtStrategy,
+
     JwtAuthGuard,
   ],
 })
