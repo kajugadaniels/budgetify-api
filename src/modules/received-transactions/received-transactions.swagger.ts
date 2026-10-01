@@ -54,6 +54,46 @@ export function ApiRecordReceivedProviderSmsEndpoint(): MethodDecorator {
   );
 }
 
+export function ApiRecordReceivedManualEndpoint(): MethodDecorator {
+  return applyDecorators(
+    ApiBearerAuth('access-token'),
+
+    ApiOperation({
+      summary: 'Manually record a received payment',
+
+      description:
+        'Records a user-reported incoming payment. This is primarily the fallback for platforms such as iOS where Budgetify cannot inspect the SMS inbox. The transaction is stored as COMPLETED, UNCLASSIFIED, and MANUAL. Manual evidence must not be interpreted as independent provider verification.',
+    }),
+
+    ApiOkResponse({
+      description:
+        'Received payment recorded successfully or an idempotent matching record returned.',
+
+      type: ReceivedTransactionResponseDto,
+    }),
+
+    ApiBadRequestResponse({
+      description:
+        'The received payment is invalid, lacks sender information, or contains an invalid future timestamp.',
+
+      type: ApiErrorResponseDto,
+    }),
+
+    ApiConflictResponse({
+      description:
+        'The client event ID or provider reference belongs to different received-payment data.',
+
+      type: ApiErrorResponseDto,
+    }),
+
+    ApiUnauthorizedResponse({
+      description: 'Access token is missing, invalid, or expired.',
+
+      type: ApiErrorResponseDto,
+    }),
+  );
+}
+
 export function ApiListReceivedTransactionsEndpoint(): MethodDecorator {
   return applyDecorators(
     ApiBearerAuth('access-token'),
@@ -128,34 +168,41 @@ export function ApiGetReceivedTransactionEndpoint(): MethodDecorator {
   );
 }
 
-export function ApiRecordReceivedManualEndpoint(): MethodDecorator {
+export function ApiUpdateReceivedTransactionClassificationEndpoint(): MethodDecorator {
   return applyDecorators(
     ApiBearerAuth('access-token'),
 
+    ApiParam({
+      name: 'receivedTransactionId',
+
+      format: 'uuid',
+
+      description: 'Received transaction owned by the authenticated user.',
+    }),
+
     ApiOperation({
-      summary: 'Manually record a received payment',
+      summary: 'Classify a received payment',
 
       description:
-        'Records a user-reported incoming payment. This is primarily the fallback for platforms such as iOS where Budgetify cannot inspect the SMS inbox. The transaction is stored as COMPLETED, UNCLASSIFIED, and MANUAL. Manual evidence must not be interpreted as independent provider verification.',
+        'Updates the user-managed financial classification of a received payment. Classification may be changed between UNCLASSIFIED, INCOME, REIMBURSEMENT, LOAN_REPAYMENT, OWN_TRANSFER, and OTHER. This operation does not alter the transaction amount, status, occurrence time, sender information, provider reference, or evidence source.',
     }),
 
     ApiOkResponse({
-      description:
-        'Received payment recorded successfully or an idempotent matching record returned.',
+      description: 'Received payment classification updated successfully.',
 
       type: ReceivedTransactionResponseDto,
     }),
 
     ApiBadRequestResponse({
       description:
-        'The received payment is invalid, lacks sender information, or contains an invalid future timestamp.',
+        'The received transaction ID or classification value is invalid.',
 
       type: ApiErrorResponseDto,
     }),
 
-    ApiConflictResponse({
+    ApiNotFoundResponse({
       description:
-        'The client event ID or provider reference belongs to different received-payment data.',
+        'Received transaction was not found for the authenticated user.',
 
       type: ApiErrorResponseDto,
     }),
