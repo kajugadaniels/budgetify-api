@@ -1,21 +1,10 @@
-import {
-  Injectable,
-  UnauthorizedException,
-} from '@nestjs/common';
-import {
-  PasswordSetupGrant,
-  Prisma,
-} from '@prisma/client';
-import {
-  createHash,
-  randomBytes,
-} from 'node:crypto';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { PasswordSetupGrant, Prisma } from '@prisma/client';
+import { createHash, randomBytes } from 'node:crypto';
 
 import { PasswordSetupGrantRepository } from '../../repositories/password-setup-grant.repository';
 
-const PASSWORD_GRANT_LIFETIME_SECONDS =
-  10 *
-  60;
+const PASSWORD_GRANT_LIFETIME_SECONDS = 10 * 60;
 
 export interface IssuedPasswordSetupGrant {
   grantToken: string;
@@ -25,55 +14,30 @@ export interface IssuedPasswordSetupGrant {
 
 @Injectable()
 export class PasswordSetupGrantService {
-  constructor(
-    private readonly grantRepository: PasswordSetupGrantRepository,
-  ) {}
+  constructor(private readonly grantRepository: PasswordSetupGrantRepository) {}
 
   async issue(
     userId: string,
     tx: Prisma.TransactionClient,
   ): Promise<IssuedPasswordSetupGrant> {
-    const rawToken =
-      randomBytes(
-        32,
-      ).toString(
-        'base64url',
-      );
+    const rawToken = randomBytes(32).toString('base64url');
 
-    const tokenHash =
-      this.hashToken(
-        rawToken,
-      );
+    const tokenHash = this.hashToken(rawToken);
 
-    const now =
-      new Date();
+    const now = new Date();
 
-    const expiresAt =
-      new Date(
-        now.getTime() +
-          PASSWORD_GRANT_LIFETIME_SECONDS *
-            1000,
-      );
-
-    await this.grantRepository.invalidateActiveForUser(
-      userId,
-      now,
-      tx,
+    const expiresAt = new Date(
+      now.getTime() + PASSWORD_GRANT_LIFETIME_SECONDS * 1000,
     );
 
-    await this.grantRepository.create(
-      userId,
-      tokenHash,
-      expiresAt,
-      tx,
-    );
+    await this.grantRepository.invalidateActiveForUser(userId, now, tx);
+
+    await this.grantRepository.create(userId, tokenHash, expiresAt, tx);
 
     return {
-      grantToken:
-        rawToken,
+      grantToken: rawToken,
 
-      expiresIn:
-        PASSWORD_GRANT_LIFETIME_SECONDS,
+      expiresIn: PASSWORD_GRANT_LIFETIME_SECONDS,
     };
   }
 
@@ -82,31 +46,22 @@ export class PasswordSetupGrantService {
     now: Date,
     tx: Prisma.TransactionClient,
   ): Promise<PasswordSetupGrant> {
-    const grant =
-      await this.grantRepository.findByTokenHash(
-        this.hashToken(
-          rawToken,
-        ),
-        tx,
-      );
+    const grant = await this.grantRepository.findByTokenHash(
+      this.hashToken(rawToken),
+      tx,
+    );
 
-    if (
-      !grant ||
-      grant.consumedAt ||
-      grant.expiresAt <=
-        now
-    ) {
+    if (!grant || grant.consumedAt || grant.expiresAt <= now) {
       throw new UnauthorizedException(
         'Password setup authorization is invalid or expired.',
       );
     }
 
-    const consumed =
-      await this.grantRepository.consumeIfActive(
-        grant.id,
-        now,
-        tx,
-      );
+    const consumed = await this.grantRepository.consumeIfActive(
+      grant.id,
+      now,
+      tx,
+    );
 
     if (!consumed) {
       throw new UnauthorizedException(
@@ -117,17 +72,7 @@ export class PasswordSetupGrantService {
     return grant;
   }
 
-  private hashToken(
-    token: string,
-  ): string {
-    return createHash(
-      'sha256',
-    )
-      .update(
-        token,
-      )
-      .digest(
-        'hex',
-      );
+  private hashToken(token: string): string {
+    return createHash('sha256').update(token).digest('hex');
   }
 }
