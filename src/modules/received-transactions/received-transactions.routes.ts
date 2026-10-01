@@ -5,5 +5,7 @@ export const RECEIVED_TRANSACTIONS_ROUTES = {
 
   manual: 'manual',
 
+  classification: ':receivedTransactionId/classification',
+
   detail: ':receivedTransactionId',
 } as const;
