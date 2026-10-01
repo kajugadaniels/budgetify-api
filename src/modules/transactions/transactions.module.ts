@@ -2,6 +2,9 @@ import { Module } from '@nestjs/common';
 import { PassportModule } from '@nestjs/passport';
 
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { TransactionEventRepository } from './repositories/transaction-event.repository';
+import { TransactionReadRepository } from './repositories/transaction-read.repository';
+import { TransactionWriteRepository } from './repositories/transaction-write.repository';
 import { TransactionAnalyticsService } from './services/transaction-analytics.service';
 import { TransactionCreationService } from './services/transaction-creation.service';
 import { TransactionFeeCalculatorService } from './services/transaction-fee-calculator.service';
@@ -13,7 +16,6 @@ import { TransactionUssdService } from './services/transaction-ussd.service';
 import { TransactionAnalyticsRepository } from './transaction-analytics.repository';
 import { TransactionHistoryRepository } from './transaction-history.repository';
 import { TransactionsController } from './transactions.controller';
-import { TransactionsRepository } from './transactions.repository';
 import { TransactionsService } from './transactions.service';
 
 @Module({
@@ -26,7 +28,11 @@ import { TransactionsService } from './transactions.service';
   controllers: [TransactionsController],
 
   providers: [
-    TransactionsRepository,
+    TransactionReadRepository,
+
+    TransactionWriteRepository,
+
+    TransactionEventRepository,
 
     TransactionAnalyticsRepository,
 
