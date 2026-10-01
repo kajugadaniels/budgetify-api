@@ -96,6 +96,31 @@ export class ReceivedTransactionsRepository {
     });
   }
 
+  async updateOwnedClassification(
+    userId: string,
+    receivedTransactionId: string,
+    classification: ReceivedTransactionClassification,
+    db: PrismaExecutor = this.prisma,
+  ): Promise<ReceivedTransaction | null> {
+    const result = await db.receivedTransaction.updateMany({
+      where: {
+        id: receivedTransactionId,
+
+        userId,
+      },
+
+      data: {
+        classification,
+      },
+    });
+
+    if (result.count === 0) {
+      return null;
+    }
+
+    return this.findOwnedById(userId, receivedTransactionId, db);
+  }
+
   async listOwned(
     input: ListOwnedReceivedTransactionsInput,
     db: PrismaExecutor = this.prisma,
