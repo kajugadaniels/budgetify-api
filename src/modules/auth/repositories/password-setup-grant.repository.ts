@@ -1,20 +1,13 @@
 import { Injectable } from '@nestjs/common';
-import {
-  PasswordSetupGrant,
-  Prisma,
-} from '@prisma/client';
+import { PasswordSetupGrant, Prisma } from '@prisma/client';
 
 import { PrismaService } from '../../../database/prisma/prisma.service';
 
-type PrismaExecutor =
-  | Prisma.TransactionClient
-  | PrismaService;
+type PrismaExecutor = Prisma.TransactionClient | PrismaService;
 
 @Injectable()
 export class PasswordSetupGrantRepository {
-  constructor(
-    private readonly prisma: PrismaService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async invalidateActiveForUser(
     userId: string,
@@ -25,8 +18,7 @@ export class PasswordSetupGrantRepository {
       where: {
         userId,
 
-        consumedAt:
-          null,
+        consumedAt: null,
       },
 
       data: {
@@ -68,27 +60,22 @@ export class PasswordSetupGrantRepository {
     consumedAt: Date,
     db: PrismaExecutor = this.prisma,
   ): Promise<boolean> {
-    const result =
-      await db.passwordSetupGrant.updateMany({
-        where: {
-          id:
-            grantId,
+    const result = await db.passwordSetupGrant.updateMany({
+      where: {
+        id: grantId,
 
-          consumedAt:
-            null,
+        consumedAt: null,
 
-          expiresAt: {
-            gt:
-              consumedAt,
-          },
+        expiresAt: {
+          gt: consumedAt,
         },
+      },
 
-        data: {
-          consumedAt,
-        },
-      });
+      data: {
+        consumedAt,
+      },
+    });
 
-    return result.count ===
-      1;
+    return result.count === 1;
   }
 }
