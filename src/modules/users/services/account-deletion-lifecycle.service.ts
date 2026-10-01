@@ -5,7 +5,7 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 
-import { UsersService } from '../users.service';
+import { UserAccountLifecycleService } from './user-account-lifecycle.service';
 
 const ACCOUNT_DELETION_SWEEP_INTERVAL_MS = 60 * 60 * 1000;
 
@@ -14,23 +14,31 @@ export class AccountDeletionLifecycleService
   implements OnModuleInit, OnModuleDestroy
 {
   private readonly logger = new Logger(AccountDeletionLifecycleService.name);
+
   private sweepTimer: NodeJS.Timeout | null = null;
+
   private running = false;
 
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly accountLifecycleService: UserAccountLifecycleService,
+  ) {}
 
   onModuleInit(): void {
     void this.runSweep();
+
     this.sweepTimer = setInterval(() => {
       void this.runSweep();
     }, ACCOUNT_DELETION_SWEEP_INTERVAL_MS);
   }
 
   onModuleDestroy(): void {
-    if (this.sweepTimer) {
-      clearInterval(this.sweepTimer);
-      this.sweepTimer = null;
+    if (!this.sweepTimer) {
+      return;
     }
+
+    clearInterval(this.sweepTimer);
+
+    this.sweepTimer = null;
   }
 
   private async runSweep(): Promise<void> {
@@ -42,7 +50,7 @@ export class AccountDeletionLifecycleService
 
     try {
       const processed =
-        await this.usersService.processDueAccountDeletionBatch();
+        await this.accountLifecycleService.processDueAccountDeletionBatch();
 
       if (processed > 0) {
         this.logger.log(
