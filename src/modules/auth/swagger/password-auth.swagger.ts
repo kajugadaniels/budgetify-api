@@ -19,6 +19,7 @@ import { PasswordStatusRequestDto } from '../dto/password-status.request.dto';
 import { PasswordStatusResponseDto } from '../dto/password-status-response.dto';
 import { SetPasswordRequestDto } from '../dto/set-password.request.dto';
 import { SetPasswordResponseDto } from '../dto/set-password-response.dto';
+import { OTP_CODE_LENGTH } from '../constants/otp.constants';
 
 export function ApiPasswordStatusEndpoint(): MethodDecorator {
   return applyDecorators(
@@ -56,8 +57,7 @@ export function ApiPasswordChallengeEndpoint(): MethodDecorator {
     ApiOperation({
       summary: 'Request a password setup or recovery code',
 
-      description:
-        'Sends a single-use email OTP before password setup or recovery.',
+      description: `Sends a single-use ${OTP_CODE_LENGTH}-digit email OTP before password setup or recovery.`,
     }),
 
     ApiBody({
@@ -93,8 +93,7 @@ export function ApiPasswordChallengeVerifyEndpoint(): MethodDecorator {
     ApiOperation({
       summary: 'Verify a password setup or recovery code',
 
-      description:
-        'Consumes the email OTP and returns a short-lived, single-use password grant.',
+      description: `Consumes the ${OTP_CODE_LENGTH}-digit email OTP and returns a short-lived, single-use password grant.`,
     }),
 
     ApiBody({
