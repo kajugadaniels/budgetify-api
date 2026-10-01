@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma, TransactionStatus } from '@prisma/client';
 
-import { PrismaService } from '../../../database/prisma/prisma.service';
+import { PrismaService } from '../../../../../database/prisma/prisma.service';
 import {
   AnalyticsRangeInput,
   CompletedTransactionTotals,
