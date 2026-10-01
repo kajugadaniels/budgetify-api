@@ -1,14 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import {
-  Prisma,
-  UserPassword,
-} from '@prisma/client';
+import { Prisma, UserPassword } from '@prisma/client';
 
 import { PrismaService } from '../../../database/prisma/prisma.service';
 
-type PrismaExecutor =
-  | Prisma.TransactionClient
-  | PrismaService;
+type PrismaExecutor = Prisma.TransactionClient | PrismaService;
 
 export interface PasswordMaterial {
   hash: string;
@@ -18,27 +13,23 @@ export interface PasswordMaterial {
 
 @Injectable()
 export class PasswordCredentialRepository {
-  constructor(
-    private readonly prisma: PrismaService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async existsByUserId(
     userId: string,
     db: PrismaExecutor = this.prisma,
   ): Promise<boolean> {
-    const credential =
-      await db.userPassword.findUnique({
-        where: {
-          userId,
-        },
+    const credential = await db.userPassword.findUnique({
+      where: {
+        userId,
+      },
 
-        select: {
-          id: true,
-        },
-      });
+      select: {
+        id: true,
+      },
+    });
 
-    return credential !==
-      null;
+    return credential !== null;
   }
 
   async findByUserId(
@@ -66,39 +57,29 @@ export class PasswordCredentialRepository {
       create: {
         userId,
 
-        passwordHash:
-          password.hash,
+        passwordHash: password.hash,
 
-        passwordSalt:
-          password.salt,
+        passwordSalt: password.salt,
 
-        algorithm:
-          'scrypt',
+        algorithm: 'scrypt',
 
-        version:
-          1,
+        version: 1,
 
-        passwordChangedAt:
-          changedAt,
+        passwordChangedAt: changedAt,
       },
 
       update: {
-        passwordHash:
-          password.hash,
+        passwordHash: password.hash,
 
-        passwordSalt:
-          password.salt,
+        passwordSalt: password.salt,
 
-        algorithm:
-          'scrypt',
+        algorithm: 'scrypt',
 
         version: {
-          increment:
-            1,
+          increment: 1,
         },
 
-        passwordChangedAt:
-          changedAt,
+        passwordChangedAt: changedAt,
       },
     });
   }
