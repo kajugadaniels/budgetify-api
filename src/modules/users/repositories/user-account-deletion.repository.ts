@@ -1,66 +1,84 @@
-import {
-  Injectable,
-  Logger,
-  OnModuleDestroy,
-  OnModuleInit,
-} from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
+import { PartnershipStatus, Prisma } from '@prisma/client';
 
-import { UserAccountLifecycleService } from './user-account-lifecycle.service';
-
-const ACCOUNT_DELETION_SWEEP_INTERVAL_MS = 60 * 60 * 1000;
+import { PrismaService } from '../../../database/prisma/prisma.service';
+import { UserPrismaExecutor } from '../types/user-service.types';
 
 @Injectable()
-export class AccountDeletionLifecycleService
-  implements OnModuleInit, OnModuleDestroy
-{
-  private readonly logger = new Logger(AccountDeletionLifecycleService.name);
+export class UserAccountDeletionRepository {
+  constructor(private readonly prisma: PrismaService) {}
 
-  private sweepTimer: NodeJS.Timeout | null = null;
+  async findIdsDueForDeletion(
+    scheduledBefore: Date,
+    limit = 100,
+    db: UserPrismaExecutor = this.prisma,
+  ): Promise<string[]> {
+    const users = await db.user.findMany({
+      where: {
+        deletedAt: null,
 
-  private running = false;
+        accountDeletionScheduledFor: {
+          lte: scheduledBefore,
+        },
+      },
 
-  constructor(
-    private readonly accountLifecycleService: UserAccountLifecycleService,
-  ) {}
+      select: {
+        id: true,
+      },
 
-  onModuleInit(): void {
-    void this.runSweep();
+      orderBy: {
+        accountDeletionScheduledFor: 'asc',
+      },
 
-    this.sweepTimer = setInterval(() => {
-      void this.runSweep();
-    }, ACCOUNT_DELETION_SWEEP_INTERVAL_MS);
+      take: limit,
+    });
+
+    return users.map((user) => user.id);
   }
 
-  onModuleDestroy(): void {
-    if (this.sweepTimer) {
-      clearInterval(this.sweepTimer);
+  async revokeSessions(
+    userId: string,
+    revokedAt: Date,
+    db: UserPrismaExecutor = this.prisma,
+  ): Promise<Prisma.BatchPayload> {
+    return db.session.updateMany({
+      where: {
+        userId,
 
-      this.sweepTimer = null;
-    }
+        revokedAt: null,
+      },
+
+      data: {
+        revokedAt,
+      },
+    });
   }
 
-  private async runSweep(): Promise<void> {
-    if (this.running) {
-      return;
-    }
+  async revokePartnerships(
+    userId: string,
+    db: UserPrismaExecutor = this.prisma,
+  ): Promise<Prisma.BatchPayload> {
+    return db.partnership.updateMany({
+      where: {
+        status: {
+          in: [PartnershipStatus.PENDING, PartnershipStatus.ACCEPTED],
+        },
 
-    this.running = true;
+        OR: [
+          {
+            ownerId: userId,
+          },
+          {
+            partnerId: userId,
+          },
+        ],
+      },
 
-    try {
-      const processed =
-        await this.accountLifecycleService.processDueAccountDeletionBatch();
+      data: {
+        status: PartnershipStatus.REVOKED,
 
-      if (processed > 0) {
-        this.logger.log(
-          `Finalized ${processed} scheduled account deletion(s).`,
-        );
-      }
-    } catch (error) {
-      this.logger.error(
-        `Failed to process scheduled account deletions: ${String(error)}`,
-      );
-    } finally {
-      this.running = false;
-    }
+        partnerId: null,
+      },
+    });
   }
 }
