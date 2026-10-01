@@ -4,6 +4,7 @@ import { Currency } from '@prisma/client';
 import { TransactionAnalyticsQueryDto } from '../dto/transaction-analytics.query.dto';
 import { TransactionAnalyticsResponseDto } from '../dto/transaction-analytics.response.dto';
 import {
+  CompletedReceivedTransactionTotals,
   CompletedTransactionTotals,
   TransactionAnalyticsRepository,
 } from '../transaction-analytics.repository';
@@ -19,6 +20,7 @@ export class TransactionAnalyticsService {
     query: TransactionAnalyticsQueryDto,
   ): Promise<TransactionAnalyticsResponseDto> {
     const from = new Date(query.from);
+
     const to = new Date(query.to);
 
     this.assertValidRange(from, to);
@@ -29,21 +31,40 @@ export class TransactionAnalyticsService {
 
     const previousTo = new Date(from.getTime() - 1);
 
-    const [current, previous] = await Promise.all([
+    const [current, previousSent, previousReceived] = await Promise.all([
       this.analyticsRepository.getPeriodData({
         userId,
+
         from,
+
         to,
       }),
 
       this.analyticsRepository.getCompletedTotals({
         userId,
+
         from: previousFrom,
+
+        to: previousTo,
+      }),
+
+      this.analyticsRepository.getCompletedReceivedTotals({
+        userId,
+
+        from: previousFrom,
+
         to: previousTo,
       }),
     ]);
 
-    const completedAmount = current.completed.sentAmount;
+    const completedSentAmount = current.completed.sentAmount;
+
+    const receivedAmount = current.received.receivedAmount;
+
+    const netCashMovement = receivedAmount - current.completed.totalDebited;
+
+    const previousNetCashMovement =
+      previousReceived.receivedAmount - previousSent.totalDebited;
 
     const categories = [...current.categories]
       .sort((left, right) => {
@@ -60,7 +81,10 @@ export class TransactionAnalyticsService {
       .map((category) => ({
         ...category,
 
-        percentage: this.sharePercentage(category.sentAmount, completedAmount),
+        percentage: this.sharePercentage(
+          category.sentAmount,
+          completedSentAmount,
+        ),
       }));
 
     const transferTypes = [...current.transferTypes]
@@ -80,7 +104,28 @@ export class TransactionAnalyticsService {
 
         percentage: this.sharePercentage(
           transferType.sentAmount,
-          completedAmount,
+          completedSentAmount,
+        ),
+      }));
+
+    const receivedClassifications = [...current.receivedClassifications]
+      .sort((left, right) => {
+        if (right.receivedAmount !== left.receivedAmount) {
+          return right.receivedAmount - left.receivedAmount;
+        }
+
+        if (right.transactions !== left.transactions) {
+          return right.transactions - left.transactions;
+        }
+
+        return left.classification.localeCompare(right.classification);
+      })
+      .map((classification) => ({
+        ...classification,
+
+        percentage: this.sharePercentage(
+          classification.receivedAmount,
+          receivedAmount,
         ),
       }));
 
@@ -94,6 +139,7 @@ export class TransactionAnalyticsService {
 
       period: {
         from: from.toISOString(),
+
         to: to.toISOString(),
 
         previousFrom: previousFrom.toISOString(),
@@ -104,11 +150,17 @@ export class TransactionAnalyticsService {
       summary: {
         sentAmount: current.completed.sentAmount,
 
+        receivedAmount,
+
         feesPaid: current.completed.feesPaid,
 
         totalDebited: current.completed.totalDebited,
 
+        netCashMovement,
+
         completedTransactions: current.completed.transactions,
+
+        receivedTransactions: current.received.transactions,
 
         pendingTransactions: current.pendingTransactions,
 
@@ -122,9 +174,23 @@ export class TransactionAnalyticsService {
         cancelledTransactions: current.cancelledTransactions,
 
         reversedTransactions: current.reversedTransactions,
+
+        receivedReversedTransactions: current.receivedReversedTransactions,
       },
 
-      comparison: this.buildComparison(current.completed, previous),
+      comparison: this.buildComparison({
+        currentSent: current.completed,
+
+        currentReceived: current.received,
+
+        previousSent,
+
+        previousReceived,
+
+        netCashMovement,
+
+        previousNetCashMovement,
+      }),
 
       confirmation: {
         smsEvidence: current.smsEvidence,
@@ -139,9 +205,13 @@ export class TransactionAnalyticsService {
         ),
       },
 
+      receivedEvidence: current.receivedEvidence,
+
       categories,
 
       transferTypes,
+
+      receivedClassifications,
     };
   }
 
@@ -159,37 +229,65 @@ export class TransactionAnalyticsService {
     }
   }
 
-  private buildComparison(
-    current: CompletedTransactionTotals,
-    previous: CompletedTransactionTotals,
-  ) {
+  private buildComparison(input: {
+    currentSent: CompletedTransactionTotals;
+
+    currentReceived: CompletedReceivedTransactionTotals;
+
+    previousSent: CompletedTransactionTotals;
+
+    previousReceived: CompletedReceivedTransactionTotals;
+
+    netCashMovement: number;
+
+    previousNetCashMovement: number;
+  }) {
     return {
-      previousSentAmount: previous.sentAmount,
+      previousSentAmount: input.previousSent.sentAmount,
 
       sentAmountChangePercentage: this.changePercentage(
-        current.sentAmount,
-        previous.sentAmount,
+        input.currentSent.sentAmount,
+        input.previousSent.sentAmount,
       ),
 
-      previousFeesPaid: previous.feesPaid,
+      previousReceivedAmount: input.previousReceived.receivedAmount,
+
+      receivedAmountChangePercentage: this.changePercentage(
+        input.currentReceived.receivedAmount,
+        input.previousReceived.receivedAmount,
+      ),
+
+      previousFeesPaid: input.previousSent.feesPaid,
 
       feesPaidChangePercentage: this.changePercentage(
-        current.feesPaid,
-        previous.feesPaid,
+        input.currentSent.feesPaid,
+        input.previousSent.feesPaid,
       ),
 
-      previousTotalDebited: previous.totalDebited,
+      previousTotalDebited: input.previousSent.totalDebited,
 
       totalDebitedChangePercentage: this.changePercentage(
-        current.totalDebited,
-        previous.totalDebited,
+        input.currentSent.totalDebited,
+        input.previousSent.totalDebited,
       ),
 
-      previousCompletedTransactions: previous.transactions,
+      previousNetCashMovement: input.previousNetCashMovement,
+
+      netCashMovementChange:
+        input.netCashMovement - input.previousNetCashMovement,
+
+      previousCompletedTransactions: input.previousSent.transactions,
 
       completedTransactionsChangePercentage: this.changePercentage(
-        current.transactions,
-        previous.transactions,
+        input.currentSent.transactions,
+        input.previousSent.transactions,
+      ),
+
+      previousReceivedTransactions: input.previousReceived.transactions,
+
+      receivedTransactionsChangePercentage: this.changePercentage(
+        input.currentReceived.transactions,
+        input.previousReceived.transactions,
       ),
     };
   }
