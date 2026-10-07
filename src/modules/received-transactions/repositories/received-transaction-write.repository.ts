@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import {
   Prisma,
   ReceivedTransaction,
@@ -33,6 +33,7 @@ export class ReceivedTransactionWriteRepository {
         id: receivedTransactionId,
 
         userId,
+        ...(classification !== ReceivedTransactionClassification.INCOME ? { income: null } : {}),
       },
 
       data: {
@@ -41,6 +42,13 @@ export class ReceivedTransactionWriteRepository {
     });
 
     if (result.count === 0) {
+      const linked = await db.receivedTransaction.findFirst({
+        where: { id: receivedTransactionId, userId, income: { isNot: null } },
+        select: { id: true },
+      });
+      if (linked) {
+        throw new ConflictException('A payment linked to an income record must remain classified as income.');
+      }
       return null;
     }
 
