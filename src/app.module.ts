@@ -15,6 +15,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { TransactionsModule } from './modules/transactions/transactions.module';
 import { UsersModule } from './modules/users/users.module';
 import { ReceivedTransactionsModule } from './modules/received-transactions/received-transactions.module';
+import { IncomesModule } from './modules/incomes/incomes.module';
 
 const AUTH_PREFIX = `/${API_GLOBAL_PREFIX}/auth`;
 const OTP_INITIATE_PREFIX = `${AUTH_PREFIX}/email/initiate`;
@@ -91,6 +92,7 @@ function getRequestSignature(context: ExecutionContext): {
     AuthModule,
     TransactionsModule,
     ReceivedTransactionsModule,
+    IncomesModule,
   ],
   providers: [
     {
