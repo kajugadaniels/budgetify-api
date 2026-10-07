@@ -33,7 +33,9 @@ export class ReceivedTransactionWriteRepository {
         id: receivedTransactionId,
 
         userId,
-        ...(classification !== ReceivedTransactionClassification.INCOME ? { income: null } : {}),
+        ...(classification !== ReceivedTransactionClassification.INCOME
+          ? { income: null }
+          : {}),
       },
 
       data: {
@@ -47,7 +49,9 @@ export class ReceivedTransactionWriteRepository {
         select: { id: true },
       });
       if (linked) {
-        throw new ConflictException('A payment linked to an income record must remain classified as income.');
+        throw new ConflictException(
+          'A payment linked to an income record must remain classified as income.',
+        );
       }
       return null;
     }
