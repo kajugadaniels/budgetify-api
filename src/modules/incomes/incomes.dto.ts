@@ -1,21 +1,47 @@
 import { IncomeCategory } from '@prisma/client';
-import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from '@nestjs/swagger';
+import {
+  ApiProperty,
+  ApiPropertyOptional,
+  OmitType,
+  PartialType,
+} from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
-import { IsBoolean, IsEnum, IsIn, IsInt, IsISO8601, IsOptional, IsString, IsUUID, Max, MaxLength, Min, MinLength } from 'class-validator';
+import {
+  IsBoolean,
+  IsEnum,
+  IsIn,
+  IsInt,
+  IsISO8601,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Max,
+  MaxLength,
+  Min,
+  MinLength,
+} from 'class-validator';
 
 export class CreateIncomeDto {
-  @ApiProperty({ description: 'Stable UUID for retries of the same creation request.' })
+  @ApiProperty({
+    description: 'Stable UUID for retries of the same creation request.',
+  })
   @IsUUID()
   clientEventId!: string;
 
   @ApiProperty({ example: 'October salary' })
-  @Transform(({ value }: { value: unknown }) => typeof value === 'string' ? value.trim() : value)
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
   @IsString()
   @MinLength(1)
   @MaxLength(120)
   label!: string;
 
-  @ApiProperty({ minimum: 1, maximum: 999999999999, description: 'Whole RWF; currency is always RWF.' })
+  @ApiProperty({
+    minimum: 1,
+    maximum: 999999999999,
+    description: 'Whole RWF; currency is always RWF.',
+  })
   @IsInt()
   @Min(1)
   @Max(999999999999)
@@ -25,7 +51,9 @@ export class CreateIncomeDto {
   @IsEnum(IncomeCategory)
   category!: IncomeCategory;
 
-  @ApiProperty({ description: 'Expected date, or actual date for already received income.' })
+  @ApiProperty({
+    description: 'Expected date, or actual date for already received income.',
+  })
   @IsISO8601({ strict: true })
   date!: string;
 
@@ -35,7 +63,9 @@ export class CreateIncomeDto {
   received = false;
 }
 
-export class UpdateIncomeDto extends PartialType(OmitType(CreateIncomeDto, ['clientEventId', 'received'] as const)) {}
+export class UpdateIncomeDto extends PartialType(
+  OmitType(CreateIncomeDto, ['clientEventId', 'received'] as const),
+) {}
 
 export class ReceiveIncomeDto {
   @ApiProperty({ description: 'Actual receipt date; cannot be in the future.' })
@@ -82,11 +112,15 @@ export class ListIncomesDto {
 
   @IsOptional()
   @IsISO8601({ strict: true })
-  @ApiPropertyOptional({ description: 'Inclusive expected or received date range start.' })
+  @ApiPropertyOptional({
+    description: 'Inclusive expected or received date range start.',
+  })
   from?: string;
 
   @IsOptional()
   @IsISO8601({ strict: true })
-  @ApiPropertyOptional({ description: 'Inclusive expected or received date range end.' })
+  @ApiPropertyOptional({
+    description: 'Inclusive expected or received date range end.',
+  })
   to?: string;
 }
