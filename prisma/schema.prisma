@@ -401,6 +401,11 @@ model Income {
   category                 IncomeCategory
   date                     DateTime
   received                 Boolean                         @default(false)
+  expectedAt               DateTime?
+  receivedAt               DateTime?
+  clientEventId            String?
+  receivedTransactionId    String?                         @unique @db.Uuid
+  receivedTransaction      ReceivedTransaction?            @relation(fields: [receivedTransactionId], references: [id], onDelete: Restrict)
   createdAt                DateTime                        @default(now())
   updatedAt                DateTime                        @updatedAt
   deletedAt                DateTime?
@@ -414,6 +419,8 @@ model Income {
   @@index([userId, category])
   @@index([userId, received])
   @@index([userId, currency])
+  @@unique([userId, clientEventId])
+  @@index([userId, deletedAt, date, id])
 }
 
 model Expense {
@@ -545,6 +552,7 @@ model ReceivedTransaction {
   updatedAt         DateTime                          @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  income Income?
 
   @@unique([userId, clientEventId])
   @@unique([userId, providerReference])
