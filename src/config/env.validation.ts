@@ -35,6 +35,10 @@ const envSchema = Joi.object({
   // ── iPhone Shortcut imports ─────────────────────────────────────────────────
   // A dedicated HMAC key for one-time iPhone Shortcut credentials.
   IPHONE_SHORTCUT_IMPORT_TOKEN_PEPPER: Joi.string().min(32).required(),
+  // A base64-encoded 256-bit key used to encrypt pending message text.
+  IPHONE_SHORTCUT_IMPORT_MESSAGE_ENCRYPTION_KEY: Joi.string()
+    .pattern(/^[A-Za-z0-9+/]{43}=$/)
+    .required(),
 
   // ── Google OAuth ─────────────────────────────────────────────────────────────
   GOOGLE_CLIENT_ID: Joi.string().optional(),
