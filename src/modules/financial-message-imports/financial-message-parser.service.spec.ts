@@ -59,8 +59,6 @@ describe('FinancialMessageParserService', () => {
     });
 
     expect(result.providerCode).toBeNull();
-    expect(result.parseStatus).toBe(
-      FinancialMessageParseStatus.NEEDS_DETAILS,
-    );
+    expect(result.parseStatus).toBe(FinancialMessageParseStatus.NEEDS_DETAILS);
   });
 });
