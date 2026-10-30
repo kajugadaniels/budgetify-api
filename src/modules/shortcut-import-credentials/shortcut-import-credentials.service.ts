@@ -147,6 +147,86 @@ export class ShortcutImportCredentialsService {
     });
   }
 
+  async rotate(
+    userId: string,
+    id: string,
+  ): Promise<CreatedShortcutImportCredentialResponseDto> {
+    for (let attempt = 0; attempt < MAX_TRANSACTION_ATTEMPTS; attempt++) {
+      const generated = this.tokens.generate();
+      const now = new Date();
+      const expiresAt = new Date(
+        now.getTime() +
+          this.config.credentialLifetimeDays * MILLISECONDS_PER_DAY,
+      );
+
+      try {
+        const replacement = await this.prisma.$transaction(
+          async (tx) => {
+            const current = await tx.shortcutImportCredential.findFirst({
+              where: { id, userId },
+            });
+
+            if (!current) {
+              throw new NotFoundException(
+                'The iPhone Shortcut credential was not found.',
+              );
+            }
+
+            if (current.revokedAt || current.expiresAt <= now) {
+              throw new ConflictException(
+                'Only an active iPhone Shortcut credential can be rotated.',
+              );
+            }
+
+            await tx.shortcutImportCredential.update({
+              where: { id: current.id },
+              data: { revokedAt: now },
+            });
+
+            return tx.shortcutImportCredential.create({
+              data: {
+                userId,
+                deviceName: current.deviceName,
+                tokenPrefix: generated.tokenPrefix,
+                tokenHash: generated.tokenHash,
+                expiresAt,
+              },
+            });
+          },
+          { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+        );
+
+        return {
+          ...this.toResponse(replacement, now),
+          token: generated.token,
+        };
+      } catch (error) {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          (error.code === 'P2002' || error.code === 'P2034') &&
+          attempt < MAX_TRANSACTION_ATTEMPTS - 1
+        ) {
+          continue;
+        }
+
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          (error.code === 'P2002' || error.code === 'P2034')
+        ) {
+          throw new ConflictException(
+            'The iPhone credential could not be rotated safely. Please try again.',
+          );
+        }
+
+        throw error;
+      }
+    }
+
+    throw new ConflictException(
+      'The iPhone credential could not be rotated safely. Please try again.',
+    );
+  }
+
   private toResponse(
     credential: ShortcutImportCredential,
     now: Date,
