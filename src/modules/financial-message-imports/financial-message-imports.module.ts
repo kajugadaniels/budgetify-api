@@ -5,6 +5,7 @@ import { FinancialMessageCryptoService } from './financial-message-crypto.servic
 import { FinancialMessageImportsController } from './financial-message-imports.controller';
 import { FinancialMessageImportsService } from './financial-message-imports.service';
 import { FinancialMessageParserService } from './financial-message-parser.service';
+import { FinancialMessageReviewService } from './financial-message-review.service';
 import { ShortcutImportAuthGuard } from './shortcut-import-auth.guard';
 
 @Module({
@@ -14,6 +15,7 @@ import { ShortcutImportAuthGuard } from './shortcut-import-auth.guard';
     FinancialMessageCryptoService,
     FinancialMessageParserService,
     FinancialMessageImportsService,
+    FinancialMessageReviewService,
     ShortcutImportAuthGuard,
   ],
 })
