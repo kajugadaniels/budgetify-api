@@ -21,7 +21,9 @@ import {
   FinancialMessageImportResponseDto,
 } from './financial-message-import.dto';
 import { FinancialMessageImportMapper } from './financial-message-import.mapper';
+import { FinancialMessagePilotService } from './financial-message-pilot.service';
 import { FinancialMessageParserService } from './financial-message-parser.service';
+import { FinancialMessageRolloutService } from './financial-message-rollout.service';
 import type { AuthenticatedShortcutCredential } from './shortcut-import-auth.types';
 
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -35,6 +37,8 @@ export class FinancialMessageImportsService {
     private readonly prisma: PrismaService,
     private readonly parser: FinancialMessageParserService,
     private readonly crypto: FinancialMessageCryptoService,
+    private readonly rollout: FinancialMessageRolloutService,
+    private readonly pilot: FinancialMessagePilotService,
     @Inject(iphoneShortcutImportConfig.KEY)
     private readonly config: ConfigType<typeof iphoneShortcutImportConfig>,
   ) {}
@@ -43,21 +47,24 @@ export class FinancialMessageImportsService {
     credential: AuthenticatedShortcutCredential,
     body: CreateFinancialMessageImportDto,
   ): Promise<FinancialMessageImportResponseDto> {
+    this.rollout.assertIngestionEnabled();
     const now = new Date();
     const messageReceivedAt = new Date(body.messageReceivedAt);
     this.assertMessageTime(messageReceivedAt, now);
 
     const fingerprint = this.crypto.fingerprint(body.message);
     const encryptedMessage = this.crypto.encrypt(body.message);
-    const parsed = this.parser.parse({
-      message: body.message,
-      messageSender: body.messageSender,
-      messageReceivedAt,
-    });
+    const parsed = this.rollout.applyProviderRollout(
+      this.parser.parse({
+        message: body.message,
+        messageSender: body.messageSender,
+        messageReceivedAt,
+      }),
+    );
 
     for (let attempt = 0; attempt < MAX_TRANSACTION_ATTEMPTS; attempt++) {
       try {
-        return await this.prisma.$transaction(
+        const result = await this.prisma.$transaction(
           async (tx) => {
             const existingByEvent = await tx.financialMessageImport.findUnique({
               where: {
@@ -164,6 +171,8 @@ export class FinancialMessageImportsService {
           },
           { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
         );
+        this.pilot.recordOutcome(result);
+        return result;
       } catch (error) {
         if (
           error instanceof Prisma.PrismaClientKnownRequestError &&
