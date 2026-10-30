@@ -1,5 +1,21 @@
 import { registerAs } from '@nestjs/config';
 
+export const IPHONE_SHORTCUT_IMPORT_MODES = [
+  'disabled',
+  'pilot',
+  'enabled',
+] as const;
+
+export type IphoneShortcutImportMode =
+  (typeof IPHONE_SHORTCUT_IMPORT_MODES)[number];
+
+function commaSeparatedValues(value: string | undefined): string[] {
+  return (value ?? '')
+    .split(',')
+    .map((item) => item.trim().toUpperCase())
+    .filter((item, index, values) => item.length > 0 && values.indexOf(item) === index);
+}
+
 export const iphoneShortcutImportConfig = registerAs(
   'iphoneShortcutImport',
   () => ({
@@ -10,5 +26,16 @@ export const iphoneShortcutImportConfig = registerAs(
     maximumActiveCredentials: 3,
     pendingImportLifetimeDays: 30,
     maximumMessageAgeDays: 30,
+    mode: (process.env.IPHONE_SHORTCUT_IMPORT_MODE ??
+      'pilot') as IphoneShortcutImportMode,
+    enabledProviderCodes: commaSeparatedValues(
+      process.env.IPHONE_SHORTCUT_IMPORT_ENABLED_PROVIDERS,
+    ),
+    alertMinimumSampleSize: Number(
+      process.env.IPHONE_SHORTCUT_IMPORT_ALERT_MINIMUM_SAMPLE_SIZE ?? 10,
+    ),
+    alertNeedsReviewPercent: Number(
+      process.env.IPHONE_SHORTCUT_IMPORT_ALERT_NEEDS_REVIEW_PERCENT ?? 30,
+    ),
   }),
 );
