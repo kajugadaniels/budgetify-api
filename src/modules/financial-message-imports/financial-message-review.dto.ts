@@ -168,4 +168,3 @@ export class FinancialMessageImportConfirmationResponseDto {
   @ApiProperty({ format: 'uuid', nullable: true })
   incomeId!: string | null;
 }
-
