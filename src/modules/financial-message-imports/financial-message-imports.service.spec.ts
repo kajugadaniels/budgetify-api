@@ -12,7 +12,9 @@ import type { FinancialMessageImport } from '@prisma/client';
 import { PrismaService } from '../../database/prisma/prisma.service';
 import { FinancialMessageCryptoService } from './financial-message-crypto.service';
 import { FinancialMessageImportsService } from './financial-message-imports.service';
+import { FinancialMessagePilotService } from './financial-message-pilot.service';
 import { FinancialMessageParserService } from './financial-message-parser.service';
+import { FinancialMessageRolloutService } from './financial-message-rollout.service';
 import { FinancialMessageSourceHint } from './financial-message-source.enum';
 
 describe('FinancialMessageImportsService', () => {
@@ -77,11 +79,19 @@ describe('FinancialMessageImportsService', () => {
     maximumActiveCredentials: 3,
     pendingImportLifetimeDays: 30,
     maximumMessageAgeDays: 30,
+    mode: 'pilot' as const,
+    enabledProviderCodes: ['MTN_MOMO_RW'],
+    alertMinimumSampleSize: 10,
+    alertNeedsReviewPercent: 30,
   };
+  const rollout = new FinancialMessageRolloutService(config);
+  const pilot = new FinancialMessagePilotService(prisma, rollout, config);
   const service = new FinancialMessageImportsService(
     prisma,
     new FinancialMessageParserService(),
     new FinancialMessageCryptoService(config),
+    rollout,
+    pilot,
     config,
   );
 
