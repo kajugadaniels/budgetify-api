@@ -20,8 +20,8 @@ import {
   CreateFinancialMessageImportDto,
   FinancialMessageImportResponseDto,
 } from './financial-message-import.dto';
+import { FinancialMessageImportMapper } from './financial-message-import.mapper';
 import { FinancialMessageParserService } from './financial-message-parser.service';
-import { FinancialMessageSourceHint } from './financial-message-source.enum';
 import type { AuthenticatedShortcutCredential } from './shortcut-import-auth.types';
 
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -59,15 +59,14 @@ export class FinancialMessageImportsService {
       try {
         return await this.prisma.$transaction(
           async (tx) => {
-            const existingByEvent =
-              await tx.financialMessageImport.findUnique({
-                where: {
-                  userId_clientEventId: {
-                    userId: credential.userId,
-                    clientEventId: body.clientEventId,
-                  },
+            const existingByEvent = await tx.financialMessageImport.findUnique({
+              where: {
+                userId_clientEventId: {
+                  userId: credential.userId,
+                  clientEventId: body.clientEventId,
                 },
-              });
+              },
+            });
 
             if (existingByEvent) {
               this.assertReplayMatches(
@@ -77,7 +76,10 @@ export class FinancialMessageImportsService {
                 messageReceivedAt,
               );
 
-              return this.toResponse(existingByEvent, true);
+              return FinancialMessageImportMapper.toResponse(
+                existingByEvent,
+                true,
+              );
             }
 
             const existingByProviderReference =
@@ -104,11 +106,11 @@ export class FinancialMessageImportsService {
                       },
                     });
 
-              return this.toResponse(duplicate, false);
+              return FinancialMessageImportMapper.toResponse(duplicate);
             }
 
-            const possibleDuplicate =
-              await tx.financialMessageImport.findFirst({
+            const possibleDuplicate = await tx.financialMessageImport.findFirst(
+              {
                 where: {
                   userId: credential.userId,
                   fingerprint,
@@ -120,7 +122,8 @@ export class FinancialMessageImportsService {
                   },
                 },
                 select: { id: true },
-              });
+              },
+            );
 
             const created = await tx.financialMessageImport.create({
               data: {
@@ -157,7 +160,7 @@ export class FinancialMessageImportsService {
               },
             });
 
-            return this.toResponse(created, false);
+            return FinancialMessageImportMapper.toResponse(created);
           },
           { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
         );
@@ -189,7 +192,10 @@ export class FinancialMessageImportsService {
   }
 
   private assertMessageTime(messageReceivedAt: Date, now: Date): void {
-    if (messageReceivedAt.getTime() > now.getTime() + FUTURE_CLOCK_TOLERANCE_MS) {
+    if (
+      messageReceivedAt.getTime() >
+      now.getTime() + FUTURE_CLOCK_TOLERANCE_MS
+    ) {
       throw new BadRequestException(
         'The iPhone message receipt time cannot be in the future.',
       );
@@ -213,7 +219,7 @@ export class FinancialMessageImportsService {
   ): void {
     if (
       existing.fingerprint !== fingerprint ||
-      existing.sourceHint !== body.sourceHint ||
+      existing.sourceHint !== String(body.sourceHint) ||
       existing.messageReceivedAt.getTime() !== messageReceivedAt.getTime()
     ) {
       throw new ConflictException(
@@ -222,31 +228,4 @@ export class FinancialMessageImportsService {
     }
   }
 
-  private toResponse(
-    row: FinancialMessageImport,
-    isReplay: boolean,
-  ): FinancialMessageImportResponseDto {
-    return {
-      id: row.id,
-      clientEventId: row.clientEventId,
-      sourceHint: row.sourceHint as FinancialMessageSourceHint,
-      providerCode: row.providerCode,
-      direction: row.direction,
-      parseStatus: row.parseStatus,
-      status: row.status,
-      duplicateStatus: row.duplicateStatus,
-      currency: row.currency,
-      amount: row.amount?.toString() ?? null,
-      fee: row.fee?.toString() ?? null,
-      messageReceivedAt: row.messageReceivedAt,
-      occurredAt: row.occurredAt,
-      senderName: row.senderName,
-      senderIdentifier: row.senderIdentifier,
-      accountLastFour: row.accountLastFour,
-      providerReference: row.providerReference,
-      parseConfidence: row.parseConfidence?.toString() ?? null,
-      expiresAt: row.expiresAt,
-      isReplay,
-    };
-  }
 }
