@@ -29,6 +29,11 @@ import {
 } from './financial-message-import.dto';
 import { FinancialMessageImportsService } from './financial-message-imports.service';
 import {
+  FinancialMessagePilotSummaryQueryDto,
+  FinancialMessagePilotSummaryResponseDto,
+} from './financial-message-pilot.dto';
+import { FinancialMessagePilotService } from './financial-message-pilot.service';
+import {
   ConfirmFinancialMessageImportDto,
   FinancialMessageImportConfirmationResponseDto,
   FinancialMessageImportDetailResponseDto,
@@ -47,6 +52,7 @@ export class FinancialMessageImportsController {
   constructor(
     private readonly imports: FinancialMessageImportsService,
     private readonly review: FinancialMessageReviewService,
+    private readonly pilot: FinancialMessagePilotService,
   ) {}
 
   @Post('shortcut')
@@ -67,6 +73,22 @@ export class FinancialMessageImportsController {
     @Body() body: CreateFinancialMessageImportDto,
   ): Promise<FinancialMessageImportResponseDto> {
     return this.imports.ingest(credential, body);
+  }
+
+  @Get('pilot-summary')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Read privacy-safe iPhone import pilot health metrics.',
+    description:
+      'Returns aggregate parser and rollout metadata only. Raw messages, account identifiers, and sender details are never included.',
+  })
+  @ApiOkResponse({ type: FinancialMessagePilotSummaryResponseDto })
+  pilotSummary(
+    @CurrentUser() user: AuthenticatedRequestUser,
+    @Query() query: FinancialMessagePilotSummaryQueryDto,
+  ): Promise<FinancialMessagePilotSummaryResponseDto> {
+    return this.pilot.summary(user.userId, query.days);
   }
 
   @Get()
