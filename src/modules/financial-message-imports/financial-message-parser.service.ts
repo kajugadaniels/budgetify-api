@@ -9,29 +9,9 @@ import {
   FinancialMessageParserInput,
   FinancialMessageParserResult,
 } from './financial-message-parser.types';
+import { identifyFinancialMessageProvider } from './financial-message-provider.registry';
 
 const PARSER_VERSION = 'rw-financial-message-v1';
-
-const PROVIDERS: ReadonlyArray<{
-  code: string;
-  evidence: RegExp;
-}> = [
-  { code: 'MTN_MOMO_RW', evidence: /\b(?:mtn|momo|mobile money|m-money)\b/i },
-  { code: 'AIRTEL_MONEY_RW', evidence: /\b(?:airtel|airtel money)\b/i },
-  {
-    code: 'BANK_OF_KIGALI_RW',
-    evidence: /\b(?:bank of kigali|bk bank|bkir)\b/i,
-  },
-  { code: 'ACCESS_BANK_RW', evidence: /\baccess bank\b/i },
-  { code: 'EQUITY_BANK_RW', evidence: /\bequity bank\b/i },
-  { code: 'I_AND_M_BANK_RW', evidence: /\b(?:i\s*&\s*m|im bank)\b/i },
-  { code: 'BPR_BANK_RW', evidence: /\b(?:bpr bank|bpr atlas mara)\b/i },
-  { code: 'COGEBANQUE_RW', evidence: /\bcogebanque\b/i },
-  { code: 'ECOBANK_RW', evidence: /\becobank\b/i },
-  { code: 'GTBANK_RW', evidence: /\b(?:gtbank|guaranty trust bank)\b/i },
-  { code: 'NCBA_RW', evidence: /\bncba\b/i },
-  { code: 'BANK_OF_AFRICA_RW', evidence: /\b(?:bank of africa|boa rwanda)\b/i },
-];
 
 @Injectable()
 export class FinancialMessageParserService {
@@ -76,43 +56,7 @@ export class FinancialMessageParserService {
     message: string,
     messageSender: string | undefined,
   ): string | null {
-    const normalizedSender = messageSender
-      ?.normalize('NFKC')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .toLowerCase();
-    const senderProviderCodes: Readonly<Record<string, string>> = {
-      'm-money': 'MTN_MOMO_RW',
-      mtn: 'MTN_MOMO_RW',
-      momo: 'MTN_MOMO_RW',
-      airtel: 'AIRTEL_MONEY_RW',
-      'airtel money': 'AIRTEL_MONEY_RW',
-      bk: 'BANK_OF_KIGALI_RW',
-      'bk bank': 'BANK_OF_KIGALI_RW',
-      'bank of kigali': 'BANK_OF_KIGALI_RW',
-      'access bank': 'ACCESS_BANK_RW',
-      'equity bank': 'EQUITY_BANK_RW',
-      'i&m': 'I_AND_M_BANK_RW',
-      'i&m bank': 'I_AND_M_BANK_RW',
-      'im bank': 'I_AND_M_BANK_RW',
-      bpr: 'BPR_BANK_RW',
-      'bpr bank': 'BPR_BANK_RW',
-      cogebanque: 'COGEBANQUE_RW',
-      ecobank: 'ECOBANK_RW',
-      gtbank: 'GTBANK_RW',
-      ncba: 'NCBA_RW',
-      boa: 'BANK_OF_AFRICA_RW',
-      'bank of africa': 'BANK_OF_AFRICA_RW',
-    };
-
-    if (normalizedSender && senderProviderCodes[normalizedSender]) {
-      return senderProviderCodes[normalizedSender];
-    }
-
-    return (
-      PROVIDERS.find((provider) => provider.evidence.test(message))?.code ??
-      null
-    );
+    return identifyFinancialMessageProvider(message, messageSender);
   }
 
   private direction(message: string): FinancialMessageDirection {
