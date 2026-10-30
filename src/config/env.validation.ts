@@ -32,6 +32,10 @@ const envSchema = Joi.object({
   // Must be at least 32 characters and kept separate from JWT secrets.
   OTP_HASH_SECRET: Joi.string().min(32).required(),
 
+  // ── iPhone Shortcut imports ─────────────────────────────────────────────────
+  // A dedicated HMAC key for one-time iPhone Shortcut credentials.
+  IPHONE_SHORTCUT_IMPORT_TOKEN_PEPPER: Joi.string().min(32).required(),
+
   // ── Google OAuth ─────────────────────────────────────────────────────────────
   GOOGLE_CLIENT_ID: Joi.string().optional(),
   GOOGLE_CLIENT_IDS: Joi.string().optional(),
