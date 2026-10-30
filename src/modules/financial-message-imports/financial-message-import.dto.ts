@@ -125,6 +125,15 @@ export class FinancialMessageImportResponseDto {
   @ApiProperty({ type: String, format: 'date-time' })
   expiresAt!: Date;
 
+  @ApiProperty({ format: 'uuid', nullable: true })
+  confirmedReceivedTransactionId!: string | null;
+
+  @ApiProperty({ format: 'uuid', nullable: true })
+  confirmedIncomeId!: string | null;
+
+  @ApiProperty({ type: String, format: 'date-time' })
+  createdAt!: Date;
+
   @ApiProperty({
     description:
       'True when the same Shortcut request was already accepted previously.',
