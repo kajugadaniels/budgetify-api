@@ -37,8 +37,11 @@ describe('ShortcutImportCredentialsService', () => {
   } as unknown as ShortcutImportCredentialTokenService;
   const service = new ShortcutImportCredentialsService(prisma, tokens, {
     tokenPepper: 'test-pepper-that-is-longer-than-thirty-two-characters',
+    messageEncryptionKey: Buffer.alloc(32, 1).toString('base64'),
     credentialLifetimeDays: 365,
     maximumActiveCredentials: 3,
+    pendingImportLifetimeDays: 30,
+    maximumMessageAgeDays: 30,
   });
 
   beforeEach(() => {
@@ -74,18 +77,16 @@ describe('ShortcutImportCredentialsService', () => {
     });
 
     expect(result.token).toBe(`${row.tokenPrefix}_one-time-secret`);
-    expect(shortcutImportCredential.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        userId: 'owner',
-        tokenPrefix: row.tokenPrefix,
-        tokenHash: row.tokenHash,
-      }),
-    });
-    expect(shortcutImportCredential.create).not.toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({ token: expect.anything() }),
-      }),
-    );
+    const [createArguments] = shortcutImportCredential.create.mock
+      .calls[0] as unknown as [
+      {
+        data: Record<string, unknown>;
+      },
+    ];
+    expect(createArguments.data.userId).toBe('owner');
+    expect(createArguments.data.tokenPrefix).toBe(row.tokenPrefix);
+    expect(createArguments.data.tokenHash).toBe(row.tokenHash);
+    expect(createArguments.data).not.toHaveProperty('token');
   });
 
   it('rejects another iPhone when the active-device limit is reached', async () => {
@@ -106,9 +107,9 @@ describe('ShortcutImportCredentialsService', () => {
 
     const result = await service.list('owner');
 
-    expect(shortcutImportCredential.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { userId: 'owner' } }),
-    );
+    const [findManyArguments] = shortcutImportCredential.findMany.mock
+      .calls[0] as unknown as [{ where: { userId: string } }];
+    expect(findManyArguments.where.userId).toBe('owner');
     expect(result.map((item) => item.status)).toEqual([
       ShortcutImportCredentialStatus.ACTIVE,
       ShortcutImportCredentialStatus.EXPIRED,
