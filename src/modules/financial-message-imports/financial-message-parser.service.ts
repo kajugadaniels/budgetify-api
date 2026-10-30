@@ -18,7 +18,10 @@ const PROVIDERS: ReadonlyArray<{
 }> = [
   { code: 'MTN_MOMO_RW', evidence: /\b(?:mtn|momo|mobile money|m-money)\b/i },
   { code: 'AIRTEL_MONEY_RW', evidence: /\b(?:airtel|airtel money)\b/i },
-  { code: 'BANK_OF_KIGALI_RW', evidence: /\b(?:bank of kigali|bk bank|bkir)\b/i },
+  {
+    code: 'BANK_OF_KIGALI_RW',
+    evidence: /\b(?:bank of kigali|bk bank|bkir)\b/i,
+  },
   { code: 'ACCESS_BANK_RW', evidence: /\baccess bank\b/i },
   { code: 'EQUITY_BANK_RW', evidence: /\bequity bank\b/i },
   { code: 'I_AND_M_BANK_RW', evidence: /\b(?:i\s*&\s*m|im bank)\b/i },
@@ -130,9 +133,7 @@ export class FinancialMessageParserService {
     }
 
     if (
-      /\b(?:sent|debited|debit alert|paid|withdrawn|purchase)\b/i.test(
-        message,
-      )
+      /\b(?:sent|debited|debit alert|paid|withdrawn|purchase)\b/i.test(message)
     ) {
       return FinancialMessageDirection.DEBIT;
     }
@@ -152,9 +153,7 @@ export class FinancialMessageParserService {
     const currencyFirst = scope.match(
       /\b(?:RWF|FRW)\s*([0-9][0-9\s,.]*)(?=\s|[.;,]|$)/i,
     );
-    const currencyLast = scope.match(
-      /\b([0-9][0-9\s,.]*)\s*(?:RWF|FRW)\b/i,
-    );
+    const currencyLast = scope.match(/\b([0-9][0-9\s,.]*)\s*(?:RWF|FRW)\b/i);
     const captured = currencyFirst?.[1] ?? currencyLast?.[1];
 
     if (!captured) {
