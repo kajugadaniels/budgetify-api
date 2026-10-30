@@ -102,6 +102,20 @@ export function identifyFinancialMessageProvider(
   );
 }
 
+export function financialMessageProviderDisplayName(
+  providerCode: string | null,
+): string {
+  if (!providerCode) {
+    return 'Unknown provider';
+  }
+
+  return (
+    RWANDA_FINANCIAL_MESSAGE_PROVIDERS.find(
+      (provider) => provider.code === providerCode,
+    )?.displayName ?? providerCode
+  );
+}
+
 function normalizeSender(value: string): string {
   return value
     .normalize('NFKC')
