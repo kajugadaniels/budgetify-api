@@ -113,9 +113,7 @@ export class ShortcutImportCredentialsService {
     );
   }
 
-  async list(
-    userId: string,
-  ): Promise<ShortcutImportCredentialResponseDto[]> {
+  async list(userId: string): Promise<ShortcutImportCredentialResponseDto[]> {
     const now = new Date();
     const credentials = await this.prisma.shortcutImportCredential.findMany({
       where: { userId },
