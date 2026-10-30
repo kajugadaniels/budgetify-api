@@ -286,41 +286,41 @@ enum FinancialMessageDuplicateStatus {
 // ─────────────────────────────────────────────────────────────
 
 model User {
-  id                          String                @id @default(uuid()) @db.Uuid
-  email                       String                @unique
+  id                          String                     @id @default(uuid()) @db.Uuid
+  email                       String                     @unique
   firstName                   String?
   lastName                    String?
   fullName                    String?
   avatarUrl                   String?
-  isEmailVerified             Boolean               @default(false)
-  status                      UserStatus            @default(ACTIVE)
+  isEmailVerified             Boolean                    @default(false)
+  status                      UserStatus                 @default(ACTIVE)
   lastLoginAt                 DateTime?
   accountDeletionRequestedAt  DateTime?
   accountDeletionScheduledFor DateTime?
-  createdAt                   DateTime              @default(now())
-  updatedAt                   DateTime              @updatedAt
+  createdAt                   DateTime                   @default(now())
+  updatedAt                   DateTime                   @updatedAt
   deletedAt                   DateTime?
   authIdentities              AuthIdentity[]
   sessions                    Session[]
   incomes                     Income[]
-  todos                       Todo[]                @relation("TodoOwner")
-  responsibleTodos            Todo[]                @relation("TodoResponsibleUser")
+  todos                       Todo[]                     @relation("TodoOwner")
+  responsibleTodos            Todo[]                     @relation("TodoResponsibleUser")
   expenses                    Expense[]
-  todoRecordings              TodoRecording[]       @relation("TodoRecordingRecordedBy")
-  reversedTodoRecordings      TodoRecording[]       @relation("TodoRecordingReversedBy")
+  todoRecordings              TodoRecording[]            @relation("TodoRecordingRecordedBy")
+  reversedTodoRecordings      TodoRecording[]            @relation("TodoRecordingReversedBy")
   receivedTransactions        ReceivedTransaction[]
   shortcutImportCredentials   ShortcutImportCredential[]
   financialMessageImports     FinancialMessageImport[]
   loans                       Loan[]
-  loanTransactions            LoanTransaction[]     @relation("LoanTransactionRecordedBy")
+  loanTransactions            LoanTransaction[]          @relation("LoanTransactionRecordedBy")
   savings                     Saving[]
   savingTransactions          SavingTransaction[]
   moneyMovements              MoneyMovement[]
   loginOtpChallenge           LoginOtpChallenge?
   passwordCredential          UserPassword?
   passwordSetupGrants         PasswordSetupGrant[]
-  sentPartnership             Partnership?          @relation("PartnershipOwner")
-  receivedPartnership         Partnership?          @relation("PartnershipPartner")
+  sentPartnership             Partnership?               @relation("PartnershipOwner")
+  receivedPartnership         Partnership?               @relation("PartnershipPartner")
   transactions                Transaction[]
 
   @@index([status])
@@ -448,15 +448,15 @@ model Income {
   user                     User                            @relation(fields: [userId], references: [id], onDelete: Cascade)
   savingTransactionSources SavingTransactionIncomeSource[]
   loanTransaction          LoanTransaction?
-  financialMessageImport   FinancialMessageImport?          @relation("FinancialMessageImportIncome")
+  financialMessageImport   FinancialMessageImport?         @relation("FinancialMessageImportIncome")
 
+  @@unique([userId, clientEventId])
   @@index([userId])
   @@index([deletedAt])
   @@index([date])
   @@index([userId, category])
   @@index([userId, received])
   @@index([userId, currency])
-  @@unique([userId, clientEventId])
   @@index([userId, deletedAt, date, id])
 }
 
@@ -588,8 +588,8 @@ model ReceivedTransaction {
   createdAt         DateTime                          @default(now())
   updatedAt         DateTime                          @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
-  income Income?
+  user                   User                    @relation(fields: [userId], references: [id], onDelete: Restrict)
+  income                 Income?
   financialMessageImport FinancialMessageImport? @relation("FinancialMessageImportReceivedTransaction")
 
   @@unique([userId, clientEventId])
@@ -658,10 +658,10 @@ model FinancialMessageImport {
   createdAt                      DateTime                        @default(now())
   updatedAt                      DateTime                        @updatedAt
 
-  user                         User                     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  user                         User                      @relation(fields: [userId], references: [id], onDelete: Restrict)
   credential                   ShortcutImportCredential? @relation(fields: [credentialId], references: [id], onDelete: Restrict)
-  confirmedReceivedTransaction ReceivedTransaction?     @relation("FinancialMessageImportReceivedTransaction", fields: [confirmedReceivedTransactionId], references: [id], onDelete: Restrict)
-  confirmedIncome              Income?                  @relation("FinancialMessageImportIncome", fields: [confirmedIncomeId], references: [id], onDelete: Restrict)
+  confirmedReceivedTransaction ReceivedTransaction?      @relation("FinancialMessageImportReceivedTransaction", fields: [confirmedReceivedTransactionId], references: [id], onDelete: Restrict)
+  confirmedIncome              Income?                   @relation("FinancialMessageImportIncome", fields: [confirmedIncomeId], references: [id], onDelete: Restrict)
 
   @@unique([userId, clientEventId])
   @@unique([userId, providerCode, providerReference])
