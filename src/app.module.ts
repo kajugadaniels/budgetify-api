@@ -10,12 +10,14 @@ import { databaseConfig } from './config/database.config';
 import { emailConfig } from './config/email.config';
 import { validateEnv } from './config/env.validation';
 import { googleConfig } from './config/google.config';
+import { iphoneShortcutImportConfig } from './config/iphone-shortcut-import.config';
 import { PrismaModule } from './database/prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { TransactionsModule } from './modules/transactions/transactions.module';
 import { UsersModule } from './modules/users/users.module';
 import { ReceivedTransactionsModule } from './modules/received-transactions/received-transactions.module';
 import { IncomesModule } from './modules/incomes/incomes.module';
+import { ShortcutImportCredentialsModule } from './modules/shortcut-import-credentials/shortcut-import-credentials.module';
 
 const AUTH_PREFIX = `/${API_GLOBAL_PREFIX}/auth`;
 const OTP_INITIATE_PREFIX = `${AUTH_PREFIX}/email/initiate`;
@@ -53,7 +55,14 @@ function getRequestSignature(context: ExecutionContext): {
       expandVariables: true,
       envFilePath:
         process.env.NODE_ENV === 'production' ? ['.env.production'] : ['.env'],
-      load: [appConfig, authConfig, databaseConfig, emailConfig, googleConfig],
+      load: [
+        appConfig,
+        authConfig,
+        databaseConfig,
+        emailConfig,
+        googleConfig,
+        iphoneShortcutImportConfig,
+      ],
       validate: validateEnv,
     }),
 
@@ -93,6 +102,7 @@ function getRequestSignature(context: ExecutionContext): {
     TransactionsModule,
     ReceivedTransactionsModule,
     IncomesModule,
+    ShortcutImportCredentialsModule,
   ],
   providers: [
     {
