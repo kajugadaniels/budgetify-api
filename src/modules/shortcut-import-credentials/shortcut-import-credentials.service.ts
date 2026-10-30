@@ -11,7 +11,9 @@ import type { ShortcutImportCredential } from '@prisma/client';
 import { iphoneShortcutImportConfig } from '../../config/iphone-shortcut-import.config';
 import { PrismaService } from '../../database/prisma/prisma.service';
 import {
+  CreatedShortcutImportCredentialResponseDto,
   CreateShortcutImportCredentialDto,
+  ShortcutImportCredentialResponseDto,
   ShortcutImportCredentialStatus,
 } from './shortcut-import-credential.dto';
 import { ShortcutImportCredentialTokenService } from './shortcut-import-credential-token.service';
@@ -28,7 +30,10 @@ export class ShortcutImportCredentialsService {
     private readonly config: ConfigType<typeof iphoneShortcutImportConfig>,
   ) {}
 
-  async create(userId: string, body: CreateShortcutImportCredentialDto) {
+  async create(
+    userId: string,
+    body: CreateShortcutImportCredentialDto,
+  ): Promise<CreatedShortcutImportCredentialResponseDto> {
     for (let attempt = 0; attempt < MAX_TRANSACTION_ATTEMPTS; attempt++) {
       const generated = this.tokens.generate();
       const now = new Date();
@@ -108,7 +113,9 @@ export class ShortcutImportCredentialsService {
     );
   }
 
-  async list(userId: string) {
+  async list(
+    userId: string,
+  ): Promise<ShortcutImportCredentialResponseDto[]> {
     const now = new Date();
     const credentials = await this.prisma.shortcutImportCredential.findMany({
       where: { userId },
@@ -142,7 +149,10 @@ export class ShortcutImportCredentialsService {
     });
   }
 
-  private toResponse(credential: ShortcutImportCredential, now: Date) {
+  private toResponse(
+    credential: ShortcutImportCredential,
+    now: Date,
+  ): ShortcutImportCredentialResponseDto {
     return {
       id: credential.id,
       deviceName: credential.deviceName,
