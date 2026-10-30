@@ -80,8 +80,7 @@ const providerPilotFixtures: readonly ProviderPilotFixture[] = [
   {
     provider: 'GTBANK_RW',
     sender: 'GT Bank',
-    message:
-      'Your account ending 6677 was credited 37,000 RWF. Ref: GTB12345.',
+    message: 'Your account ending 6677 was credited 37,000 RWF. Ref: GTB12345.',
     amount: 37000,
   },
   {
