@@ -403,9 +403,7 @@ export class FinancialMessageReviewService {
     return row;
   }
 
-  private assertPending(row: {
-    status: FinancialMessageImportStatus;
-  }): void {
+  private assertPending(row: { status: FinancialMessageImportStatus }): void {
     if (row.status === FinancialMessageImportStatus.EXPIRED) {
       throw new GoneException('This imported message has expired.');
     }
