@@ -247,6 +247,40 @@ enum ReceivedTransactionClassification {
   OTHER
 }
 
+enum FinancialMessageChannel {
+  SMS
+  EMAIL
+  API
+}
+
+enum FinancialMessageDirection {
+  CREDIT
+  DEBIT
+  REVERSAL
+  UNKNOWN
+}
+
+enum FinancialMessageParseStatus {
+  UNPARSED
+  PARSED
+  NEEDS_DETAILS
+  REJECTED
+}
+
+enum FinancialMessageImportStatus {
+  PENDING
+  CONFIRMED
+  DISMISSED
+  EXPIRED
+}
+
+enum FinancialMessageDuplicateStatus {
+  NOT_CHECKED
+  CLEAR
+  POSSIBLE_DUPLICATE
+  CONFIRMED_DUPLICATE
+}
+
 // ─────────────────────────────────────────────────────────────
 // Core user models
 // ─────────────────────────────────────────────────────────────
@@ -275,6 +309,8 @@ model User {
   todoRecordings              TodoRecording[]       @relation("TodoRecordingRecordedBy")
   reversedTodoRecordings      TodoRecording[]       @relation("TodoRecordingReversedBy")
   receivedTransactions        ReceivedTransaction[]
+  shortcutImportCredentials   ShortcutImportCredential[]
+  financialMessageImports     FinancialMessageImport[]
   loans                       Loan[]
   loanTransactions            LoanTransaction[]     @relation("LoanTransactionRecordedBy")
   savings                     Saving[]
@@ -412,6 +448,7 @@ model Income {
   user                     User                            @relation(fields: [userId], references: [id], onDelete: Cascade)
   savingTransactionSources SavingTransactionIncomeSource[]
   loanTransaction          LoanTransaction?
+  financialMessageImport   FinancialMessageImport?          @relation("FinancialMessageImportIncome")
 
   @@index([userId])
   @@index([deletedAt])
@@ -553,6 +590,7 @@ model ReceivedTransaction {
 
   user User @relation(fields: [userId], references: [id], onDelete: Restrict)
   income Income?
+  financialMessageImport FinancialMessageImport? @relation("FinancialMessageImportReceivedTransaction")
 
   @@unique([userId, clientEventId])
   @@unique([userId, providerReference])
@@ -560,6 +598,78 @@ model ReceivedTransaction {
   @@index([userId, status, occurredAt])
   @@index([userId, classification, occurredAt])
   @@index([evidenceSource, occurredAt])
+}
+
+// A revocable, device-specific credential used only to submit pending
+// financial messages. The raw token is never stored in this table.
+model ShortcutImportCredential {
+  id          String    @id @default(uuid()) @db.Uuid
+  userId      String    @db.Uuid
+  deviceName  String    @db.VarChar(80)
+  tokenPrefix String    @unique @db.VarChar(24)
+  tokenHash   String    @unique @db.Char(64)
+  lastUsedAt  DateTime?
+  expiresAt   DateTime
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user    User                     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  imports FinancialMessageImport[]
+
+  @@index([userId, revokedAt])
+  @@index([expiresAt])
+  @@index([lastUsedAt])
+}
+
+// An imported SMS, email, or provider API notification remains outside all
+// financial totals until it is explicitly confirmed in a later workflow.
+model FinancialMessageImport {
+  id                             String                          @id @default(uuid()) @db.Uuid
+  userId                         String                          @db.Uuid
+  credentialId                   String?                         @db.Uuid
+  clientEventId                  String                          @db.Uuid
+  sourceHint                     String                          @db.VarChar(64)
+  providerCode                   String?                         @db.VarChar(64)
+  channel                        FinancialMessageChannel
+  direction                      FinancialMessageDirection       @default(UNKNOWN)
+  parseStatus                    FinancialMessageParseStatus     @default(UNPARSED)
+  status                         FinancialMessageImportStatus    @default(PENDING)
+  duplicateStatus                FinancialMessageDuplicateStatus @default(NOT_CHECKED)
+  currency                       Currency?
+  amount                         Decimal?                        @db.Decimal(15, 2)
+  fee                            Decimal?                        @db.Decimal(15, 2)
+  messageReceivedAt              DateTime
+  occurredAt                     DateTime?
+  senderName                     String?
+  senderIdentifier               String?
+  accountLastFour                String?                         @db.VarChar(4)
+  providerReference              String?
+  fingerprint                    String?                         @db.Char(64)
+  parserVersion                  String?                         @db.VarChar(40)
+  parseConfidence                Decimal?                        @db.Decimal(5, 4)
+  rawMessageCiphertext           String?
+  rawMessagePurgedAt             DateTime?
+  expiresAt                      DateTime
+  confirmedReceivedTransactionId String?                         @unique @db.Uuid
+  confirmedIncomeId              String?                         @unique @db.Uuid
+  confirmedAt                    DateTime?
+  dismissedAt                    DateTime?
+  createdAt                      DateTime                        @default(now())
+  updatedAt                      DateTime                        @updatedAt
+
+  user                         User                     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  credential                   ShortcutImportCredential? @relation(fields: [credentialId], references: [id], onDelete: Restrict)
+  confirmedReceivedTransaction ReceivedTransaction?     @relation("FinancialMessageImportReceivedTransaction", fields: [confirmedReceivedTransactionId], references: [id], onDelete: Restrict)
+  confirmedIncome              Income?                  @relation("FinancialMessageImportIncome", fields: [confirmedIncomeId], references: [id], onDelete: Restrict)
+
+  @@unique([userId, clientEventId])
+  @@unique([userId, providerCode, providerReference])
+  @@index([userId, status, createdAt, id])
+  @@index([userId, providerCode, status])
+  @@index([userId, fingerprint])
+  @@index([credentialId, createdAt])
+  @@index([status, expiresAt])
 }
 
 model Loan {
