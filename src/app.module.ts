@@ -13,6 +13,7 @@ import { googleConfig } from './config/google.config';
 import { iphoneShortcutImportConfig } from './config/iphone-shortcut-import.config';
 import { PrismaModule } from './database/prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { FinancialMessageImportsModule } from './modules/financial-message-imports/financial-message-imports.module';
 import { TransactionsModule } from './modules/transactions/transactions.module';
 import { UsersModule } from './modules/users/users.module';
 import { ReceivedTransactionsModule } from './modules/received-transactions/received-transactions.module';
@@ -22,6 +23,7 @@ import { ShortcutImportCredentialsModule } from './modules/shortcut-import-crede
 const AUTH_PREFIX = `/${API_GLOBAL_PREFIX}/auth`;
 const OTP_INITIATE_PREFIX = `${AUTH_PREFIX}/email/initiate`;
 const PASSWORD_CHALLENGE_PREFIX = `${AUTH_PREFIX}/password/challenge`;
+const IPHONE_SHORTCUT_IMPORT_PATH = `/${API_GLOBAL_PREFIX}/financial-message-imports/shortcut`;
 
 const AUTH_LOGIN_PATHS = new Set([
   `${AUTH_PREFIX}/google`,
@@ -93,12 +95,25 @@ function getRequestSignature(context: ExecutionContext): {
             );
           },
         },
+        {
+          name: 'iphone-shortcut-import',
+          ttl: 60_000,
+          limit: 30,
+          skipIf: (context) => {
+            const { method, url } = getRequestSignature(context);
+
+            return !(
+              method === 'POST' && url.startsWith(IPHONE_SHORTCUT_IMPORT_PATH)
+            );
+          },
+        },
       ],
     }),
 
     PrismaModule,
     UsersModule,
     AuthModule,
+    FinancialMessageImportsModule,
     TransactionsModule,
     ReceivedTransactionsModule,
     IncomesModule,
