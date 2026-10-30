@@ -39,6 +39,22 @@ const envSchema = Joi.object({
   IPHONE_SHORTCUT_IMPORT_MESSAGE_ENCRYPTION_KEY: Joi.string()
     .pattern(/^[A-Za-z0-9+/]{43}=$/)
     .required(),
+  IPHONE_SHORTCUT_IMPORT_MODE: Joi.string()
+    .valid('disabled', 'pilot', 'enabled')
+    .default('pilot'),
+  IPHONE_SHORTCUT_IMPORT_ENABLED_PROVIDERS: Joi.string()
+    .allow('')
+    .default(''),
+  IPHONE_SHORTCUT_IMPORT_ALERT_MINIMUM_SAMPLE_SIZE: Joi.number()
+    .integer()
+    .min(1)
+    .max(1000)
+    .default(10),
+  IPHONE_SHORTCUT_IMPORT_ALERT_NEEDS_REVIEW_PERCENT: Joi.number()
+    .integer()
+    .min(1)
+    .max(100)
+    .default(30),
 
   // ── Google OAuth ─────────────────────────────────────────────────────────────
   GOOGLE_CLIENT_ID: Joi.string().optional(),
