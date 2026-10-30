@@ -67,4 +67,18 @@ export class ShortcutImportCredentialsController {
   ): Promise<void> {
     await this.credentials.revoke(user.userId, id);
   }
+
+  @Post(':id/rotate')
+  @ApiOperation({
+    summary: 'Rotate an active iPhone Shortcut credential.',
+    description:
+      'Revokes the current credential and returns its replacement token once. The Shortcut must be updated immediately.',
+  })
+  @ApiCreatedResponse({ type: CreatedShortcutImportCredentialResponseDto })
+  rotate(
+    @CurrentUser() user: AuthenticatedRequestUser,
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ): Promise<CreatedShortcutImportCredentialResponseDto> {
+    return this.credentials.rotate(user.userId, id);
+  }
 }
