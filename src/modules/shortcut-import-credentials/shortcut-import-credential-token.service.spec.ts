@@ -3,8 +3,11 @@ import { ShortcutImportCredentialTokenService } from './shortcut-import-credenti
 describe('ShortcutImportCredentialTokenService', () => {
   const service = new ShortcutImportCredentialTokenService({
     tokenPepper: 'test-pepper-that-is-longer-than-thirty-two-characters',
+    messageEncryptionKey: Buffer.alloc(32, 1).toString('base64'),
     credentialLifetimeDays: 365,
     maximumActiveCredentials: 3,
+    pendingImportLifetimeDays: 30,
+    maximumMessageAgeDays: 30,
   });
 
   it('generates unique opaque iPhone Shortcut credentials', () => {
