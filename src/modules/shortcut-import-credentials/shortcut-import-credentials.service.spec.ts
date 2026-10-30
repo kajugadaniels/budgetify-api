@@ -53,8 +53,7 @@ describe('ShortcutImportCredentialsService', () => {
     shortcutImportCredential.count.mockResolvedValue(0);
     shortcutImportCredential.create.mockResolvedValue(row);
     shortcutImportCredential.findFirst.mockResolvedValue({
-      id: row.id,
-      revokedAt: null,
+      ...row,
     });
     shortcutImportCredential.update.mockResolvedValue({
       ...row,
@@ -142,5 +141,40 @@ describe('ShortcutImportCredentialsService', () => {
       NotFoundException,
     );
     expect(shortcutImportCredential.update).not.toHaveBeenCalled();
+  });
+
+  it('rotates an owned active credential without exposing stored secrets', async () => {
+    (tokens.generate as jest.Mock).mockReturnValue({
+      token: 'bfi_replacement_one-time-secret',
+      tokenPrefix: 'bfi_replacement',
+      tokenHash: 'b'.repeat(64),
+    });
+    shortcutImportCredential.create.mockResolvedValue({
+      ...row,
+      id: 'c753a8f3-fd19-49bf-9422-d7e645d6c22d',
+      tokenPrefix: 'bfi_replacement',
+      tokenHash: 'b'.repeat(64),
+    });
+
+    const result = await service.rotate('owner', row.id);
+
+    expect(shortcutImportCredential.update).toHaveBeenCalledWith({
+      where: { id: row.id },
+      data: { revokedAt: now },
+    });
+    expect(result.token).toBe('bfi_replacement_one-time-secret');
+    expect(result).not.toHaveProperty('tokenHash');
+  });
+
+  it('rejects rotation when the credential is no longer active', async () => {
+    shortcutImportCredential.findFirst.mockResolvedValue({
+      ...row,
+      revokedAt: now,
+    });
+
+    await expect(service.rotate('owner', row.id)).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+    expect(shortcutImportCredential.create).not.toHaveBeenCalled();
   });
 });
