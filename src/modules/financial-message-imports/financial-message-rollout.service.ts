@@ -1,9 +1,16 @@
-import { Inject, Injectable, ServiceUnavailableException } from '@nestjs/common';
+import {
+  HttpException,
+  Inject,
+  Injectable,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
 import { FinancialMessageParseStatus } from '@prisma/client';
 
 import { iphoneShortcutImportConfig } from '../../config/iphone-shortcut-import.config';
 import type { FinancialMessageParserResult } from './financial-message-parser.types';
+
+const HTTP_UPGRADE_REQUIRED = 426;
 
 @Injectable()
 export class FinancialMessageRolloutService {
@@ -18,6 +25,29 @@ export class FinancialMessageRolloutService {
         'iPhone message imports are temporarily unavailable.',
       );
     }
+  }
+
+  assertShortcutVersion(shortcutVersion: number | undefined): void {
+    if (
+      this.config.mode !== 'enabled' ||
+      (shortcutVersion !== undefined &&
+        shortcutVersion >= this.config.minimumShortcutVersion)
+    ) {
+      return;
+    }
+
+    throw new HttpException(
+      {
+        statusCode: HTTP_UPGRADE_REQUIRED,
+        error: 'Shortcut update required',
+        message:
+          'Update your Budgetify Shortcut before importing another message.',
+        currentShortcutVersion: this.config.currentShortcutVersion,
+        minimumShortcutVersion: this.config.minimumShortcutVersion,
+        shortcutInstallUrl: this.config.shortcutInstallUrl,
+      },
+      HTTP_UPGRADE_REQUIRED,
+    );
   }
 
   applyProviderRollout(
@@ -47,5 +77,17 @@ export class FinancialMessageRolloutService {
 
   get enabledProviderCodes(): readonly string[] {
     return this.config.enabledProviderCodes;
+  }
+
+  get currentShortcutVersion(): number {
+    return this.config.currentShortcutVersion;
+  }
+
+  get minimumShortcutVersion(): number {
+    return this.config.minimumShortcutVersion;
+  }
+
+  get shortcutInstallUrl(): string | null {
+    return this.config.shortcutInstallUrl;
   }
 }
