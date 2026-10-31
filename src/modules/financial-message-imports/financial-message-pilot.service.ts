@@ -184,7 +184,9 @@ export class FinancialMessagePilotService {
     }
 
     for (const metric of groups.values()) {
-      metric.parseRatePercent = Math.round((metric.parsed / metric.total) * 100);
+      metric.parseRatePercent = Math.round(
+        (metric.parsed / metric.total) * 100,
+      );
       if (metric.total < this.config.alertMinimumSampleSize) {
         metric.readiness = FinancialMessageProviderReadiness.INSUFFICIENT_DATA;
       } else if (
