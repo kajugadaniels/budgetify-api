@@ -11,6 +11,7 @@ export class FinancialMessageImportMapper {
     return {
       id: row.id,
       clientEventId: row.clientEventId,
+      shortcutVersion: row.shortcutVersion,
       sourceHint: row.sourceHint as FinancialMessageSourceHint,
       providerCode: row.providerCode,
       direction: row.direction,
