@@ -26,6 +26,7 @@ describe('FinancialMessageReviewService pilot confirmation', () => {
     userId: 'owner-id',
     credentialId: 'credential-id',
     clientEventId: 'd7684993-5ef0-476b-af00-7407ea26b613',
+    shortcutVersion: 1,
     sourceHint: 'MTN_MOMO',
     providerCode: 'MTN_MOMO_RW',
     channel: FinancialMessageChannel.SMS,
