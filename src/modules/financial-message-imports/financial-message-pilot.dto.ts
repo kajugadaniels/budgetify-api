@@ -8,6 +8,13 @@ export enum FinancialMessagePilotHealth {
   INSUFFICIENT_DATA = 'INSUFFICIENT_DATA',
 }
 
+export enum FinancialMessageProviderReadiness {
+  MONITORING = 'MONITORING',
+  READY_TO_ENABLE = 'READY_TO_ENABLE',
+  NEEDS_ATTENTION = 'NEEDS_ATTENTION',
+  INSUFFICIENT_DATA = 'INSUFFICIENT_DATA',
+}
+
 export class FinancialMessagePilotSummaryQueryDto {
   @ApiPropertyOptional({ minimum: 1, maximum: 90, default: 30 })
   @Type(() => Number)
@@ -38,6 +45,12 @@ export class FinancialMessageProviderMetricDto {
 
   @ApiProperty()
   confirmed!: number;
+
+  @ApiProperty({ minimum: 0, maximum: 100 })
+  parseRatePercent!: number;
+
+  @ApiProperty({ enum: FinancialMessageProviderReadiness })
+  readiness!: FinancialMessageProviderReadiness;
 }
 
 export class FinancialMessagePilotSummaryResponseDto {
@@ -76,4 +89,19 @@ export class FinancialMessagePilotSummaryResponseDto {
 
   @ApiProperty()
   isTruncated!: boolean;
+
+  @ApiProperty()
+  currentShortcutVersion!: number;
+
+  @ApiProperty()
+  minimumShortcutVersion!: number;
+
+  @ApiProperty({ nullable: true, example: 'https://www.icloud.com/shortcuts/…' })
+  shortcutInstallUrl!: string | null;
+
+  @ApiProperty()
+  legacyShortcutImports!: number;
+
+  @ApiProperty()
+  outdatedShortcutImports!: number;
 }
