@@ -6,14 +6,17 @@ import {
   FinancialMessageParseStatus,
 } from '@prisma/client';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsEnum,
+  IsInt,
   IsISO8601,
   IsOptional,
   IsString,
   IsUUID,
+  Max,
   MaxLength,
+  Min,
   MinLength,
 } from 'class-validator';
 
@@ -31,6 +34,19 @@ export class CreateFinancialMessageImportDto {
   })
   @IsUUID()
   clientEventId!: string;
+
+  @ApiPropertyOptional({
+    minimum: 1,
+    maximum: 10000,
+    description:
+      'The Budgetify Shortcut version. Legacy pilot Shortcuts may omit it until enforcement is enabled.',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(10000)
+  shortcutVersion?: number;
 
   @ApiProperty({ enum: FinancialMessageSourceHint })
   @IsEnum(FinancialMessageSourceHint)
@@ -73,6 +89,9 @@ export class FinancialMessageImportResponseDto {
 
   @ApiProperty({ format: 'uuid' })
   clientEventId!: string;
+
+  @ApiProperty({ nullable: true, minimum: 1 })
+  shortcutVersion!: number | null;
 
   @ApiProperty({ enum: FinancialMessageSourceHint })
   sourceHint!: FinancialMessageSourceHint;
