@@ -96,7 +96,10 @@ export class FinancialMessagePilotSummaryResponseDto {
   @ApiProperty()
   minimumShortcutVersion!: number;
 
-  @ApiProperty({ nullable: true, example: 'https://www.icloud.com/shortcuts/…' })
+  @ApiProperty({
+    nullable: true,
+    example: 'https://www.icloud.com/shortcuts/…',
+  })
   shortcutInstallUrl!: string | null;
 
   @ApiProperty()
