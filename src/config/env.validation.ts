@@ -42,9 +42,7 @@ const envSchema = Joi.object({
   IPHONE_SHORTCUT_IMPORT_MODE: Joi.string()
     .valid('disabled', 'pilot', 'enabled')
     .default('pilot'),
-  IPHONE_SHORTCUT_IMPORT_ENABLED_PROVIDERS: Joi.string()
-    .allow('')
-    .default(''),
+  IPHONE_SHORTCUT_IMPORT_ENABLED_PROVIDERS: Joi.string().allow('').default(''),
   IPHONE_SHORTCUT_IMPORT_ALERT_MINIMUM_SAMPLE_SIZE: Joi.number()
     .integer()
     .min(1)
@@ -55,6 +53,27 @@ const envSchema = Joi.object({
     .min(1)
     .max(100)
     .default(30),
+  IPHONE_SHORTCUT_IMPORT_CURRENT_VERSION: Joi.number()
+    .integer()
+    .min(1)
+    .max(10000)
+    .default(1),
+  IPHONE_SHORTCUT_IMPORT_MINIMUM_VERSION: Joi.number()
+    .integer()
+    .min(1)
+    .max(Joi.ref('IPHONE_SHORTCUT_IMPORT_CURRENT_VERSION'))
+    .default(1),
+  IPHONE_SHORTCUT_IMPORT_INSTALL_URL: Joi.string()
+    .uri({ scheme: ['https'] })
+    .optional(),
+  IPHONE_SHORTCUT_IMPORT_CLEANUP_INTERVAL_MINUTES: Joi.number()
+    .integer()
+    .min(5)
+    .max(1440)
+    .default(360),
+  IPHONE_SHORTCUT_IMPORT_ALERT_WEBHOOK_URL: Joi.string()
+    .uri({ scheme: ['https'] })
+    .optional(),
 
   // ── Google OAuth ─────────────────────────────────────────────────────────────
   GOOGLE_CLIENT_ID: Joi.string().optional(),
