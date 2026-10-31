@@ -64,11 +64,10 @@ describe('FinancialMessagePilotService', () => {
 
     const result = await service.summary('owner-id', 30);
 
-    expect(findMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({ userId: 'owner-id' }),
-      }),
-    );
+    const [query] = findMany.mock.calls[0] as unknown as [
+      { where: { userId: string } },
+    ];
+    expect(query.where.userId).toBe('owner-id');
     expect(result).toMatchObject({
       total: 2,
       pending: 1,
