@@ -14,6 +14,103 @@ rollout.
   `Test Sender`, `0788123456`, account `1234`, and reference `SAFE1234`.
 - Imported records remain pending until the user explicitly confirms them.
 
+## Step 13: production deployment gate
+
+Do not create a real Shortcut credential until this gate passes.
+
+1. Confirm the shared server environment contains the required iPhone import
+   values. Never print either secret.
+2. Keep the rollout limited to:
+
+   ```env
+   IPHONE_SHORTCUT_IMPORT_MODE=pilot
+   IPHONE_SHORTCUT_IMPORT_ENABLED_PROVIDERS=MTN_MOMO_RW
+   IPHONE_SHORTCUT_IMPORT_CURRENT_VERSION=1
+   IPHONE_SHORTCUT_IMPORT_MINIMUM_VERSION=1
+   ```
+
+3. Deploy the exact `main` commit through GitHub Actions.
+4. On the server, run the privacy-safe verifier as the deployment user:
+
+   ```bash
+   sudo -iu budgetify
+   cd /var/www/budgetify/api
+   bash deploy/verify-iphone-shortcut-pilot.sh
+   ```
+
+5. The verifier must confirm the shared environment permissions and symlink,
+   pilot scope, PM2 status, local and public HTTPS health, and the Shortcut
+   endpoint's unauthenticated `401` response.
+6. Open Budgetify on the pilot iPhone and confirm that Message review and
+   iPhone import setup both load successfully.
+
+Stop the rollout when any check fails. Fix the failed check and rerun the
+deployment gate; do not bypass it.
+
+## Step 14: Shortcut v1 supervised MTN pilot
+
+Use one unlocked pilot iPhone. Do not change Android permissions, message
+ingestion, or automation behavior.
+
+### Create the scoped credential
+
+1. Sign in to Budgetify on the pilot iPhone.
+2. Open **History → actions → Review iPhone imports**.
+3. Open **iPhone Shortcut setup**.
+4. Enter a recognizable device name and create the secure credential.
+5. Copy the one-time authorization token and request URL directly into the
+   Shortcut. Never send them through chat, email, screenshots, or source code.
+6. Clear the clipboard after both values are saved in the Shortcut.
+
+### Build Budgetify MTN Import v1
+
+In Apple Shortcuts, create a shortcut named `Budgetify MTN Import v1` with
+these actions in this order:
+
+1. **Generate UUID**. Keep this value as `clientEventId` for the current run.
+2. **Current Date**.
+3. **Format Date** using ISO 8601 with the timezone included.
+4. **Get Contents of URL** using the request URL copied from Budgetify.
+5. Set the method to `POST` and the request body to `JSON`.
+6. Add the header `Authorization` with the value `Bearer [one-time token]`.
+7. Configure the JSON body exactly as follows:
+
+   | Key | Shortcut value |
+   | --- | --- |
+   | `clientEventId` | Output from **Generate UUID** |
+   | `shortcutVersion` | Number `1` |
+   | `sourceHint` | Text `MTN_MOMO` |
+   | `messageSender` | Sender from the Messages automation input |
+   | `message` | Content from the Messages automation input |
+   | `messageReceivedAt` | ISO 8601 output from **Format Date** |
+
+The Shortcut must generate one UUID per message and reuse that same UUID only
+when retrying that message. It must never generate a second UUID merely because
+the same request is retried.
+
+### Create the Messages automation
+
+1. Open **Shortcuts → Automation → New Automation → Message**.
+2. Select only the verified MTN MoMo sender used on the pilot phone.
+3. Select **Run Immediately** and disable run notifications when iOS offers
+   that option.
+4. Run `Budgetify MTN Import v1` and pass the received Message as its input.
+5. Do not add bank or Airtel senders to this pilot automation.
+
+### Accept the first pilot import
+
+1. Trigger one genuine MTN MoMo payment notification.
+2. Confirm the automation finishes without displaying or logging the token.
+3. Open Budgetify Message review and confirm the import is `Pending`.
+4. Compare the provider, direction, amount, date, sender, fee, and reference
+   with the notification on the phone. Do not copy the notification elsewhere.
+5. Correct any wrong field before confirming. Dismiss the import if its source
+   or meaning is uncertain.
+6. Confirm the import and verify exactly one received transaction is created.
+7. Run the same request again only as a controlled replay check and verify it
+   does not create a duplicate import or transaction.
+8. Revoke the pilot credential immediately if its token was exposed.
+
 ## Supervised pilot procedure
 
 1. Install the reviewed Shortcut version shown by the Budgetify setup screen.
