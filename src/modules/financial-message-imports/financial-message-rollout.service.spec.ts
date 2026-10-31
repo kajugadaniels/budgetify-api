@@ -1,4 +1,4 @@
-import { ServiceUnavailableException } from '@nestjs/common';
+import { HttpException, ServiceUnavailableException } from '@nestjs/common';
 import {
   Currency,
   FinancialMessageDirection,
@@ -36,6 +36,11 @@ function config(mode: 'disabled' | 'pilot' | 'enabled', providers: string[]) {
     enabledProviderCodes: providers,
     alertMinimumSampleSize: 10,
     alertNeedsReviewPercent: 30,
+    currentShortcutVersion: 2,
+    minimumShortcutVersion: 2,
+    shortcutInstallUrl: 'https://www.icloud.com/shortcuts/test',
+    cleanupIntervalMinutes: 360,
+    alertWebhookUrl: null,
   };
 }
 
@@ -64,5 +69,18 @@ describe('FinancialMessageRolloutService', () => {
     );
 
     expect(service.applyProviderRollout(parsed)).toBe(parsed);
+  });
+
+  it('allows legacy Shortcut versions during the supervised pilot', () => {
+    const service = new FinancialMessageRolloutService(config('pilot', []));
+
+    expect(() => service.assertShortcutVersion(undefined)).not.toThrow();
+  });
+
+  it('requires the minimum Shortcut version after rollout', () => {
+    const service = new FinancialMessageRolloutService(config('enabled', []));
+
+    expect(() => service.assertShortcutVersion(1)).toThrow(HttpException);
+    expect(() => service.assertShortcutVersion(2)).not.toThrow();
   });
 });
