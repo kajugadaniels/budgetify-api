@@ -11,6 +11,7 @@ import type { FinancialMessageImport } from '@prisma/client';
 
 import { PrismaService } from '../../database/prisma/prisma.service';
 import { FinancialMessageCryptoService } from './financial-message-crypto.service';
+import { FinancialMessageAlertService } from './financial-message-alert.service';
 import { FinancialMessageImportsService } from './financial-message-imports.service';
 import { FinancialMessagePilotService } from './financial-message-pilot.service';
 import { FinancialMessageParserService } from './financial-message-parser.service';
@@ -21,6 +22,7 @@ describe('FinancialMessageImportsService', () => {
   const now = new Date('2026-10-30T12:00:00.000Z');
   const body = {
     clientEventId: 'd7684993-5ef0-476b-af00-7407ea26b613',
+    shortcutVersion: 1,
     sourceHint: FinancialMessageSourceHint.MTN_MOMO,
     messageSender: 'M-Money',
     message:
@@ -32,6 +34,7 @@ describe('FinancialMessageImportsService', () => {
     userId: 'owner-id',
     credentialId: 'credential-id',
     clientEventId: body.clientEventId,
+    shortcutVersion: 1,
     sourceHint: body.sourceHint,
     providerCode: 'MTN_MOMO_RW',
     channel: FinancialMessageChannel.SMS,
@@ -83,9 +86,22 @@ describe('FinancialMessageImportsService', () => {
     enabledProviderCodes: ['MTN_MOMO_RW'],
     alertMinimumSampleSize: 10,
     alertNeedsReviewPercent: 30,
+    currentShortcutVersion: 1,
+    minimumShortcutVersion: 1,
+    shortcutInstallUrl: null,
+    cleanupIntervalMinutes: 360,
+    alertWebhookUrl: null,
   };
   const rollout = new FinancialMessageRolloutService(config);
-  const pilot = new FinancialMessagePilotService(prisma, rollout, config);
+  const alerts = {
+    notify: jest.fn(),
+  } as unknown as FinancialMessageAlertService;
+  const pilot = new FinancialMessagePilotService(
+    prisma,
+    rollout,
+    alerts,
+    config,
+  );
   const service = new FinancialMessageImportsService(
     prisma,
     new FinancialMessageParserService(),
@@ -121,6 +137,7 @@ describe('FinancialMessageImportsService', () => {
 
     expect(result.status).toBe(FinancialMessageImportStatus.PENDING);
     expect(createArguments.data.channel).toBe(FinancialMessageChannel.SMS);
+    expect(createArguments.data.shortcutVersion).toBe(1);
     expect(createArguments.data).not.toHaveProperty('rawMessage');
     expect(createArguments.data.rawMessageCiphertext).not.toBe(body.message);
     expect(createArguments.data).not.toHaveProperty(
