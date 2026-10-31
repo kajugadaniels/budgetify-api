@@ -629,6 +629,7 @@ model FinancialMessageImport {
   userId                         String                          @db.Uuid
   credentialId                   String?                         @db.Uuid
   clientEventId                  String                          @db.Uuid
+  shortcutVersion                Int?
   sourceHint                     String                          @db.VarChar(64)
   providerCode                   String?                         @db.VarChar(64)
   channel                        FinancialMessageChannel
@@ -669,6 +670,7 @@ model FinancialMessageImport {
   @@index([userId, providerCode, status])
   @@index([userId, fingerprint])
   @@index([credentialId, createdAt])
+  @@index([shortcutVersion, createdAt])
   @@index([status, expiresAt])
 }
 
