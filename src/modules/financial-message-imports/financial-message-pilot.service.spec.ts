@@ -5,6 +5,7 @@ import {
 } from '@prisma/client';
 
 import { PrismaService } from '../../database/prisma/prisma.service';
+import { FinancialMessageAlertService } from './financial-message-alert.service';
 import { FinancialMessagePilotHealth } from './financial-message-pilot.dto';
 import { FinancialMessagePilotService } from './financial-message-pilot.service';
 import { FinancialMessageRolloutService } from './financial-message-rollout.service';
@@ -21,6 +22,11 @@ describe('FinancialMessagePilotService', () => {
     enabledProviderCodes: ['MTN_MOMO_RW'],
     alertMinimumSampleSize: 2,
     alertNeedsReviewPercent: 30,
+    currentShortcutVersion: 1,
+    minimumShortcutVersion: 1,
+    shortcutInstallUrl: null,
+    cleanupIntervalMinutes: 360,
+    alertWebhookUrl: null,
   };
   const findMany = jest.fn();
   const prisma = {
@@ -29,6 +35,7 @@ describe('FinancialMessagePilotService', () => {
   const service = new FinancialMessagePilotService(
     prisma,
     new FinancialMessageRolloutService(config),
+    { notify: jest.fn() } as unknown as FinancialMessageAlertService,
     config,
   );
 
@@ -42,6 +49,7 @@ describe('FinancialMessagePilotService', () => {
         status: FinancialMessageImportStatus.CONFIRMED,
         parseStatus: FinancialMessageParseStatus.PARSED,
         duplicateStatus: FinancialMessageDuplicateStatus.CLEAR,
+        shortcutVersion: 1,
         createdAt,
       },
       {
@@ -49,6 +57,7 @@ describe('FinancialMessagePilotService', () => {
         status: FinancialMessageImportStatus.PENDING,
         parseStatus: FinancialMessageParseStatus.NEEDS_DETAILS,
         duplicateStatus: FinancialMessageDuplicateStatus.POSSIBLE_DUPLICATE,
+        shortcutVersion: null,
         createdAt,
       },
     ]);
@@ -56,7 +65,9 @@ describe('FinancialMessagePilotService', () => {
     const result = await service.summary('owner-id', 30);
 
     expect(findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: expect.objectContaining({ userId: 'owner-id' }) }),
+      expect.objectContaining({
+        where: expect.objectContaining({ userId: 'owner-id' }),
+      }),
     );
     expect(result).toMatchObject({
       total: 2,
@@ -65,6 +76,7 @@ describe('FinancialMessagePilotService', () => {
       needsReview: 1,
       possibleDuplicates: 1,
       health: FinancialMessagePilotHealth.NEEDS_ATTENTION,
+      legacyShortcutImports: 1,
     });
     expect(result.providers[0]).toMatchObject({
       label: 'MTN MoMo',
