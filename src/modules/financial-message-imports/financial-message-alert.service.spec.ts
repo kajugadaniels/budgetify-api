@@ -46,12 +46,13 @@ describe('FinancialMessageAlertService', () => {
       needsReviewPercent: 12,
     });
 
-    expect(fetchSpy).toHaveBeenCalledWith(
-      'https://alerts.example.com/budgetify',
-      expect.objectContaining({
-        method: 'POST',
-        body: expect.not.stringContaining('message'),
-      }),
-    );
+    const [requestUrl, requestOptions] = fetchSpy.mock.calls[0] as unknown as [
+      string,
+      RequestInit,
+    ];
+    expect(requestUrl).toBe('https://alerts.example.com/budgetify');
+    expect(requestOptions.method).toBe('POST');
+    expect(typeof requestOptions.body).toBe('string');
+    expect(requestOptions.body).not.toContain('message');
   });
 });
