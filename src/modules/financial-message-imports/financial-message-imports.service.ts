@@ -48,6 +48,7 @@ export class FinancialMessageImportsService {
     body: CreateFinancialMessageImportDto,
   ): Promise<FinancialMessageImportResponseDto> {
     this.rollout.assertIngestionEnabled();
+    this.rollout.assertShortcutVersion(body.shortcutVersion);
     const now = new Date();
     const messageReceivedAt = new Date(body.messageReceivedAt);
     this.assertMessageTime(messageReceivedAt, now);
@@ -137,6 +138,7 @@ export class FinancialMessageImportsService {
                 userId: credential.userId,
                 credentialId: credential.id,
                 clientEventId: body.clientEventId,
+                shortcutVersion: body.shortcutVersion,
                 sourceHint: body.sourceHint,
                 providerCode: parsed.providerCode,
                 channel: FinancialMessageChannel.SMS,
