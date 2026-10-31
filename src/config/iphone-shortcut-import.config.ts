@@ -13,7 +13,10 @@ function commaSeparatedValues(value: string | undefined): string[] {
   return (value ?? '')
     .split(',')
     .map((item) => item.trim().toUpperCase())
-    .filter((item, index, values) => item.length > 0 && values.indexOf(item) === index);
+    .filter(
+      (item, index, values) =>
+        item.length > 0 && values.indexOf(item) === index,
+    );
 }
 
 export const iphoneShortcutImportConfig = registerAs(
@@ -37,5 +40,18 @@ export const iphoneShortcutImportConfig = registerAs(
     alertNeedsReviewPercent: Number(
       process.env.IPHONE_SHORTCUT_IMPORT_ALERT_NEEDS_REVIEW_PERCENT ?? 30,
     ),
+    currentShortcutVersion: Number(
+      process.env.IPHONE_SHORTCUT_IMPORT_CURRENT_VERSION ?? 1,
+    ),
+    minimumShortcutVersion: Number(
+      process.env.IPHONE_SHORTCUT_IMPORT_MINIMUM_VERSION ?? 1,
+    ),
+    shortcutInstallUrl:
+      process.env.IPHONE_SHORTCUT_IMPORT_INSTALL_URL?.trim() || null,
+    cleanupIntervalMinutes: Number(
+      process.env.IPHONE_SHORTCUT_IMPORT_CLEANUP_INTERVAL_MINUTES ?? 360,
+    ),
+    alertWebhookUrl:
+      process.env.IPHONE_SHORTCUT_IMPORT_ALERT_WEBHOOK_URL?.trim() || null,
   }),
 );
